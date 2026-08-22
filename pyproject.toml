@@ -30,6 +30,8 @@ dev = [
   "pyinstaller>=6.11,<7",
 ]
 release = [
+  "charset-normalizer>=3,<4",
+  "psutil>=7,<8",
   "PyYAML>=6,<7",
 ]
 
