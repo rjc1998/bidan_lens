@@ -23,6 +23,7 @@ from bidan_lens.ocr.paddle import PaddleDetector, PaddleOcrEngine, PaddleRecogni
 LOCK_NAME = "corpus.lock.json"
 SOURCE_MANIFEST_NAME = "sources.json"
 SCHEMA_VERSION = 2
+PLAIN_SCHEMA_VERSION = 3
 SOURCE_SCHEMA_VERSION = 1
 EXPECTED_COUNTS = {"clean": 500, "subtitles": 300, "complex": 200, "morphology": 300}
 PRIMARY_TARGETS = {"clean": 95.0, "subtitles": 90.0, "complex": 80.0}
@@ -131,7 +132,7 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 def _lock_files(root: Path) -> tuple[str, dict[str, str]]:
     lock = _read_object(root / LOCK_NAME)
-    if lock.get("schema_version") != SCHEMA_VERSION:
+    if lock.get("schema_version") not in {SCHEMA_VERSION, PLAIN_SCHEMA_VERSION}:
         raise CorpusError("unsupported corpus lock schema")
     corpus_id = lock.get("corpus_id")
     files = lock.get("files")
@@ -588,16 +589,37 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a private, licensed, hash-locked corpus")
     parser.add_argument("assets", type=Path)
     parser.add_argument("corpus", type=Path)
+    parser.add_argument("--profile", choices=("legacy", "plain-v1"), default="legacy")
     parser.add_argument("--category", choices=(*EXPECTED_COUNTS, "all"), default="all")
     parser.add_argument(
         "--allow-incomplete",
         action="store_true",
         help="permit development runs while keeping release_eligible false",
     )
-    arguments = parser.parse_args()
-    results = run(
-        arguments.assets, arguments.corpus, arguments.category, arguments.allow_incomplete
+    parser.add_argument("--quick", action="store_true", help="run the locked 200-sample dev subset")
+    parser.add_argument(
+        "--diagnostics",
+        type=Path,
+        help="write local failure sample ids and stages without text or pixels",
     )
+    arguments = parser.parse_args()
+    if arguments.profile == "plain-v1":
+        from benchmarks.plain_evaluator import run_plain
+
+        if arguments.allow_incomplete:
+            parser.error("plain-v1 uses --quick instead of --allow-incomplete")
+        results = run_plain(
+            arguments.assets,
+            arguments.corpus,
+            quick=arguments.quick,
+            diagnostics=arguments.diagnostics,
+        )
+    else:
+        if arguments.quick or arguments.diagnostics:
+            parser.error("--quick and --diagnostics require --profile plain-v1")
+        results = run(
+            arguments.assets, arguments.corpus, arguments.category, arguments.allow_incomplete
+        )
     print(json.dumps(results, ensure_ascii=True, indent=2))
 
 

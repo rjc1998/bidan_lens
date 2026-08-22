@@ -4,10 +4,14 @@
 
 - local source-layout Python application and Windows tray shell;
 - automatic scanning and hold-key activation modes;
-- Paddle-compatible ONNX CPU detector/recognizer and one low-confidence retry;
+- Paddle-compatible ONNX CPU detector/recognizer with CTC-guided eojeol crops, conservative
+  visual-gap refinement, adaptive recognition width, conservative edge-punctuation recovery,
+  structured ASCII sentence context, exact reconstructed word geometry, and one
+  low-confidence retry;
 - immutable OCR lines, glyphs, eojeols and whole-eojeol pointer hit testing;
-- sentence-aware Kiwi adapter with lemma recovery and learner-facing grammar labels;
-- KRDict JSON adapter, versioned SQLite builder and read-only lookup;
+- sentence-aware Kiwi adapter with lemma recovery, learner-facing grammar labels, and a
+  dictionary-backed known-particle fallback when the first analysis has no definition;
+- KRDict JSON adapter, versioned SQLite builder and read-only exact-headword/alias lookup;
 - ranked alternative results with wheel/hotkey navigation and copy actions;
 - verified atomic bundle download/import with an offline path;
 - popup capture exclusion and privacy-preserving pipeline boundaries;
@@ -22,27 +26,45 @@
   distribution, including reviewed fallbacks for wheels that omit their license file;
 - deterministic synthetic baselines at 96.60% clean, 97.00% subtitle, 80.50% complex,
   and 95.33% morphology accuracy;
-- an aggregate-only locked-corpus evaluator that verifies every sample and its license
-  evidence by SHA-256, enforces release sample counts, and measures marked correction
-  false promotions without printing recognized or expected text;
-- an automated, model-independent corpus builder for known-text clean/subtitle rendering,
-  AI Hub COCO-style OCR imports, and held-out CoNLL-U morphology imports;
-- a version-two corpus evidence contract that validates per-sample source/oracle
-  provenance, supporting font/background sources, held-out splits, duplicate prevention,
-  and 95% confidence intervals;
+- a pinned, automated `plain-v1` acquisition workflow for UD Korean GSD/KAIST 2.18,
+  four open Korean font families, local Malgun Gothic evidence, and KRDict;
+- deterministic 2,000-sample development/release corpus rendering split equally across
+  Chromium and offscreen Qt, with exact line/eojeol/target/pointer geometry, a locked
+  200-sample quick subset, and a separate 250-sample 10 px stress tier;
+- an independent v3 oracle for KAIST-derived learner labels and exact KRDict entry/sense
+  order, with source/test-split separation and no production Kiwi participation;
+- an aggregate-only `plain-v1` evaluator covering OCR, pointer selection, sentence spans,
+  morphology, dictionary fidelity, first-popup correctness, alternative recovery, marked
+  corrections, latency, Wilson intervals, and all required render strata;
+- strict v3 locking and validation for every corpus file, source, license, renderer/font
+  record, duplicate identity, forbidden training split, and required balanced stratum;
+- the earlier version-two subtitle/complex evaluator remains compatible as an optional,
+  non-release measurement path;
 - an opt-in runtime latency recorder covering capture start through popup event flush,
   with warm-up exclusion, release sample-count enforcement, and aggregate-only output.
+
+## Local plain-v1 development evidence
+
+Pinned sources were acquired and the complete development and release corpora were built,
+locked, and validated outside Git. The release corpus has not been evaluated or inspected.
+The complete 2,000-sample development run records 96.19% whole-eojeol OCR, 49.75% fully
+correct first popups, 0% false promotions, and 213.65 ms median / 331.67 ms p95 automated
+pipeline latency. It passes the aggregate exceptional OCR floor but misses the primary OCR
+target, the popup floor, and required size/punctuation strata, so release evaluation remains
+blocked. See
+`docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
 ## Required before a public v1 release
 
 - publish the validated asset bundle at an immutable project release location and record
   its checksum outside the bundle;
-- acquire the approved/licensed source datasets outside Git, run the automated builder for
-  the locked clean, subtitle, and independently annotated complex corpus, and record results;
-- generate the locked morphology corpus from held-out published annotations and record its
-  marked-correction false-promotion rate;
-- record at least 500 successful clean-text popup timings and confirm the 500 ms median and
-  1 second p95 latency targets on the release machine class;
+- improve against the locked development corpus until the mandatory floors pass, then
+  record the complete release report against the untouched official test split;
+- meet the aggregate and every size/punctuation exceptional floor, the false-promotion
+  gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
+  exceptional release);
+- run the opt-in foreground benchmark and record 500 successful capture-to-popup timings,
+  confirming the 500 ms median and 1 second p95 targets on the release machine class;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;
 - replace the generated tray glyph with reviewed project artwork if desired;
 

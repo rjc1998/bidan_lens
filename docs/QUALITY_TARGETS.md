@@ -1,73 +1,80 @@
 # Version-one quality gates
 
-The targets are measured on a Windows 10 22H2 x64 computer with a four-core AVX2 CPU and
-8 GB RAM after model warm-up.
+Version one is evaluated on plain websites and ordinary Windows desktop text. Subtitles,
+games, comics, stylized text, and text over images remain useful optional measurements but
+do not determine `plain-v1` release eligibility.
 
-The primary targets are the normal optimization goals and release expectation. Exceptional
-release floors are not alternative targets, and reaching one does not justify ending
-optimization while credible, materially different approaches remain.
+The release machine is Windows 10 22H2 x64 with a four-core AVX2 CPU and 8 GB RAM after
+model warm-up. Primary targets are the expected release bar. Exceptional floors are a
+fallback only after documented, materially different optimization attempts have reached a
+credible plateau and the project owner explicitly approves the exception.
 
-| Corpus | Primary OCR target | Exceptional release floor |
+| Metric | Primary target | Exceptional floor |
 | --- | ---: | ---: |
-| Clean websites and standard fonts | at least 95% whole-eojeol accuracy | 90% |
-| Subtitles and common image backgrounds | at least 90% | 85% |
-| Games, comics, stylized or complex backgrounds | 80-85% | 70-75% |
+| Whole-eojeol OCR | at least 97% | 95% |
+| Fully correct first popup | at least 92% | 88% |
 
-Morphology acceptance uses a locked 300-item learner corpus. At least 90% of correctly
-recognized forms should put the correct lemma and primary breakdown first; its exceptional
-release floor is 85%. Marked automatic corrections must have a false-promotion rate below
-0.5%.
+Every required font-size and punctuation stratum must independently meet the corresponding
+exceptional floor. Marked automatic corrections must have a false-promotion rate below
+0.5%. Warm end-to-end latency must be at most 500 ms median and 1 second at p95.
 
-Warm pointer-to-popup latency should be at most 500 ms median and 1 second at p95 for the
-prioritized clean corpus. The benchmark set is 500 clean desktop samples, 300 subtitle
-samples, 200 complex-background samples, and 300 morphology cases. Corpus images must be
-licensed or synthetic and contain no private user captures.
+## Plain-v1 corpus contract
 
-## Automated evidence contract
+The deterministic development and locked release corpora each contain 2,000 samples. The
+development corpus uses only official UD `dev` splits; the release corpus uses only official
+UD `test` splits. A separate 250-sample 10 px stress tier is reported but can neither pass
+nor fail a release. A deterministic 200-sample development subset supports quick iteration.
+Downloaded sources, fonts, KRDict data, and rendered corpora stay outside Git.
 
-The release corpus may be constructed automatically when its expected answers are
-independent of the production pipeline:
+Required release sizes are 12, 14, 16, 18, 20, 24, 32, and 40 px, with 250 samples at each
+size. The corpus balances browser and desktop renderers, five Korean font families, normal
+and bold weights, light and dark themes, single- and multi-line layouts, four display scales,
+and eight punctuation classes. Punctuation remains in sentence context but outside the
+hoverable Korean eojeol.
 
-- clean and subtitle fixtures may render held-out, licensed Korean text with boxes known
-  from construction;
-- complex samples may import published test or validation annotations;
-- morphology cases may derive lemmas and technical morpheme annotations from held-out
-  published corpora, then apply an evaluator-owned learner-label mapping that does not call
-  production Kiwi code.
+Each version-three sample stores exact line, eojeol, target-span, pointer, and bounding-box
+geometry from DOM or Qt layout. It also stores an expected first lemma, evaluator-owned
+learner labels from published KAIST annotations, and English-bearing KRDict entries parsed
+independently during construction. Production OCR, Kiwi output, and dictionary lookup never
+choose or prune release samples.
 
-Every sample must name its source identity, source sample identity, held-out split, and
-annotation oracle. Font and background sources are supporting provenance. The version-two
-corpus lock rejects missing or changed license evidence, unknown sources, unapproved
-oracles, training splits, and duplicate source samples. Sampling and eligibility rules are
-fixed before running BiDan Lens; failures and analyzer-disagreement cases cannot be removed
-because of model output.
+The source lock pins immutable URLs, versions, SHA-256 hashes, byte sizes, and license
+locations for UD Korean GSD/KAIST 2.18, open Korean fonts, and KRDict. The installed Malgun
+Gothic file is hashed locally and is never redistributed. A corpus lock then hashes every
+source record, license, renderer record, image, annotation, and quick-subset manifest. The
+validator rejects tampering, missing evidence, unsafe paths, training splits, unknown
+oracles, duplicate source identities, and development/release overlap.
 
-Reports include 95% Wilson confidence intervals and oracle counts in addition to point
-accuracy. Primary and exceptional thresholds continue to use the point estimate; the
-interval describes statistical uncertainty and must be published with the result. Known
-rendering is strong evidence for deterministic desktop regressions but is not described as
-universal real-world accuracy. At least the complex category remains independently
-annotated real imagery.
+## Measurements and reports
 
-The automated morphology gate measures lemma and supported learner labels. It separately
-reports whether the correct lemma has a definition anywhere among the navigable candidates.
-It does not certify that the first dictionary sense is contextually best or that explanation
-wording is pedagogically ideal. Version one preserves dictionary order, exposes plausible
-alternatives, and makes no measured claim about those two subjective outcomes until an
-expert or learner review exists.
+The `plain-v1` evaluator measures:
+
+- whole-eojeol OCR accuracy and missing-eojeol rate;
+- pointer target selection and containing-sentence span accuracy;
+- first-result lemma and learner-label accuracy from ground-truth OCR input;
+- exact first-result KRDict entry, definition, and sense-order fidelity;
+- fully correct first popup, alternative-candidate recovery, and false promotions;
+- warm median and p95 pipeline latency.
+
+It reports aggregate values and 95% Wilson intervals, plus strata by size, font, renderer,
+scale, punctuation, weight, theme, and layout. Release output contains no sample text or
+pixels. Optional development diagnostics contain only stable sample IDs, failed stages, and
+render strata.
+
+Exact KRDict fidelity certifies faithful local dictionary presentation. It does not certify
+contextual best-sense ranking or pedagogical quality. Synthetic browser and desktop fixtures
+provide strong evidence for ordinary text, not arbitrary image backgrounds.
+
+An opt-in foreground Windows run displays 505 locked fixtures, discards five warmups, and
+collects 500 real capture-to-popup timings. It moves the pointer and uses the primary display,
+so it requires explicit confirmation. Its report is aggregate-only and never persists live
+screenshots or recognized text.
 
 ## Exceptional release process
 
-Releasing below a primary accuracy target is an exception, not the normal path. Consider
-an exception only after repeated, materially different, measurement-driven optimization
-attempts on the locked corpora demonstrate a genuine plateau and diminishing returns.
-
-Before approval, prepare an exception report that records the baseline, every material
-approach attempted, comparable results by category, regressions or tradeoffs, known
-blockers, remaining risks, and plausible next work. The project owner must explicitly
-approve an exception for each category that misses its primary target.
-
-Every exceptional release floor must still be met; a result below any floor blocks release.
-Latency, privacy, packaging, and failure-handling gates remain unconditional. Release notes
-must publish the measured results, identify every missed primary target, and disclose the
-approved exception rationale and remaining limitations.
+Before approving an exception, record the baseline, material approaches attempted,
+comparable per-stratum results, regressions, blockers, and remaining work. Every aggregate,
+required-size, and punctuation exceptional floor must still pass. Privacy, latency,
+packaging, provenance, failure handling, and clean-machine gates remain unconditional.
+Release notes must publish the measured aggregate results and clearly identify any approved
+missed primary target.

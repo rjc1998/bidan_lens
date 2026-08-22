@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "dataset_version": "ud-2.18",
+  "artifacts": [
+    {
+      "id": "ud-korean-gsd-dev",
+      "kind": "conllu",
+      "split": "dev",
+      "filename": "ud/ko_gsd-ud-dev.conllu",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-GSD/02c343e4e1e3180069f637e68a791ec6b96dd33a/ko_gsd-ud-dev.conllu",
+      "sha256": "8f7c4e24bbf6db2b0df8007068eb2d56d5ad8a5539360589d0f15a8c17034566",
+      "size": 1358435,
+      "license_id": "CC-BY-SA-4.0",
+      "license_artifact": "ud-korean-gsd-license"
+    },
+    {
+      "id": "ud-korean-gsd-test",
+      "kind": "conllu",
+      "split": "test",
+      "filename": "ud/ko_gsd-ud-test.conllu",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-GSD/02c343e4e1e3180069f637e68a791ec6b96dd33a/ko_gsd-ud-test.conllu",
+      "sha256": "3d1df99bda4800235e14bcfd915baf706eafa1a3935a75ffd32420a51e57f5aa",
+      "size": 1324771,
+      "license_id": "CC-BY-SA-4.0",
+      "license_artifact": "ud-korean-gsd-license"
+    },
+    {
+      "id": "ud-korean-gsd-license",
+      "kind": "license",
+      "filename": "licenses/UD-Korean-GSD-CC-BY-SA-4.0.txt",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-GSD/02c343e4e1e3180069f637e68a791ec6b96dd33a/LICENSE.txt",
+      "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+      "size": 202,
+      "license_id": "CC-BY-SA-4.0"
+    },
+    {
+      "id": "ud-korean-kaist-dev",
+      "kind": "conllu",
+      "split": "dev",
+      "filename": "ud/ko_kaist-ud-dev.conllu",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-Kaist/4797c05ab58a49dc1e413ce2d0b46f9e4aa00a54/ko_kaist-ud-dev.conllu",
+      "sha256": "a1ce2dceee65683c2df3b0cce96c83d01e5ff67756060b998fe01d8bc8ca4faa",
+      "size": 3010966,
+      "license_id": "CC-BY-SA-4.0",
+      "license_artifact": "ud-korean-kaist-license"
+    },
+    {
+      "id": "ud-korean-kaist-test",
+      "kind": "conllu",
+      "split": "test",
+      "filename": "ud/ko_kaist-ud-test.conllu",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-Kaist/4797c05ab58a49dc1e413ce2d0b46f9e4aa00a54/ko_kaist-ud-test.conllu",
+      "sha256": "fd94dc89afb01d1f7f340a46d567e0f27ae6903a70d7b6f650b49f7427f83b97",
+      "size": 3324246,
+      "license_id": "CC-BY-SA-4.0",
+      "license_artifact": "ud-korean-kaist-license"
+    },
+    {
+      "id": "ud-korean-kaist-license",
+      "kind": "license",
+      "filename": "licenses/UD-Korean-Kaist-CC-BY-SA-4.0.txt",
+      "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Korean-Kaist/4797c05ab58a49dc1e413ce2d0b46f9e4aa00a54/LICENSE.txt",
+      "sha256": "899b1804a12ebc090b96339614eede1b64b686721b650a71430b55b5235f7f79",
+      "size": 202,
+      "license_id": "CC-BY-SA-4.0"
+    },
+    {
+      "id": "noto-sans-kr",
+      "kind": "font",
+      "filename": "fonts/NotoSansKR-wght.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+      "sha256": "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+      "size": 10414588,
+      "license_id": "OFL-1.1",
+      "license_artifact": "noto-sans-kr-license"
+    },
+    {
+      "id": "noto-sans-kr-license",
+      "kind": "license",
+      "filename": "licenses/NotoSansKR-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/notosanskr/OFL.txt",
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+      "size": 4388,
+      "license_id": "OFL-1.1"
+    },
+    {
+      "id": "noto-serif-kr",
+      "kind": "font",
+      "filename": "fonts/NotoSerifKR-wght.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/notoserifkr/NotoSerifKR%5Bwght%5D.ttf",
+      "sha256": "11f8d5de6f1b79195efba3828aaa2ec95c1178f5ae976fb23c8d53250a9938f3",
+      "size": 23795420,
+      "license_id": "OFL-1.1",
+      "license_artifact": "noto-serif-kr-license"
+    },
+    {
+      "id": "noto-serif-kr-license",
+      "kind": "license",
+      "filename": "licenses/NotoSerifKR-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/notoserifkr/OFL.txt",
+      "sha256": "5e0da210fb04058a8c0087985d2d456b931c2579811a49655721d3cf0c36b6d6",
+      "size": 4350,
+      "license_id": "OFL-1.1"
+    },
+    {
+      "id": "nanum-gothic-regular",
+      "kind": "font",
+      "weight": 400,
+      "filename": "fonts/NanumGothic-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanumgothic/NanumGothic-Regular.ttf",
+      "sha256": "76f45ef4a6bcff344c837c95a7dcc26e017e38b5846d5ae0cdcb5b86be2e2d31",
+      "size": 2054744,
+      "license_id": "OFL-1.1",
+      "license_artifact": "nanum-gothic-license"
+    },
+    {
+      "id": "nanum-gothic-bold",
+      "kind": "font",
+      "weight": 700,
+      "filename": "fonts/NanumGothic-Bold.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanumgothic/NanumGothic-Bold.ttf",
+      "sha256": "f96298f9fb18e364d2370f4c3ce948ac67a2b61af992d7234bc15c42b033c674",
+      "size": 2073868,
+      "license_id": "OFL-1.1",
+      "license_artifact": "nanum-gothic-license"
+    },
+    {
+      "id": "nanum-gothic-license",
+      "kind": "license",
+      "filename": "licenses/NanumGothic-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanumgothic/OFL.txt",
+      "sha256": "eeacf16032901d0ed0456876ec77b8f0fda6b3fecec7d972f8543eb602e6c30f",
+      "size": 4534,
+      "license_id": "OFL-1.1"
+    },
+    {
+      "id": "nanum-myeongjo-regular",
+      "kind": "font",
+      "weight": 400,
+      "filename": "fonts/NanumMyeongjo-Regular.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanummyeongjo/NanumMyeongjo-Regular.ttf",
+      "sha256": "7ed9e8653a8ed04285d51dc343ffea6eb3d9c73afc27383ea8929ee4ffd03205",
+      "size": 3058408,
+      "license_id": "OFL-1.1",
+      "license_artifact": "nanum-myeongjo-license"
+    },
+    {
+      "id": "nanum-myeongjo-bold",
+      "kind": "font",
+      "weight": 700,
+      "filename": "fonts/NanumMyeongjo-Bold.ttf",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanummyeongjo/NanumMyeongjo-Bold.ttf",
+      "sha256": "bc9ed8e60d93fe6db054b8fb988481b625f2eef8cb2317ad0e9834681b8fe3f3",
+      "size": 3074720,
+      "license_id": "OFL-1.1",
+      "license_artifact": "nanum-myeongjo-license"
+    },
+    {
+      "id": "nanum-myeongjo-license",
+      "kind": "license",
+      "filename": "licenses/NanumMyeongjo-OFL.txt",
+      "url": "https://raw.githubusercontent.com/google/fonts/ec626514f79f831f1ab848a82114a0ce7e2d6372/ofl/nanummyeongjo/OFL.txt",
+      "sha256": "8eb1c1019fe7fe6d0b6e7d7bbbba1d9cbdd969d8c5f26455708f6cfb8a77284c",
+      "size": 4497,
+      "license_id": "OFL-1.1"
+    },
+    {
+      "id": "krdict-english-json",
+      "kind": "dictionary",
+      "filename": "dictionary/krdict-2026-08-json.zip",
+      "url": "https://krdict.korean.go.kr/dicBatchDownload?seq=214",
+      "sha256": "7cf41e62a2a36158a8be2b6d2f84c086221e9b29d4345c44e5497eebf21c8c40",
+      "size": 84455509,
+      "license_id": "CC-BY-SA-2.0-KR",
+      "license_artifact": "krdict-license"
+    },
+    {
+      "id": "krdict-license",
+      "kind": "license",
+      "filename": "licenses/KRDict-CC-BY-SA-2.0-KR.html",
+      "url": "https://creativecommons.org/licenses/by-sa/2.0/kr/legalcode.ko",
+      "sha256": "a25c6f7217bf8a825ff4e9b281112b17210763536577e45e2a87b53ec7986c06",
+      "size": 38399,
+      "license_id": "CC-BY-SA-2.0-KR"
+    }
+  ]
+}

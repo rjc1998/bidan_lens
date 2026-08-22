@@ -37,9 +37,43 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
+## Plain-v1 development evidence
+
+Pinned acquisition completed outside Git, and complete development and release corpora
+were independently built, locked, and validated. The release corpus uses only official
+test splits and remains unevaluated. The development report uses all 2,000 primary samples;
+the 250-sample 10 px stress tier remains nonblocking.
+
+| Development metric | Result |
+| --- | ---: |
+| Whole-eojeol OCR | 96.19% (95% CI 95.94-96.43%) |
+| Missing eojeols | 1.78% |
+| Target selection | 92.80% |
+| Exact containing-sentence span | 60.95% |
+| Ground-truth-input lemma/breakdown first | 85.85% |
+| Exact KRDict fidelity first | 85.25% |
+| Fully correct first popup | 49.75% (95% CI 47.56-51.94%) |
+| Alternative-candidate recovery | 83.95% |
+| False promotions | 0% |
+| Automated pipeline latency | 213.65 ms median / 331.67 ms p95 |
+| Nonblocking 10 px OCR | 94.52% |
+
+The primary corpus passes the aggregate 95% exceptional OCR floor but remains below the 97%
+primary target. Required 32 and 40 px strata and the quotes and mixed punctuation strata miss
+the 95% OCR floor. Exact sentence reconstruction and first-choice morphology/dictionary
+ordering keep the full-popup result far below its 88% floor. The automated latency and
+false-promotion gates pass, but neither can make this development candidate release eligible.
+
+The aggregate report SHA-256 is
+`7b06c6030319897dea5a3a3f698ac1e0b12cdfd6929ce72af7486ac685f0dc4f`.
+The stable-ID-only diagnostic report SHA-256 is
+`1136312eec4d6af81210770e2538af305a697ea02800ecb4b5e8c95a5e2185c1`.
+
 ## What this does not close
 
-Synthetic results do not replace the required licensed real website/subtitle/game corpus.
+These exploratory synthetic results do not replace the locked `plain-v1` browser/desktop
+corpus. Subtitle and complex-image figures are optional future metrics, not version-one
+release gates.
 The timings also exclude screen capture, queueing, pointer hit testing, popup rendering, and
 cold model startup, so they do not by themselves close the pointer-to-popup latency gate.
 Clean Windows 10 VM, mixed-DPI multi-monitor, packaged-build, false-correction, and complete

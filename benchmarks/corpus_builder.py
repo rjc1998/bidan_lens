@@ -731,6 +731,41 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build an automated BiDan Lens corpus")
     commands = parser.add_subparsers(dest="command", required=True)
 
+    acquire_plain_parser = commands.add_parser(
+        "acquire-plain", help="download and verify pinned plain-v1 sources"
+    )
+    acquire_plain_parser.add_argument("destination", type=Path)
+    acquire_plain_parser.add_argument(
+        "--source-lock", type=Path, default=Path(__file__).with_name("plain_sources.lock.json")
+    )
+    acquire_plain_parser.add_argument(
+        "--malgun", type=Path, default=Path("C:/Windows/Fonts/malgun.ttf")
+    )
+    acquire_plain_parser.add_argument("--local-krdict", type=Path)
+
+    build_plain_parser = commands.add_parser(
+        "build-plain", help="render the deterministic v3 plain-v1 corpus"
+    )
+    build_plain_parser.add_argument("acquired", type=Path)
+    build_plain_parser.add_argument("corpus", type=Path)
+    build_plain_parser.add_argument("--profile", choices=("dev", "release"), required=True)
+    build_plain_parser.add_argument("--seed", type=int, default=20260822)
+    build_plain_parser.add_argument("--count", type=int, default=2000)
+    build_plain_parser.add_argument("--stress-count", type=int, default=250)
+
+    lock_plain_parser = commands.add_parser(
+        "lock-plain", help="hash-lock and validate a v3 plain-v1 corpus"
+    )
+    lock_plain_parser.add_argument("corpus", type=Path)
+    lock_plain_parser.add_argument("--corpus-id", required=True)
+    lock_plain_parser.add_argument("--allow-incomplete", action="store_true")
+
+    validate_plain_parser = commands.add_parser(
+        "validate-plain", help="verify a v3 plain-v1 corpus lock"
+    )
+    validate_plain_parser.add_argument("corpus", type=Path)
+    validate_plain_parser.add_argument("--allow-incomplete", action="store_true")
+
     render = commands.add_parser("render-ocr", help="render known Korean text with exact boxes")
     render.add_argument("source", type=Path)
     render.add_argument("corpus", type=Path)
@@ -775,7 +810,41 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     arguments = _build_parser().parse_args()
-    if arguments.command == "render-ocr":
+    if arguments.command == "acquire-plain":
+        from benchmarks.plain_corpus import acquire_plain
+
+        result = acquire_plain(
+            arguments.destination,
+            source_lock=arguments.source_lock,
+            malgun=arguments.malgun,
+            local_krdict=arguments.local_krdict,
+        )
+    elif arguments.command == "build-plain":
+        from benchmarks.plain_corpus import build_plain
+
+        result = build_plain(
+            arguments.acquired,
+            arguments.corpus,
+            arguments.profile,
+            seed=arguments.seed,
+            count=arguments.count,
+            stress_count=arguments.stress_count,
+        )
+    elif arguments.command == "lock-plain":
+        from benchmarks.plain_evaluator import lock_plain_corpus
+
+        result = lock_plain_corpus(
+            arguments.corpus,
+            arguments.corpus_id,
+            allow_incomplete=arguments.allow_incomplete,
+        )
+    elif arguments.command == "validate-plain":
+        from benchmarks.plain_evaluator import validate_plain_corpus
+
+        result = validate_plain_corpus(
+            arguments.corpus, allow_incomplete=arguments.allow_incomplete
+        )
+    elif arguments.command == "render-ocr":
         result = render_ocr(
             arguments.source,
             arguments.corpus,

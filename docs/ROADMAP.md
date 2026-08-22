@@ -3,8 +3,9 @@
 ## Version one
 
 BiDan Lens targets beginner and intermediate Korean learners on Windows. Reliable
-websites, forums, news, blogs, social media, standard fonts, and subtitles come first.
-Games, comics, and difficult text-on-image backgrounds are measured but secondary.
+websites, forums, news, blogs, social media, and ordinary desktop text in standard fonts
+are the mandatory version-one visual domain. Subtitles, games, comics, stylized text, and
+difficult text-on-image backgrounds are deferred, optional measurements.
 
 Every applicable popup provides the recognized complete eojeol, dictionary form,
 English definitions, and a beginner-readable breakdown of particles, tense, honorifics,

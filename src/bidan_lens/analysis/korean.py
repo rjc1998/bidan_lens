@@ -4,7 +4,11 @@ import unicodedata
 from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
-from bidan_lens.analysis.grammar import explain_morpheme, learner_features
+from bidan_lens.analysis.grammar import (
+    explain_morpheme,
+    known_particle_suffixes,
+    learner_features,
+)
 from bidan_lens.dictionary.store import DictionaryStore
 from bidan_lens.models import AnalysisCandidate
 
@@ -64,6 +68,10 @@ class KoreanAnalyzer:
         start, end = target_span
         surface = sentence[start:end]
         candidates = self._analyze_candidates(sentence, target_span, max_candidates)
+        particle = self._particle_candidate(surface, candidates)
+        if particle is not None:
+            remaining = (candidate for candidate in candidates if candidate is not particle)
+            candidates = (particle, *remaining)[:max_candidates]
         if any(candidate.dictionary_entries for candidate in candidates):
             return candidates
         correction = self.conservative_correction(surface)
@@ -86,6 +94,40 @@ class KoreanAnalyzer:
         )
         # Original analyses stay first until a correction corpus calibrates safe promotion.
         return tuple((*candidates, *marked))[:max_candidates]
+
+    def _particle_candidate(
+        self, surface: str, candidates: tuple[AnalysisCandidate, ...]
+    ) -> AnalysisCandidate | None:
+        if candidates and candidates[0].dictionary_entries:
+            return None
+        for suffix in known_particle_suffixes():
+            if not surface.endswith(suffix) or len(surface) <= len(suffix):
+                continue
+            lemma = surface[: -len(suffix)]
+            entries = self.dictionary.lookup(lemma, 'noun', 10)
+            if not entries:
+                entries = self.dictionary.lookup(lemma, None, 10)
+            if not entries:
+                continue
+            for candidate in candidates:
+                labels = {feature.label for feature in candidate.features}
+                labels.update(item.learner_label for item in candidate.morphemes)
+                if candidate.lemma == lemma and 'particle' in labels:
+                    return candidate
+            score = candidates[0].score + 0.01 if candidates else 0.4
+            return AnalysisCandidate(
+                surface=surface,
+                lemma=lemma,
+                score=score,
+                morphemes=(
+                    explain_morpheme(lemma, lemma, 'NNG'),
+                    explain_morpheme(suffix, suffix, 'JX'),
+                ),
+                features=learner_features([(suffix, 'JX')]),
+                dictionary_entries=entries,
+                uncertain=bool(candidates),
+            )
+        return None
 
     def _analyze_candidates(
         self,

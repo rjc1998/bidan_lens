@@ -9,6 +9,19 @@ def test_hangul_ranges_include_syllables_and_jamo() -> None:
     assert not contains_hangul("English 123")
 
 
+def test_make_line_excludes_all_unicode_edge_punctuation() -> None:
+    line = make_line(
+        '/\uc5b4\ub514\uc5d0\uc11c/ \u2014\uba39\uc5b4\uc694\u2014',
+        BoundingBox(0, 0, 140, 20),
+        0.91,
+    )
+
+    assert [word.text for word in line.eojeols] == [
+        '\uc5b4\ub514\uc5d0\uc11c',
+        '\uba39\uc5b4\uc694',
+    ]
+
+
 def test_make_line_keeps_eojeol_together_and_excludes_punctuation() -> None:
     line = make_line("어디에서, 먹고 싶어요?", BoundingBox(0, 0, 210, 20), 0.91)
     assert [word.text for word in line.eojeols] == ["어디에서", "먹고", "싶어요"]

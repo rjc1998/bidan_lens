@@ -17,6 +17,16 @@ _TOKEN_RE = re.compile(r"\S+")
 _EDGE_PUNCTUATION = " \t\r\n.,!?;:…·‘’“”\"'()[]{}<>《》〈〉「」『』【】"
 
 
+def _trim_edges(value: str) -> tuple[str, int, int]:
+    start = 0
+    end = len(value)
+    while start < end and unicodedata.category(value[start])[0] in {'P', 'Z'}:
+        start += 1
+    while end > start and unicodedata.category(value[end - 1])[0] in {'P', 'Z'}:
+        end -= 1
+    return value[start:end], start, end
+
+
 def is_hangul(character: str) -> bool:
     if not character:
         return False
@@ -77,12 +87,11 @@ def make_line(
     for match in _TOKEN_RE.finditer(text):
         raw_start, raw_end = match.span()
         raw = match.group()
-        stripped = raw.strip(_EDGE_PUNCTUATION)
+        stripped, left_trim, right_trim = _trim_edges(raw)
         if not stripped or not contains_hangul(stripped):
             continue
-        left_trim = len(raw) - len(raw.lstrip(_EDGE_PUNCTUATION))
         start = raw_start + left_trim
-        end = start + len(stripped)
+        end = raw_start + right_trim
         token_glyphs = glyphs[start:end]
         token_box = BoundingBox.union([glyph.box for glyph in token_glyphs])
         token_confidence = min((glyph.confidence for glyph in token_glyphs), default=confidence)

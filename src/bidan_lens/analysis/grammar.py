@@ -47,6 +47,10 @@ _TAG_LABELS = {
 }
 
 
+def known_particle_suffixes() -> tuple[str, ...]:
+    return tuple(sorted(_PARTICLE_EXPLANATIONS, key=len, reverse=True))
+
+
 def explain_morpheme(form: str, lemma: str, tag: str) -> MorphemeExplanation:
     base_tag = tag.split("-", 1)[0]
     if tag.startswith("J"):

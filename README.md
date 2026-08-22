@@ -49,11 +49,13 @@ latency. It never contains screenshots, recognized text, definitions, or individ
 timings. A release result needs at least 500 successful clean-text popups; partial reports
 remain useful during development but are marked incomplete.
 
-Release evaluation corpora can be constructed without transcribing individual samples.
-The developer-only builder renders known text with exact boxes, imports published OCR
-annotations, derives held-out morphology expectations independently of production Kiwi,
-and creates a provenance-validated SHA-256 lock. Restricted datasets remain outside Git.
-See [benchmarks/README.md](benchmarks/README.md) for the source manifest and commands.
+The version-one release gate can be constructed without transcribing individual samples.
+The developer-only workflow acquires pinned UD, font, and KRDict sources; renders 2,000
+plain-text browser/desktop fixtures with exact geometry; derives held-out morphology and
+dictionary expectations independently of production code; and creates a complete SHA-256
+lock. All downloaded and generated data remains outside Git. See
+[benchmarks/README.md](benchmarks/README.md) for setup, build, evaluation, and foreground
+Windows benchmark commands.
 
 The adjacent `meikipop/` directory is a local reference checkout and is explicitly
 excluded from this repository.
