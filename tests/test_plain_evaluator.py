@@ -11,6 +11,7 @@ from benchmarks.plain_corpus import PLAIN_ORACLE
 from benchmarks.plain_evaluator import (
     LanguageSample,
     _functional_context,
+    _role_dictionary_positions,
     evaluate_language,
     evaluate_plain,
     load_plain_samples,
@@ -368,6 +369,14 @@ def test_language_dictionary_conformance_detects_direct_store_mismatch(
     assert result['direct_krdict_conformance_pct'] == 0.0
     assert result['direct_krdict_conformance']['mismatching_groups'] == 1
     assert result['direct_krdict_conformance']['mismatch_reasons'] == {'senses': 1}
+
+
+@pytest.mark.parametrize(
+    'role',
+    ('noun', 'name or proper noun', 'pronoun', 'number', 'dependent noun'),
+)
+def test_learner_noun_roles_share_krdict_noun_group(role: str) -> None:
+    assert _role_dictionary_positions(role) == ('noun',)
 
 
 def test_plain_pipeline_counts_alternative_candidate_recovery(tmp_path: Path) -> None:

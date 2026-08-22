@@ -761,7 +761,13 @@ def _role_dictionary_positions(learner_role: str) -> tuple[str, ...]:
         return ('adjective',)
     if learner_role == 'action verb':
         return ('verb',)
-    if learner_role == 'noun':
+    if learner_role in {
+        'noun',
+        'name or proper noun',
+        'pronoun',
+        'number',
+        'dependent noun',
+    }:
         return ('noun',)
     return ()
 
