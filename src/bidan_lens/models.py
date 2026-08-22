@@ -131,6 +131,15 @@ class MorphemeExplanation:
 
 
 @dataclass(frozen=True, slots=True)
+class LexicalComponent:
+    surface: str
+    lemma: str
+    learner_role: str
+    dictionary_entries: tuple[DictionaryEntry, ...] = ()
+    contextual_explanation: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class AnalysisCandidate:
     surface: str
     lemma: str
@@ -138,6 +147,7 @@ class AnalysisCandidate:
     morphemes: tuple[MorphemeExplanation, ...] = ()
     features: tuple[LearnerFeature, ...] = ()
     dictionary_entries: tuple[DictionaryEntry, ...] = ()
+    lexical_components: tuple[LexicalComponent, ...] = ()
     interpreted_surface: str | None = None
     uncertain: bool = False
 

@@ -105,10 +105,10 @@ def test_multi_eojeol_construction_remains_two_targets_with_shared_context() -> 
     assert second.surface == "싶어요" and second.lemma == "싶다"
 
 
-def test_correction_is_marked_and_whitespace_only() -> None:
+def test_only_provenance_backed_spacing_is_marked() -> None:
     analyzer = KoreanAnalyzer(FakeDictionary(), FakeKiwi([]))
-    assert analyzer.conservative_correction("먹고싶어요") == "먹고 싶어요"
-    assert analyzer.conservative_correction("먹고 싶어요") is None
+    assert analyzer.conservative_correction('갔다오다') == '갔다 오다'
+    assert analyzer.conservative_correction('먹고싶어요') is None
 
 
 class PosFallbackDictionary(DictionaryStore):

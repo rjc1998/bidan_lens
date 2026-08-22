@@ -7,6 +7,79 @@ from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayou
 from bidan_lens.models import PopupResult
 from bidan_lens.windows import exclude_window_from_capture
 
+_POS_LABELS = {
+    'verb': 'action verb',
+    'adjective': 'descriptive verb',
+    'noun': 'noun',
+    '보조 동사': 'helping verb',
+    '보조 형용사': 'helping descriptive verb',
+}
+_LEXICAL_ROLES = {
+    'action verb',
+    'descriptive verb',
+    'helping verb',
+    'noun',
+    'name or proper noun',
+    'dependent noun',
+    'pronoun',
+    'number',
+}
+
+
+def _definitions_text(candidate) -> str:  # type: ignore[no-untyped-def]
+    component = candidate.lexical_components[0] if candidate.lexical_components else None
+    role = component.learner_role if component else 'dictionary entry'
+    explanation = component.contextual_explanation if component else None
+    lines = [f'Role in this sentence: {role}']
+    if explanation:
+        lines[0] += f' — {explanation}'
+    entries = candidate.dictionary_entries
+    if not entries:
+        lines.append('No English definition found')
+        return '\n'.join(lines)
+    leading_pos = entries[0].part_of_speech
+    shown = 0
+    for entry in entries:
+        group = 'Matching dictionary entry' if entry.part_of_speech == leading_pos else 'Other use'
+        label = _POS_LABELS.get(entry.part_of_speech or '', entry.part_of_speech or 'entry')
+        homograph = f' {entry.homograph_number}' if entry.homograph_number else ''
+        lines.append(f'{group} — {label}{homograph}')
+        for sense in entry.senses:
+            if shown == 5:
+                return '\n'.join(lines)
+            shown += 1
+            lines.append(f'{shown}. {sense.definition}')
+    return '\n'.join(lines)
+
+
+def _breakdown_text(candidate) -> str:  # type: ignore[no-untyped-def]
+    lines: list[str] = []
+    if candidate.lexical_components:
+        lines.append('Components')
+    for component in candidate.lexical_components:
+        gloss = next(
+            (
+                sense.definition
+                for entry in component.dictionary_entries
+                for sense in entry.senses
+            ),
+            None,
+        )
+        value = f'{component.surface} → {component.lemma}: {component.learner_role}'
+        lines.append(f'{value} — {gloss}' if gloss else value)
+    grammar = [
+        part
+        for part in candidate.morphemes
+        if part.learner_label not in _LEXICAL_ROLES
+    ]
+    if grammar or candidate.features:
+        lines.append('Grammar')
+    lines.extend(f'{part.surface}: {part.learner_label}' for part in grammar)
+    lines.extend(
+        f'{feature.label}: {feature.explanation}' for feature in candidate.features
+    )
+    return '\n'.join(lines)
+
 
 class DictionaryPopup(QFrame):
     def __init__(self) -> None:
@@ -103,6 +176,8 @@ class DictionaryPopup(QFrame):
             if candidate.interpreted_surface and candidate.interpreted_surface != candidate.surface
             else ""
         )
+        if candidate.interpreted_surface and candidate.interpreted_surface != candidate.surface:
+            self.correction.setText(f'Spacing: {candidate.interpreted_surface}')
         self.lemma.setText(f"Dictionary form: {candidate.lemma}")
         definitions = [
             sense.definition for entry in candidate.dictionary_entries for sense in entry.senses
@@ -116,7 +191,10 @@ class DictionaryPopup(QFrame):
         parts = [f"{part.surface}: {part.learner_label}" for part in candidate.morphemes]
         parts.extend(f"{feature.label}: {feature.explanation}" for feature in candidate.features)
         self.breakdown.setText("\n".join(parts))
+        self.definitions.setText(_definitions_text(candidate))
+        self.breakdown.setText(_breakdown_text(candidate))
         uncertainty = " · uncertain" if candidate.uncertain else ""
+        uncertainty = ' · uncertain' if candidate.uncertain else ''
         self.position.setText(
             f"{self._result.selected_index + 1}/{len(self._result.candidates)}{uncertainty}"
         )

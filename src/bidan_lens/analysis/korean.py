@@ -9,8 +9,9 @@ from bidan_lens.analysis.grammar import (
     known_particle_suffixes,
     learner_features,
 )
+from bidan_lens.analysis.verified_spacing import VERIFIED_SPACING
 from bidan_lens.dictionary.store import DictionaryStore
-from bidan_lens.models import AnalysisCandidate
+from bidan_lens.models import AnalysisCandidate, DictionaryEntry, LexicalComponent
 
 
 class KiwiLike(Protocol):
@@ -28,6 +29,12 @@ class _Token:
 
 
 _VERB_TAGS = {"VV", "VA", "VX", "XSV", "XSA"}
+
+
+_LEXICAL_TAGS = _VERB_TAGS | {'NNG', 'NNP', 'NNB', 'NP', 'NR'}
+_AUXILIARY_EXPLANATIONS = {
+    '버리다': 'indicates completion of the preceding action',
+}
 
 
 def _base_tag(tag: str) -> str:
@@ -72,28 +79,16 @@ class KoreanAnalyzer:
         if particle is not None:
             remaining = (candidate for candidate in candidates if candidate is not particle)
             candidates = (particle, *remaining)[:max_candidates]
-        if any(candidate.dictionary_entries for candidate in candidates):
-            return candidates
         correction = self.conservative_correction(surface)
         if not correction:
             return candidates
-        corrected_sentence = sentence[:start] + correction + sentence[end:]
-        corrected = self._analyze_candidates(
-            corrected_sentence, (start, start + len(correction)), max_candidates
-        )
-        marked = tuple(
+        return tuple(
             replace(
                 candidate,
-                surface=surface,
                 interpreted_surface=correction,
-                score=candidate.score - 0.1,
-                uncertain=True,
             )
-            for candidate in corrected
-            if candidate.dictionary_entries
+            for candidate in candidates
         )
-        # Original analyses stay first until a correction corpus calibrates safe promotion.
-        return tuple((*candidates, *marked))[:max_candidates]
 
     def _particle_candidate(
         self, surface: str, candidates: tuple[AnalysisCandidate, ...]
@@ -125,6 +120,9 @@ class KoreanAnalyzer:
                 ),
                 features=learner_features([(suffix, 'JX')]),
                 dictionary_entries=entries,
+                lexical_components=(
+                    LexicalComponent(lemma, lemma, 'noun', entries),
+                ),
                 uncertain=bool(candidates),
             )
         return None
@@ -155,12 +153,8 @@ class KoreanAnalyzer:
             if key in seen:
                 continue
             seen.add(key)
-            entries = self.dictionary.lookup(lemma, self._dictionary_pos(target_tokens), 10)
-            if not entries:
-                # Context-free morphology can choose the wrong POS for a homograph.
-                # Keep the lemma and recover its learner definition without hiding
-                # the competing analysis.
-                entries = self.dictionary.lookup(lemma, None, 10)
+            components = self._lexical_components(target_tokens)
+            entries = components[0].dictionary_entries if components else ()
             score = float(kiwi_score) - rank * 0.05 + (0.4 if entries else 0)
             morphemes = tuple(
                 explain_morpheme(token.form, self._lemma_for_token(token), token.tag)
@@ -175,6 +169,7 @@ class KoreanAnalyzer:
                     morphemes=morphemes,
                     features=features,
                     dictionary_entries=entries,
+                    lexical_components=components,
                     uncertain=not bool(entries),
                 )
             )
@@ -207,6 +202,69 @@ class KoreanAnalyzer:
             return token.form if token.form.endswith("다") else token.form + "다"
         return token.form
 
+    def _lexical_components(
+        self, tokens: list[_Token]
+    ) -> tuple[LexicalComponent, ...]:
+        components: list[LexicalComponent] = []
+        index = 0
+        while index < len(tokens):
+            token = tokens[index]
+            tag = _base_tag(token.tag)
+            if tag not in _LEXICAL_TAGS:
+                index += 1
+                continue
+            surface = token.form
+            lemma = self._lemma_for_token(token)
+            role = explain_morpheme(surface, lemma, token.tag).learner_label
+            lookup_tag = tag
+            if tag.startswith('N') and index + 1 < len(tokens):
+                following = tokens[index + 1]
+                following_tag = _base_tag(following.tag)
+                if following_tag in {'XSV', 'XSA'}:
+                    surface += following.form
+                    lemma = surface + '다'
+                    lookup_tag = following_tag
+                    role = 'action verb' if following_tag == 'XSV' else 'descriptive verb'
+                    index += 1
+            entries = self._ordered_entries(lemma, lookup_tag)
+            explanation = (
+                _AUXILIARY_EXPLANATIONS.get(lemma)
+                or 'functions as a helping verb in this sentence'
+                if lookup_tag == 'VX'
+                else None
+            )
+            components.append(
+                LexicalComponent(surface, lemma, role, entries, explanation)
+            )
+            index += 1
+        return tuple(components)
+
+    def _ordered_entries(
+        self, lemma: str, tag: str
+    ) -> tuple[DictionaryEntry, ...]:
+        if tag == 'VX':
+            roles = ('보조 동사', '보조 형용사')
+        elif tag in {'VA', 'XSA'}:
+            roles = ('adjective',)
+        elif tag in {'VV', 'XSV'}:
+            roles = ('verb',)
+        elif tag.startswith('N'):
+            roles = ('noun',)
+        else:
+            roles = ()
+        ordered: list[DictionaryEntry] = []
+        seen: set[str] = set()
+        for dictionary_role in roles:
+            for entry in self.dictionary.lookup(lemma, dictionary_role, 10):
+                if entry.entry_id not in seen:
+                    seen.add(entry.entry_id)
+                    ordered.append(entry)
+        for entry in self.dictionary.lookup(lemma, None, 10):
+            if entry.entry_id not in seen:
+                seen.add(entry.entry_id)
+                ordered.append(entry)
+        return tuple(ordered[:10])
+
     @staticmethod
     def _dictionary_pos(tokens: list[_Token]) -> str | None:
         if any(_base_tag(token.tag) == "VV" for token in tokens):
@@ -220,10 +278,4 @@ class KoreanAnalyzer:
     def conservative_correction(self, surface: str) -> str | None:
         """Offer one marked spacing correction; never silently alter OCR output."""
         normalized = unicodedata.normalize("NFC", surface)
-        corrected = self.kiwi.space(normalized, reset_whitespace=False)
-        if corrected == normalized:
-            return None
-        # A v1 correction may change whitespace only. Character edits are not trusted.
-        if corrected.replace(" ", "") != normalized.replace(" ", ""):
-            return None
-        return corrected
+        return VERIFIED_SPACING.get(normalized)
