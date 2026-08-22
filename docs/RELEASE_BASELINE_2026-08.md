@@ -37,7 +37,28 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
-## Plain-v1 schema-v4 development evidence
+## Plain-v1 schema-v4.2 follow-up
+
+The corrected corpora are locked under `F:\bidan-lens-eval-ud218-v4.2`; the release split is
+unevaluated. Independent direct KRDict conformance is now separated from analyzer correctness
+and passes 243/243 unique groups. The 400-case development language tier is 86.00% overall,
+93.50% for auxiliary cases, and 78.50% for multi-lexical cases. The remaining aggregate
+language failures are 32 primary lemmas, 10 grammar roles, eight component roles, five
+component surfaces, and one component-count mismatch.
+
+The 200-case rendered quick tier is 96.43% whole-eojeol OCR, 74.50% functional context,
+58.00% component accuracy, 44.00% fully correct popup, and 2.11% negative activation, with
+257.87 ms median / 402.65 ms p95 automated latency. These are provisional development
+measurements; a complete v4.2 render run has not been performed and release remains blocked.
+
+The development/release lock SHA-256 values are
+`46ced15df84f27bc858f8700c68cc9fa58f36f9407e6610bc3050d0056475567` and
+`55babf1b1c53c101016b65b371bdd56b540e36aff6c9edbb93623c9e0acf6aeb`.
+The language and quick report SHA-256 values are
+`b2e56708d5077519704529bc56c7ff2f6e6bb292b16cb472777930250cf09b69` and
+`3c9f9d0226913933cf89d24621bb0fc8dd85eed0f511125b0dc411b148a4b16f`.
+
+## Superseded plain-v1 schema-v4 development evidence
 
 The v4 corpora are under `F:\bidan-lens-eval-ud218-v4`. Development and release locks both
 validate with 2,000 main, 250 stress, 400 held-out language, and 200 quick cases. The release

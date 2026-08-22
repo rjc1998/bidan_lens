@@ -46,14 +46,23 @@
 
 ## Local plain-v1 development evidence
 
-The schema-v4 development and release corpora were built, locked, and validated under
-`F:\bidan-lens-eval-ud218-v4`; the previous v3 root remains preserved. The release corpus has
-not been evaluated. The complete v4 development run records 96.03% whole-eojeol OCR, 73.75%
+The latest schema-v4.2 development and release corpora are built, locked, and validated under
+`F:\bidan-lens-eval-ud218-v4.2`; the previous v3, v4, and v4.1 roots remain preserved. The
+v4.2 release corpus has not been evaluated. The earlier complete v4 development run records
+96.03% whole-eojeol OCR, 73.75%
 functional context, 57.95% complete ordered components, 42.30% fully correct first popups,
-72.75% held-out language correctness, 77.00% direct KRDict conformance, 0% false promotions,
+0% false promotions,
 3.08% negative activation, and 223.77 ms median / 336.05 ms p95 automated latency. It passes
 latency and false-promotion gates but misses popup, negative-activation, dictionary-conformance,
-and required-stratum gates, so release evaluation and foreground evidence remain blocked. See
+and required-stratum gates.
+
+The corrected v4.2 development language tier now records 86.00% fully correct first popups,
+93.50% auxiliary correctness, 78.50% multi-lexical correctness, and 100% independent direct
+KRDict conformance across 243 unique groups. Its 200-sample rendered quick tier records 96.43%
+whole-eojeol OCR, 74.50% functional context, 58.00% component accuracy, 44.00% fully correct
+popups, and 2.11% negative activation. A complete v4.2 development render evaluation has not
+yet been run. Multi-lexical language, rendered popup, functional-context, negative-activation,
+and required-stratum gates still block release and foreground evidence. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
 ## Required before a public v1 release
@@ -65,6 +74,7 @@ and required-stratum gates, so release evaluation and foreground evidence remain
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
+- improve the held-out multi-lexical tier from 78.50% to at least the 88% exceptional floor;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;
