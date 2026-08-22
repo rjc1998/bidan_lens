@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "retrieved_on": "2026-08-22",
+  "sources": [
+    {
+      "id": "paddle-detection",
+      "kind": "paddle-model",
+      "model_name": "PP-OCRv5_mobile_det",
+      "filename": "PP-OCRv5_mobile_det_infer.tar",
+      "url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_det_infer.tar",
+      "sha256": "50446e5d01ac2a73d5319c89513281f6578414c888c602f9af13f93feefffc58",
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE"
+    },
+    {
+      "id": "paddle-korean-recognition",
+      "kind": "paddle-model",
+      "model_name": "korean_PP-OCRv5_mobile_rec",
+      "filename": "korean_PP-OCRv5_mobile_rec_infer.tar",
+      "url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/korean_PP-OCRv5_mobile_rec_infer.tar",
+      "sha256": "a6261f800ad335aa6ef77b6f7c4dcedfd5e11b95f4d70982d41ee31c2ace5e66",
+      "license": "Apache-2.0",
+      "license_url": "https://github.com/PaddlePaddle/PaddleOCR/blob/main/LICENSE"
+    },
+    {
+      "id": "krdict-english-json",
+      "kind": "dictionary",
+      "version": "2026-08",
+      "published_data_date": "2026-08-19",
+      "filename": "krdict-2026-08-json.zip",
+      "url": "https://krdict.korean.go.kr/dicBatchDownload?seq=214",
+      "sha256": "7cf41e62a2a36158a8be2b6d2f84c086221e9b29d4345c44e5497eebf21c8c40",
+      "license": "CC-BY-SA-2.0-KR",
+      "attribution": "Korean Basic Dictionary, National Institute of Korean Language",
+      "license_url": "https://creativecommons.org/licenses/by-sa/2.0/kr/legalcode.ko",
+      "copyright_policy_url": "https://krdict.korean.go.kr/eng/kboardPolicy/copyRightTermsInfo"
+    },
+    {
+      "id": "paddleocr-license",
+      "kind": "license-document",
+      "filename": "PaddleOCR-APACHE-2.0.txt",
+      "url": "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/LICENSE",
+      "sha256": "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "krdict-license",
+      "kind": "license-document",
+      "filename": "KRDict-CC-BY-SA-2.0-KR.html",
+      "url": "https://creativecommons.org/licenses/by-sa/2.0/kr/legalcode.ko",
+      "sha256": "a25c6f7217bf8a825ff4e9b281112b17210763536577e45e2a87b53ec7986c06",
+      "license": "CC-BY-SA-2.0-KR"
+    }
+  ],
+  "conversion": {
+    "python": "3.12",
+    "paddle_package": "paddlepaddle==3.0.0.dev20250426",
+    "paddle_index_url": "https://www.paddlepaddle.org.cn/packages/nightly/cpu/",
+    "paddle2onnx": "2.1.0",
+    "onnx_opset": 11,
+    "constant_folding": "polygraphy surgeon sanitize --fold-constants"
+  },
+  "outputs": [
+    {
+      "id": "detection-onnx",
+      "filename": "korean_detection.onnx",
+      "sha256": "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d"
+    },
+    {
+      "id": "recognition-onnx",
+      "filename": "korean_recognition.onnx",
+      "sha256": "1a690e7335563d5932f9ae6776ffd5826423937f0e438e18ff95355c4b981eb1"
+    },
+    {
+      "id": "recognition-characters",
+      "filename": "korean_characters.txt",
+      "sha256": "2193f5dd0c62a4f268902b5d96dadfec3908d299afa9a6e5cad2c6a96c772828",
+      "line_count": 11945
+    },
+    {
+      "id": "krdict-sqlite",
+      "filename": "dictionary.sqlite3",
+      "sha256": "7c5d84f423bbc391f700693ffeedd6969afe1671e28c2c627e5cb88f284c62b4",
+      "entry_count": 54134,
+      "source_version": "2026-08"
+    }
+  ]
+}

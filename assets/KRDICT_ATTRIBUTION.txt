@@ -1,0 +1,12 @@
+Korean Basic Dictionary (한국어기초사전)
+Copyright: National Institute of Korean Language, Republic of Korea
+Source: https://krdict.korean.go.kr/
+Export: English JSON, 2026-08 (data files dated 2026-08-19)
+Copyright policy: https://krdict.korean.go.kr/eng/kboardPolicy/copyRightTermsInfo
+License: Creative Commons Attribution-ShareAlike 2.0 Korea (CC BY-SA 2.0 KR)
+License text: https://creativecommons.org/licenses/by-sa/2.0/kr/legalcode.ko
+
+BiDan Lens converts the official JSON export into an indexed SQLite representation.
+Definitions and source vocabulary remain attributed to the National Institute of Korean
+Language. The conversion changes storage and indexing; it does not claim authorship of
+the dictionary content.

@@ -1,0 +1,24 @@
+from __future__ import annotations
+
+from bidan_lens.models import HoverTarget, OcrDocument
+
+
+def hit_test(document: OcrDocument, x: float, y: float, padding: float = 1.5) -> HoverTarget | None:
+    local_x = x - document.origin_x
+    local_y = y - document.origin_y
+    matches = []
+    for line in document.lines:
+        for eojeol in line.eojeols:
+            if eojeol.box.contains(local_x, local_y, padding):
+                matches.append((eojeol.box.area, line, eojeol))
+    if not matches:
+        return None
+    _, line, eojeol = min(matches, key=lambda value: value[0])
+    return HoverTarget(
+        surface=eojeol.text,
+        sentence=line.text,
+        sentence_start=eojeol.sentence_start,
+        sentence_end=eojeol.sentence_end,
+        box=eojeol.box.translated(document.origin_x, document.origin_y),
+        confidence=eojeol.confidence,
+    )

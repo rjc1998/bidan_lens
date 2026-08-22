@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bidan-lens"
+version = "0.1.0"
+description = "Private, local Korean OCR dictionary popups for Windows"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "BiDan Lens contributors" }]
+dependencies = [
+  "PyQt6>=6.7,<7",
+  "mss>=10,<11",
+  "numpy>=2,<3",
+  "onnxruntime>=1.20,<2",
+  "Pillow>=11,<12",
+  "kiwipiepy>=0.23,<0.24",
+  "platformdirs>=4.3,<5",
+  "pynput>=1.7,<2",
+]
+
+[project.optional-dependencies]
+dev = [
+  "hatch>=1.13,<2",
+  "pytest>=8.3,<9",
+  "pytest-qt>=4.4,<5",
+  "ruff>=0.9,<1",
+  "pyinstaller>=6.11,<7",
+]
+release = [
+  "PyYAML>=6,<7",
+]
+
+[project.scripts]
+bidan-lens = "bidan_lens.main:main"
+bidan-lens-build-dictionary = "bidan_lens.dictionary.builder:main"
+bidan-lens-build-bundle = "bidan_lens.bundle_builder:main"
+bidan-lens-release-assets = "bidan_lens.release_assets:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bidan_lens"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["meikipop"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
