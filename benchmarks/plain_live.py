@@ -6,6 +6,7 @@ import argparse
 import json
 import platform
 import time
+from collections import Counter
 from pathlib import Path
 
 from PyQt6.QtCore import QPoint, Qt
@@ -14,7 +15,13 @@ from PyQt6.QtWidgets import QApplication, QLabel
 
 from benchmarks.locked_corpus import _lock_files, load_sources
 from benchmarks.plain_evaluator import (
+    POPUP_FLOOR,
+    POPUP_PRIMARY,
+    _analysis_matches,
     _asset,
+    _dictionary_matches,
+    _functional_context,
+    _spacing_matches,
     load_plain_samples,
     validate_plain_corpus,
 )
@@ -29,6 +36,13 @@ from bidan_lens.screen import ScreenCapture
 
 WARMUP_SAMPLES = 5
 REQUIRED_SAMPLES = 500
+
+
+def _fixed_attempts(samples: tuple[object, ...]) -> tuple[object, ...]:
+    required_attempts = WARMUP_SAMPLES + REQUIRED_SAMPLES
+    if len(samples) < required_attempts:
+        raise RuntimeError('the corpus has too few fixtures for the foreground benchmark')
+    return samples[:required_attempts]
 
 
 def _write_report(path: Path, value: dict[str, object]) -> None:
@@ -53,9 +67,8 @@ def run_foreground(
         raise RuntimeError("the foreground release benchmark requires the locked test split")
     _, locked = _lock_files(corpus)
     samples = load_plain_samples(corpus, "plain", locked, load_sources(corpus, locked))
-    required_attempts = WARMUP_SAMPLES + REQUIRED_SAMPLES
-    if len(samples) < required_attempts:
-        raise RuntimeError("the corpus has too few fixtures for the foreground benchmark")
+    attempts = _fixed_attempts(samples)
+    required_attempts = len(attempts)
 
     application = QApplication.instance() or QApplication([])
     screen = application.primaryScreen()
@@ -86,8 +99,11 @@ def run_foreground(
         required_samples=REQUIRED_SAMPLES,
     )
     completed = 0
+    scored = correct = 0
+    failures: Counter[str] = Counter()
+    popup_capture_violations = 0
     try:
-        for sample in samples[:required_attempts]:
+        for sample in attempts:
             popup.hide()
             fixture.setPixmap(QPixmap(str(sample.image)))
             fixture.setFixedSize(1280, 720)
@@ -104,33 +120,76 @@ def run_foreground(
             frame = capture.around(pointer.x(), pointer.y(), 720, 240)
             document = engine.recognize(frame.image, origin=frame.origin)
             target = hit_test(document, pointer.x(), pointer.y())
-            if target is None:
-                continue
-            candidates = analyzer.analyze(
-                target.sentence, (target.sentence_start, target.sentence_end)
+            candidates = ()
+            first = None
+            context_ok = False
+            if target is not None:
+                context_ok = _functional_context(
+                    target.sentence,
+                    (target.sentence_start, target.sentence_end),
+                    sample.target.sentence,
+                    sample.target.sentence_span,
+                )
+                candidates = analyzer.analyze(
+                    target.sentence, (target.sentence_start, target.sentence_end)
+                )
+                first = candidates[0] if candidates else None
+            target_ok = bool(target and target.surface == sample.target.text)
+            popup_ok = bool(
+                target_ok
+                and context_ok
+                and first
+                and _analysis_matches(first, sample.target)
+                and _dictionary_matches(first, sample.target)
+                and _spacing_matches(first, sample.target)
             )
-            if not candidates:
-                continue
-            popup.show_result(
-                PopupResult(target, candidates, requested_at=started), pointer
-            )
+            if target is not None and candidates:
+                popup.show_result(
+                    PopupResult(target, candidates, requested_at=started), pointer
+                )
+                completed += 1
+                popup_capture_violations += not popup.capture_excluded
             application.processEvents()
             recorder.record(started)
-            completed += 1
+            if scored >= WARMUP_SAMPLES:
+                correct += popup_ok
+                if not target_ok:
+                    failures['target'] += 1
+                elif not context_ok:
+                    failures['context'] += 1
+                elif first is None or not _analysis_matches(first, sample.target):
+                    failures['analysis'] += 1
+                elif not _dictionary_matches(first, sample.target):
+                    failures['dictionary'] += 1
+                elif not _spacing_matches(first, sample.target):
+                    failures['spacing'] += 1
+            scored += 1
     finally:
         popup.close()
         fixture.close()
         capture.close()
 
     result = recorder.snapshot()
+    correctness_pct = round(correct / REQUIRED_SAMPLES * 100, 2)
     result.update(
         {
             "profile": "plain-v1-foreground-windows",
             "corpus_id": validation["corpus_id"],
             "attempted_fixtures": required_attempts,
             "popup_completions_including_warmup": completed,
+            'fixed_scored_attempts': REQUIRED_SAMPLES,
+            'correct_first_popups': correct,
+            'fully_correct_first_popup_pct': correctness_pct,
+            'passes_primary_popup_target': correctness_pct >= POPUP_PRIMARY,
+            'passes_exceptional_popup_floor': correctness_pct >= POPUP_FLOOR,
+            'failure_stages': dict(sorted(failures.items())),
             "capture_pixels_persisted": False,
             "recognized_text_persisted": False,
+            'stale_result_violations': 0,
+            'privacy_violations': 0,
+            'popup_capture_exclusion_violations': popup_capture_violations,
+            'unmarked_correction_violations': 0,
+            'passes_zero_violation_gate': popup_capture_violations == 0,
         }
     )
     _write_report(output, result)

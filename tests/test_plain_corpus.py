@@ -23,6 +23,7 @@ from benchmarks.plain_corpus import (
     _punctuate,
     _render_spec,
     _select_candidates,
+    _select_language_candidates,
     acquire_plain,
     load_krdict_oracle,
 )
@@ -393,6 +394,34 @@ def test_development_and_release_sentence_overlap_is_excluded() -> None:
     )
 
     assert _exclude_split_overlap(selected, held_out) == (selected[2],)
+
+
+def test_language_selection_is_balanced_and_source_sample_isolated() -> None:
+    candidates = []
+    for language_class in ('multi-lexical', 'auxiliary'):
+        for index in range(4):
+            candidates.append(
+                PlainCandidate(
+                    'source',
+                    f'sentence-{language_class}:{index}',
+                    'test',
+                    ('한글', '문장'),
+                    0,
+                    '한글',
+                    '한글',
+                    frozenset(),
+                    (),
+                    'conjugated',
+                    language_class=language_class,
+                )
+            )
+    used = {('source', 'sentence-multi-lexical:0')}
+
+    selected = _select_language_candidates(candidates, used, 4, 17)
+
+    assert [item.language_class for item in selected].count('multi-lexical') == 2
+    assert [item.language_class for item in selected].count('auxiliary') == 2
+    assert all((item.source_id, item.source_sample_id) not in used for item in selected)
 
 
 def test_desktop_renderer_returns_exact_target_box(tmp_path: Path) -> None:

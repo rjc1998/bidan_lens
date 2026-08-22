@@ -23,7 +23,7 @@ from bidan_lens.ocr.paddle import PaddleDetector, PaddleOcrEngine, PaddleRecogni
 LOCK_NAME = "corpus.lock.json"
 SOURCE_MANIFEST_NAME = "sources.json"
 SCHEMA_VERSION = 2
-PLAIN_SCHEMA_VERSION = 3
+PLAIN_SCHEMA_VERSION = 4
 SOURCE_SCHEMA_VERSION = 1
 EXPECTED_COUNTS = {"clean": 500, "subtitles": 300, "complex": 200, "morphology": 300}
 PRIMARY_TARGETS = {"clean": 95.0, "subtitles": 90.0, "complex": 80.0}

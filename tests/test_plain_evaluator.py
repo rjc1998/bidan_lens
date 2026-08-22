@@ -9,6 +9,7 @@ from PIL import Image
 from benchmarks.locked_corpus import CorpusError
 from benchmarks.plain_corpus import PLAIN_ORACLE
 from benchmarks.plain_evaluator import (
+    _functional_context,
     evaluate_plain,
     load_plain_samples,
     lock_plain_corpus,
@@ -21,6 +22,7 @@ from bidan_lens.models import (
     DictionaryEntry,
     DictionarySense,
     LearnerFeature,
+    LexicalComponent,
     OcrDocument,
     OcrEojeol,
     OcrLine,
@@ -69,19 +71,23 @@ def _entry(reverse: bool = False) -> DictionaryEntry:
 
 
 def _candidate(*, correct: bool = True, reverse: bool = False) -> AnalysisCandidate:
+    entry = _entry(reverse)
     return AnalysisCandidate(
         TARGET,
         "어디" if correct else "다르다",
         1.0,
         features=(LearnerFeature("location particle", "marks a location"),),
-        dictionary_entries=(_entry(reverse),),
+        dictionary_entries=(entry,),
+        lexical_components=(
+            LexicalComponent('어디', '어디', 'noun', (entry,)),
+        ),
     )
 
 
 def _annotation(sample_id: str, image: str, source_sample_id: str, stress: bool) -> dict:
     size = 10 if stress else 12
     return {
-        "schema_version": 3,
+        "schema_version": 4,
         "sample_id": sample_id,
         "image": image,
         "lines": [
@@ -113,8 +119,34 @@ def _annotation(sample_id: str, image: str, source_sample_id: str, stress: bool)
                     ],
                 }
             ],
+            'expected_components': [
+                {
+                    'surface': '어디',
+                    'lemma': '어디',
+                    'learner_role': 'noun',
+                    'expected_dictionary_entries': [
+                        {
+                            'entry_id': 'entry-1',
+                            'headword': '어디',
+                            'senses': [
+                                {'order': 1, 'definition': 'where'},
+                                {'order': 2, 'definition': 'at what place'},
+                            ],
+                        }
+                    ],
+                }
+            ],
+            'expected_spacing': None,
+            'language_class': None,
             "target_class": "particle",
         },
+        'negative_probes': [
+            {'kind': 'english', 'pointer': [190, 5]},
+            {'kind': 'blank', 'pointer': [190, 45]},
+            {'kind': 'whitespace', 'pointer': [42, 20]},
+            {'kind': 'punctuation', 'pointer': [45, 20]},
+            {'kind': 'near-miss', 'pointer': [80, 40]},
+        ],
         "render": {
             "renderer": "desktop",
             "renderer_version": "test-desktop",
@@ -230,7 +262,33 @@ def test_plain_pipeline_checks_complete_eojeol_breakdown_and_dictionary_order(
     assert result["component_lemma_breakdown_first_pct"] == 100.0
     assert result["exact_krdict_fidelity_first_pct"] == 100.0
     assert result["fully_correct_first_popup_pct"] == 100.0
+    assert result['functional_context_accuracy_pct'] == 100.0
+    assert result['negative_activation_rate_pct'] == 0.0
     assert outcomes[0].failed_stage is None
+
+
+def test_functional_context_ignores_edges_but_preserves_internal_structure() -> None:
+    expected = '어제, “학교에서” 12:30에 갔어요.'
+    expected_span = (5, 9)
+
+    assert _functional_context(
+        '어제 학교에서 12:30에 갔어요',
+        (3, 7),
+        expected,
+        expected_span,
+    )
+    assert not _functional_context(
+        '어제 학교에서 1230에 갔어요',
+        (3, 7),
+        expected,
+        expected_span,
+    )
+    assert not _functional_context(
+        '어제 학교에서12:30에 갔어요',
+        (3, 7),
+        expected,
+        expected_span,
+    )
 
 
 def test_plain_pipeline_reports_dictionary_order_failure(tmp_path: Path) -> None:
@@ -262,7 +320,7 @@ def test_plain_pipeline_counts_alternative_candidate_recovery(tmp_path: Path) ->
     ("engine", "failed_stage"),
     [
         (FakeOcr("어디"), "target"),
-        (FakeOcr(sentence="내일 (어디에서) 만나요"), "sentence"),
+        (FakeOcr(sentence="내일 (어디에서) 만나요"), "context"),
     ],
 )
 def test_plain_pipeline_identifies_ocr_failure_stage(
