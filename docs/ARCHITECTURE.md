@@ -26,7 +26,9 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
 - `pipeline.hit_test` selects a complete whitespace-delimited eojeol. Punctuation and
   blank space do not create targets.
 - `analysis` receives the full OCR line plus the selected span. Raw morphology tags are
-  internal and are translated into beginner-facing explanations. When the first Kiwi
+  internal and are translated into ordered lexical components with surface, lemma, and a
+  beginner-facing contextual role. Auxiliary tags prioritize KRDict helping-verb/helping-
+  adjective groups while retaining other homographs in source order. When the first Kiwi
   analysis has no local definition, a known particle suffix may produce a promoted candidate
   only when its remaining stem has a local dictionary entry.
 - `dictionary` compiles a versioned source export into a read-only runtime database.
@@ -64,7 +66,10 @@ rejects that request, the shell hides and flushes the popup before the next capt
 
 ## Version-one language boundary
 
-The selected unit is one complete eojeol. Full-line context is retained for correct
-morphology and future multi-eojeol grammar construction support. Thus `먹고 싶어요`
-produces separate `먹고` and `싶어요` hover results in v1, without losing the context
-needed to recognize the construction in a later release.
+The selected unit is one complete eojeol. Within it, the popup may show multiple ordered
+lexical definitions and a contextual auxiliary explanation; for example, `먹어 버리다`
+identifies `버리다` as a helping verb rather than presenting only its lexical “throw away”
+use. A small provenance-backed offline map may display verified spacing such as
+`갔다오다` -> `갔다 오다`; Kiwi-only spacing guesses are never shown. These explanations do
+not generate a combined translation. Full-line context remains available for later
+multi-eojeol construction grouping, so `먹고` and `싶어요` remain separate hover targets.

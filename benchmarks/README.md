@@ -2,16 +2,16 @@
 
 The mandatory version-one gate covers plain websites and ordinary Windows desktop text.
 Release corpora remain outside Git. The repository commits only acquisition/build code,
-the v3 schema validator, tests, and `plain_sources.lock.json`. Normal application use still
+the v4 schema validator, tests, and `plain_sources.lock.json`. Normal application use still
 keeps screenshots in memory; corpus rendering is an explicit developer workflow using
 public text and fonts.
 
 The workflow produces two independent corpus directories:
 
-- `dev`: 2,000 samples from official UD `dev` splits, plus 250 nonblocking 10 px stress
-  samples and a locked 200-sample quick subset;
+- `dev`: 2,000 samples from official UD `dev` splits, 250 nonblocking 10 px stress samples,
+  400 held-out language cases, and a locked 200-sample quick subset;
 - `release`: 2,000 samples from official UD `test` splits, plus 250 nonblocking 10 px
-  stress samples.
+  stress samples and 400 held-out language cases.
 
 Never optimize against, prune, or replace failed release samples. Generate and lock the
 release corpus before the production evaluation. Keep the development and release roots
@@ -53,12 +53,12 @@ renderers supply exact geometry; neither production OCR nor production Kiwi is c
 python -m benchmarks.corpus_builder build-plain D:\bidan-eval\acquired `
   D:\bidan-eval\dev --profile dev
 python -m benchmarks.corpus_builder lock-plain D:\bidan-eval\dev `
-  --corpus-id bidan-plain-dev-ud218
+  --corpus-id bidan-plain-v4-dev-ud218
 
 python -m benchmarks.corpus_builder build-plain D:\bidan-eval\acquired `
   D:\bidan-eval\release --profile release
 python -m benchmarks.corpus_builder lock-plain D:\bidan-eval\release `
-  --corpus-id bidan-plain-release-ud218
+  --corpus-id bidan-plain-v4-release-ud218
 ```
 
 The lock covers every image, annotation, source/license record, font/browser/renderer record,
@@ -84,7 +84,9 @@ python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
 Diagnostics include stable sample IDs, failed stages, and render strata only. They never
 include recognized text, expected text, definitions, or pixels.
 
-Run the complete locked release corpus without diagnostics for release evidence:
+Run the complete development corpus until its provisional gates pass and the thresholds are
+explicitly frozen. Build and lock the release corpus beforehand, but do not evaluate it until
+then. The eventual release command is:
 
 ```powershell
 python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
@@ -92,15 +94,17 @@ python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
   > D:\bidan-eval\reports\plain-v1-release.json
 ```
 
-The aggregate report includes Wilson intervals, component and end-to-end metrics, all
-required strata, and the separately marked nonblocking 10 px stress result. A release run
-requires the official `test` split; a development split is always reported as ineligible.
+The aggregate report includes Wilson intervals, functional context and exact-transcription
+metrics, ordered-component and contextual dictionary checks, negative-pointer categories,
+held-out language classes, all required render strata, and the separately marked nonblocking
+10 px stress result. A release run requires the official `test` split; a development split is
+always reported as ineligible.
 
 ## Foreground Windows latency benchmark
 
 This opt-in command displays 505 locked release fixtures on the primary screen, moves the
 mouse pointer, exercises real MSS capture and popup rendering, discards five warmups, and
-measures 500 completions. Do not use the computer during the run.
+scores 500 fixed attempts without replacing failures. Do not use the computer during the run.
 
 ```powershell
 python -m benchmarks.plain_live assets\runtime\installed\2026.08.1 `
@@ -108,8 +112,9 @@ python -m benchmarks.plain_live assets\runtime\installed\2026.08.1 `
   --bundle-version 2026.08.1 --confirm-foreground
 ```
 
-The foreground report contains aggregate machine, sample-count, median, and p95 timing
-metadata. Captured pixels and recognized text remain memory-only.
+The foreground report contains aggregate machine, correctness, failure-stage, safety-counter,
+sample-count, median, and p95 timing metadata. Captured pixels and recognized text remain
+memory-only.
 
 ## Legacy optional evaluators
 

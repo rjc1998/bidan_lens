@@ -13,6 +13,10 @@ speech level, and endings. Multiple plausible analyses remain navigable. The app
 CPU-first and fully local after an explicit first-run asset download or offline import.
 Dictionary senses preserve source order and plausible analyses remain navigable. Contextual
 best-sense ranking is not a version-one accuracy claim until expert-reviewed evidence exists.
+Version one does identify ordered lexical components inside the selected eojeol, prioritizes
+role-matched auxiliary dictionary groups, shows short contextual auxiliary explanations, and
+may display only provenance-verified spacing notes. It does not synthesize a combined phrase
+translation.
 
 ## Explicit non-goals for version one
 

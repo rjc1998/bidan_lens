@@ -744,7 +744,7 @@ def _build_parser() -> argparse.ArgumentParser:
     acquire_plain_parser.add_argument("--local-krdict", type=Path)
 
     build_plain_parser = commands.add_parser(
-        "build-plain", help="render the deterministic v3 plain-v1 corpus"
+        "build-plain", help="render the deterministic v4 plain-v1 corpus"
     )
     build_plain_parser.add_argument("acquired", type=Path)
     build_plain_parser.add_argument("corpus", type=Path)
@@ -754,14 +754,14 @@ def _build_parser() -> argparse.ArgumentParser:
     build_plain_parser.add_argument("--stress-count", type=int, default=250)
 
     lock_plain_parser = commands.add_parser(
-        "lock-plain", help="hash-lock and validate a v3 plain-v1 corpus"
+        "lock-plain", help="hash-lock and validate a v4 plain-v1 corpus"
     )
     lock_plain_parser.add_argument("corpus", type=Path)
     lock_plain_parser.add_argument("--corpus-id", required=True)
     lock_plain_parser.add_argument("--allow-incomplete", action="store_true")
 
     validate_plain_parser = commands.add_parser(
-        "validate-plain", help="verify a v3 plain-v1 corpus lock"
+        "validate-plain", help="verify a v4 plain-v1 corpus lock"
     )
     validate_plain_parser.add_argument("corpus", type=Path)
     validate_plain_parser.add_argument("--allow-incomplete", action="store_true")

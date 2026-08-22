@@ -37,9 +37,41 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
-## Plain-v1 development evidence
+## Plain-v1 schema-v4 development evidence
 
-Pinned acquisition completed outside Git, and complete development and release corpora
+The v4 corpora are under `F:\bidan-lens-eval-ud218-v4`. Development and release locks both
+validate with 2,000 main, 250 stress, 400 held-out language, and 200 quick cases. The release
+split remains unevaluated. The complete development results are:
+
+| Development metric | Result |
+| --- | ---: |
+| Whole-eojeol OCR | 96.03% |
+| Target selection | 92.80% |
+| Functional context / exact transcription | 73.75% / 60.90% |
+| Complete ordered components first | 57.95% |
+| Exact KRDict fidelity first | 74.70% |
+| Fully correct first popup | 42.30% |
+| Held-out language overall | 72.75% |
+| Multi-lexical / auxiliary | 76.00% / 69.50% |
+| Direct KRDict conformance | 77.00% |
+| Negative activation | 3.08% |
+| False promotions | 0% |
+| Automated latency | 223.77 ms median / 336.05 ms p95 |
+| Nonblocking 10 px popup correctness | 31.20% |
+
+Blank and English probes have zero activations; near-miss, punctuation, and whitespace are
+2.25%, 9.21%, and 5.29%. The report SHA-256 is
+`16fd9c33fac42f78c5754f05b532c510c7b92102fdf34a7dbae23ebeb1aa3ae4`.
+The development and release lock SHA-256 values are
+`104849023d87f8cb375acd88c857d4dd8ff7f89d7192e98f26940d00917849ce` and
+`fae049ae16018e30c1f88788da3ebf23b77f26b93d6b887a01b31b5a7253c837`.
+These provisional gates do not pass, so thresholds are not frozen and neither release nor
+foreground evaluation has begun.
+
+## Superseded schema-v3 development evidence
+
+The preserved `F:\bidan-lens-eval-ud218` evidence predates contextual components and the
+functional-context contract. Pinned acquisition completed outside Git, and complete development and release corpora
 were independently built, locked, and validated. The release corpus uses only official
 test splits and remains unevaluated. The development report uses all 2,000 primary samples;
 the 250-sample 10 px stress tier remains nonblocking.

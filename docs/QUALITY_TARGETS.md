@@ -16,14 +16,18 @@ credible plateau and the project owner explicitly approves the exception.
 
 Every required font-size and punctuation stratum must independently meet the corresponding
 exceptional floor. Marked automatic corrections must have a false-promotion rate below
-0.5%. Warm end-to-end latency must be at most 500 ms median and 1 second at p95.
+0.5%. Aggregate and per-category negative-pointer activation must each remain below 0.5%.
+Direct KRDict presentation conformance is an unconditional 100% deterministic gate. Warm
+end-to-end latency must be at most 500 ms median and 1 second at p95. Stale-result, privacy,
+popup-capture, and unmarked-correction violations must all be zero.
 
 ## Plain-v1 corpus contract
 
 The deterministic development and locked release corpora each contain 2,000 samples. The
 development corpus uses only official UD `dev` splits; the release corpus uses only official
 UD `test` splits. A separate 250-sample 10 px stress tier is reported but can neither pass
-nor fail a release. A deterministic 200-sample development subset supports quick iteration.
+nor fail a release. Each split also contains 200 held-out multi-lexical and 200 held-out
+auxiliary language cases. A deterministic 200-sample development subset supports quick iteration.
 Downloaded sources, fonts, KRDict data, and rendered corpora stay outside Git.
 
 Required release sizes are 12, 14, 16, 18, 20, 24, 32, and 40 px, with 250 samples at each
@@ -32,11 +36,13 @@ and bold weights, light and dark themes, single- and multi-line layouts, four di
 and eight punctuation classes. Punctuation remains in sentence context but outside the
 hoverable Korean eojeol.
 
-Each version-three sample stores exact line, eojeol, target-span, pointer, and bounding-box
-geometry from DOM or Qt layout. It also stores an expected first lemma, evaluator-owned
-learner labels from published KAIST annotations, and English-bearing KRDict entries parsed
-independently during construction. Production OCR, Kiwi output, and dictionary lookup never
-choose or prune release samples.
+Each version-four sample stores exact line, eojeol, target-span, pointer, and bounding-box
+geometry from DOM or Qt layout, plus negative pointers for whitespace, punctuation, English,
+blank areas, and safe near-misses. Its independent oracle stores the primary lemma, complete
+ordered lexical components, contextual learner roles, role-first KRDict groups, verified
+spacing, and English-bearing entries/senses. The main corpus must naturally contain at least
+100 multi-lexical and 100 auxiliary cases. Production OCR, Kiwi output, and dictionary lookup
+never choose or prune release samples.
 
 The source lock pins immutable URLs, versions, SHA-256 hashes, byte sizes, and license
 locations for UD Korean GSD/KAIST 2.18, open Korean fonts, and KRDict. The installed Malgun
@@ -50,10 +56,13 @@ oracles, duplicate source identities, and development/release overlap.
 The `plain-v1` evaluator measures:
 
 - whole-eojeol OCR accuracy and missing-eojeol rate;
-- pointer target selection and containing-sentence span accuracy;
-- first-result lemma and learner-label accuracy from ground-truth OCR input;
-- exact first-result KRDict entry, definition, and sense-order fidelity;
+- pointer target selection, functional context accuracy, and exact sentence transcription as
+  a non-gating diagnostic;
+- first-result primary lemma, complete ordered components, learner roles, and verified spacing;
+- faithful contextual dictionary grouping and visible definitions, plus a separate 100% direct
+  KRDict entry/definition/sense-order conformance gate;
 - fully correct first popup, alternative-candidate recovery, and false promotions;
+- aggregate and per-category negative-pointer activation;
 - warm median and p95 pipeline latency.
 
 It reports aggregate values and 95% Wilson intervals, plus strata by size, font, renderer,
@@ -65,9 +74,11 @@ Exact KRDict fidelity certifies faithful local dictionary presentation. It does 
 contextual best-sense ranking or pedagogical quality. Synthetic browser and desktop fixtures
 provide strong evidence for ordinary text, not arbitrary image backgrounds.
 
-An opt-in foreground Windows run displays 505 locked fixtures, discards five warmups, and
-collects 500 real capture-to-popup timings. It moves the pointer and uses the primary display,
-so it requires explicit confirmation. Its report is aggregate-only and never persists live
+An opt-in foreground Windows run displays exactly 505 locked fixtures: five warmups followed
+by 500 fixed, non-replaced scored attempts. It applies the same 92% primary and 88% exceptional
+first-popup thresholds, records terminal latency even for failed attempts, and reports the
+unconditional safety counters. It moves the pointer and uses the primary display, so it
+requires explicit confirmation. Its report is aggregate-only and never persists live
 screenshots or recognized text.
 
 ## Exceptional release process

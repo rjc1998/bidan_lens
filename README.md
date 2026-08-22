@@ -15,6 +15,7 @@ This repository contains the version-one architecture and a working development 
 - immutable OCR document and geometry models with whole-eojeol hit testing;
 - PaddleOCR-compatible ONNX detection/recognition adapters;
 - sentence-aware Korean analysis through Kiwi;
+- ordered lexical components, contextual auxiliary explanations, and verified spacing notes;
 - a versioned KRDict SQLite builder and lookup adapter;
 - verified, atomic asset installation and offline bundle import;
 - a Windows capture/input/popup shell with automatic and hold-hotkey modes;
@@ -51,9 +52,10 @@ remain useful during development but are marked incomplete.
 
 The version-one release gate can be constructed without transcribing individual samples.
 The developer-only workflow acquires pinned UD, font, and KRDict sources; renders 2,000
-plain-text browser/desktop fixtures with exact geometry; derives held-out morphology and
-dictionary expectations independently of production code; and creates a complete SHA-256
-lock. All downloaded and generated data remains outside Git. See
+plain-text browser/desktop fixtures with exact geometry; adds 400 held-out multi-lexical and
+auxiliary cases plus negative-pointer probes; derives morphology, contextual-role, spacing,
+and dictionary expectations independently of production code; and creates a complete
+SHA-256 lock. All downloaded and generated data remains outside Git. See
 [benchmarks/README.md](benchmarks/README.md) for setup, build, evaluation, and foreground
 Windows benchmark commands.
 

@@ -9,8 +9,9 @@
   structured ASCII sentence context, exact reconstructed word geometry, and one
   low-confidence retry;
 - immutable OCR lines, glyphs, eojeols and whole-eojeol pointer hit testing;
-- sentence-aware Kiwi adapter with lemma recovery, learner-facing grammar labels, and a
-  dictionary-backed known-particle fallback when the first analysis has no definition;
+- sentence-aware Kiwi adapter with lemma recovery, ordered lexical components, contextual
+  auxiliary roles, role-first KRDict grouping, verified spacing notes, learner-facing grammar
+  labels, and a dictionary-backed known-particle fallback;
 - KRDict JSON adapter, versioned SQLite builder and read-only exact-headword/alias lookup;
 - ranked alternative results with wheel/hotkey navigation and copy actions;
 - verified atomic bundle download/import with an offline path;
@@ -31,12 +32,12 @@
 - deterministic 2,000-sample development/release corpus rendering split equally across
   Chromium and offscreen Qt, with exact line/eojeol/target/pointer geometry, a locked
   200-sample quick subset, and a separate 250-sample 10 px stress tier;
-- an independent v3 oracle for KAIST-derived learner labels and exact KRDict entry/sense
-  order, with source/test-split separation and no production Kiwi participation;
-- an aggregate-only `plain-v1` evaluator covering OCR, pointer selection, sentence spans,
-  morphology, dictionary fidelity, first-popup correctness, alternative recovery, marked
-  corrections, latency, Wilson intervals, and all required render strata;
-- strict v3 locking and validation for every corpus file, source, license, renderer/font
+- an independent v4 oracle for ordered components, contextual roles, verified spacing, and
+  exact role-grouped KRDict entry/sense order, with 400 held-out language cases;
+- an aggregate-only `plain-v1` evaluator covering OCR, pointer selection, functional context,
+  exact-transcription diagnostics, complete components, dictionary conformance, first-popup
+  correctness, negative-pointer classes, corrections, latency, and render strata;
+- strict v4 locking and validation for every corpus file, source, license, renderer/font
   record, duplicate identity, forbidden training split, and required balanced stratum;
 - the earlier version-two subtitle/complex evaluator remains compatible as an optional,
   non-release measurement path;
@@ -45,13 +46,14 @@
 
 ## Local plain-v1 development evidence
 
-Pinned sources were acquired and the complete development and release corpora were built,
-locked, and validated outside Git. The release corpus has not been evaluated or inspected.
-The complete 2,000-sample development run records 96.19% whole-eojeol OCR, 49.75% fully
-correct first popups, 0% false promotions, and 213.65 ms median / 331.67 ms p95 automated
-pipeline latency. It passes the aggregate exceptional OCR floor but misses the primary OCR
-target, the popup floor, and required size/punctuation strata, so release evaluation remains
-blocked. See
+The schema-v4 development and release corpora were built, locked, and validated under
+`F:\bidan-lens-eval-ud218-v4`; the previous v3 root remains preserved. The release corpus has
+not been evaluated. The complete v4 development run records 96.03% whole-eojeol OCR, 73.75%
+functional context, 57.95% complete ordered components, 42.30% fully correct first popups,
+72.75% held-out language correctness, 77.00% direct KRDict conformance, 0% false promotions,
+3.08% negative activation, and 223.77 ms median / 336.05 ms p95 automated latency. It passes
+latency and false-promotion gates but misses popup, negative-activation, dictionary-conformance,
+and required-stratum gates, so release evaluation and foreground evidence remain blocked. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
 ## Required before a public v1 release
@@ -63,8 +65,8 @@ blocked. See
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- run the opt-in foreground benchmark and record 500 successful capture-to-popup timings,
-  confirming the 500 ms median and 1 second p95 targets on the release machine class;
+- run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
+  correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;
 - replace the generated tray glyph with reviewed project artwork if desired;
 
