@@ -15,6 +15,7 @@ from benchmarks.locked_corpus import (
     _lock_files,
     evaluate_morphology,
     evaluate_ocr,
+    load_sources,
 )
 from bidan_lens.models import (
     AnalysisCandidate,
@@ -32,37 +33,71 @@ def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def test_lock_requires_hash_locked_license_evidence(tmp_path: Path) -> None:
-    license_path = tmp_path / "LICENSE.txt"
-    license_path.write_text("redistribution permitted", encoding="utf-8")
-    (tmp_path / "corpus.lock.json").write_text(
+def _source_manifest(tmp_path: Path, evidence: str = "LICENSE.txt") -> Path:
+    path = tmp_path / "sources.json"
+    path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
+                "sources": [
+                    {
+                        "id": "source",
+                        "license_id": "test-license",
+                        "license_evidence": evidence,
+                        "annotation_basis": "test annotations",
+                        "allowed_oracles": ["known-render"],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_lock_requires_hash_locked_license_evidence(tmp_path: Path) -> None:
+    license_path = tmp_path / "LICENSE.txt"
+    license_path.write_text("redistribution permitted", encoding="utf-8")
+    sources_path = _source_manifest(tmp_path)
+    (tmp_path / "corpus.lock.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
                 "corpus_id": "reviewed-v1",
+                "source_manifest": "sources.json",
                 "license_evidence": ["LICENSE.txt"],
-                "files": {"LICENSE.txt": _hash(license_path)},
+                "files": {
+                    "LICENSE.txt": _hash(license_path),
+                    "sources.json": _hash(sources_path),
+                },
             }
         ),
         encoding="utf-8",
     )
 
     corpus_id, files = _lock_files(tmp_path)
+    sources = load_sources(tmp_path, files)
 
     assert corpus_id == "reviewed-v1"
     assert "LICENSE.txt" in files
+    assert sources["source"].allowed_oracles == frozenset({"known-render"})
 
 
 def test_lock_rejects_changed_file(tmp_path: Path) -> None:
     license_path = tmp_path / "LICENSE.txt"
     license_path.write_text("first", encoding="utf-8")
+    sources_path = _source_manifest(tmp_path)
     (tmp_path / "corpus.lock.json").write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "corpus_id": "reviewed-v1",
+                "source_manifest": "sources.json",
                 "license_evidence": ["LICENSE.txt"],
-                "files": {"LICENSE.txt": _hash(license_path)},
+                "files": {
+                    "LICENSE.txt": _hash(license_path),
+                    "sources.json": _hash(sources_path),
+                },
             }
         ),
         encoding="utf-8",
@@ -90,6 +125,7 @@ def test_ocr_evaluation_returns_aggregate_exact_metrics(tmp_path: Path) -> None:
 
     assert result["samples"] == 1
     assert result["whole_eojeol_exact_pct"] == 100.0
+    assert result["whole_eojeol_exact_ci95_low_pct"] < 100.0
     assert result["line_exact_pct"] == 100.0
     assert result["missing_eojeol_pct"] == 0.0
     assert "어디에서" not in json.dumps(result, ensure_ascii=False)
@@ -126,6 +162,7 @@ def test_morphology_evaluation_counts_false_promotions_over_entire_corpus() -> N
     assert result["false_promotions"] == 300
     assert result["false_promotion_rate_pct"] == 100.0
     assert result["correct_lemma_and_breakdown_first_pct"] == 100.0
+    assert result["correct_lemma_with_definition_in_candidates_pct"] == 100.0
 
 
 def test_expected_marked_correction_is_not_false() -> None:

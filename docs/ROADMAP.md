@@ -10,6 +10,8 @@ Every applicable popup provides the recognized complete eojeol, dictionary form,
 English definitions, and a beginner-readable breakdown of particles, tense, honorifics,
 speech level, and endings. Multiple plausible analyses remain navigable. The app is
 CPU-first and fully local after an explicit first-run asset download or offline import.
+Dictionary senses preserve source order and plausible analyses remain navigable. Contextual
+best-sense ranking is not a version-one accuracy claim until expert-reviewed evidence exists.
 
 ## Explicit non-goals for version one
 

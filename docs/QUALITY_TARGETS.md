@@ -13,7 +13,7 @@ optimization while credible, materially different approaches remain.
 | Subtitles and common image backgrounds | at least 90% | 85% |
 | Games, comics, stylized or complex backgrounds | 80-85% | 70-75% |
 
-Morphology acceptance uses a curated 300-item learner corpus. At least 90% of correctly
+Morphology acceptance uses a locked 300-item learner corpus. At least 90% of correctly
 recognized forms should put the correct lemma and primary breakdown first; its exceptional
 release floor is 85%. Marked automatic corrections must have a false-promotion rate below
 0.5%.
@@ -22,6 +22,39 @@ Warm pointer-to-popup latency should be at most 500 ms median and 1 second at p9
 prioritized clean corpus. The benchmark set is 500 clean desktop samples, 300 subtitle
 samples, 200 complex-background samples, and 300 morphology cases. Corpus images must be
 licensed or synthetic and contain no private user captures.
+
+## Automated evidence contract
+
+The release corpus may be constructed automatically when its expected answers are
+independent of the production pipeline:
+
+- clean and subtitle fixtures may render held-out, licensed Korean text with boxes known
+  from construction;
+- complex samples may import published test or validation annotations;
+- morphology cases may derive lemmas and technical morpheme annotations from held-out
+  published corpora, then apply an evaluator-owned learner-label mapping that does not call
+  production Kiwi code.
+
+Every sample must name its source identity, source sample identity, held-out split, and
+annotation oracle. Font and background sources are supporting provenance. The version-two
+corpus lock rejects missing or changed license evidence, unknown sources, unapproved
+oracles, training splits, and duplicate source samples. Sampling and eligibility rules are
+fixed before running BiDan Lens; failures and analyzer-disagreement cases cannot be removed
+because of model output.
+
+Reports include 95% Wilson confidence intervals and oracle counts in addition to point
+accuracy. Primary and exceptional thresholds continue to use the point estimate; the
+interval describes statistical uncertainty and must be published with the result. Known
+rendering is strong evidence for deterministic desktop regressions but is not described as
+universal real-world accuracy. At least the complex category remains independently
+annotated real imagery.
+
+The automated morphology gate measures lemma and supported learner labels. It separately
+reports whether the correct lemma has a definition anywhere among the navigable candidates.
+It does not certify that the first dictionary sense is contextually best or that explanation
+wording is pedagogically ideal. Version one preserves dictionary order, exposes plausible
+alternatives, and makes no measured claim about those two subjective outcomes until an
+expert or learner review exists.
 
 ## Exceptional release process
 

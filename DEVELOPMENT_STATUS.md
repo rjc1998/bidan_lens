@@ -25,6 +25,11 @@
 - an aggregate-only locked-corpus evaluator that verifies every sample and its license
   evidence by SHA-256, enforces release sample counts, and measures marked correction
   false promotions without printing recognized or expected text;
+- an automated, model-independent corpus builder for known-text clean/subtitle rendering,
+  AI Hub COCO-style OCR imports, and held-out CoNLL-U morphology imports;
+- a version-two corpus evidence contract that validates per-sample source/oracle
+  provenance, supporting font/background sources, held-out splits, duplicate prevention,
+  and 95% confidence intervals;
 - an opt-in runtime latency recorder covering capture start through popup event flush,
   with warm-up exclusion, release sample-count enforcement, and aggregate-only output.
 
@@ -32,9 +37,10 @@
 
 - publish the validated asset bundle at an immutable project release location and record
   its checksum outside the bundle;
-- curate and run the evaluator against a locked, licensed real website/subtitle/game corpus
-  and record comparable results;
-- curate the locked morphology corpus and record its marked-correction false-promotion rate;
+- acquire the approved/licensed source datasets outside Git, run the automated builder for
+  the locked clean, subtitle, and independently annotated complex corpus, and record results;
+- generate the locked morphology corpus from held-out published annotations and record its
+  marked-correction false-promotion rate;
 - record at least 500 successful clean-text popup timings and confirm the 500 ms median and
   1 second p95 latency targets on the release machine class;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;
