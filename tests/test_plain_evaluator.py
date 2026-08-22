@@ -345,6 +345,17 @@ def test_language_dictionary_conformance_is_independent_of_analyzer(
         'pct': 100.0,
     }
     assert result['failure_stages'] == {'primary_lemma': 1}
+    assert result['primary_lemma_alternative_ranks'] == {'no_match': 1}
+    assert result['primary_lemma_alternative_signals'] == {}
+    assert result['primary_lemma_structure'] == {
+        'all_component_lemmas_match': 1,
+        'component_count_matches': 1,
+        'component_count_1_to_1': 1,
+        'component_roles_match': 1,
+        'component_surfaces_match': 1,
+    }
+    assert result['particle_recovery_signals'] == {}
+    assert result['multi_component_rerank_audit'] == {}
 
 
 def test_language_dictionary_conformance_detects_direct_store_mismatch(

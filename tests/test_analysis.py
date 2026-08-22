@@ -24,6 +24,14 @@ class FakeKiwi:
         return {"먹고싶어요": "먹고 싶어요"}.get(text, text)
 
 
+class RecordingKiwi(FakeKiwi):
+    requested_top_n: int | None = None
+
+    def analyze(self, _text: str, top_n: int = 1):
+        self.requested_top_n = top_n
+        return self.analyses[:top_n]
+
+
 class FakeDictionary(DictionaryStore):
     def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
         known = {
@@ -133,3 +141,62 @@ def test_dictionary_lookup_falls_back_when_kiwi_pos_is_ambiguous() -> None:
 
     assert candidate.lemma == "먹다"
     assert candidate.dictionary_entries[0].senses[0].definition == "to eat"
+
+
+def test_dictionary_backed_noun_segmentation_recovers_particle_feature() -> None:
+    kiwi = FakeKiwi(
+        [
+            (
+                [
+                    Token("어디", "NP", 0, 2),
+                    # An offset at the target boundary models a tokenizer alignment
+                    # that excludes the attached particle from the selected tokens.
+                    Token("에", "JKB", 3, 1),
+                ],
+                -1.0,
+            )
+        ]
+    )
+
+    candidate = KoreanAnalyzer(FakeDictionary(), kiwi).analyze("어디에", (0, 3))[0]
+
+    assert candidate.lemma == "어디"
+    assert {feature.label for feature in candidate.features} == {"particle"}
+    assert all(part.learner_label != "particle" for part in candidate.morphemes)
+
+
+def test_whole_dictionary_noun_ending_like_particle_is_not_split() -> None:
+    class WholeNounDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != "사과":
+                return ()
+            return (
+                DictionaryEntry(
+                    "apple",
+                    lemma,
+                    "noun",
+                    None,
+                    "beginner",
+                    (DictionarySense("apple"),),
+                ),
+            )
+
+    kiwi = FakeKiwi([([Token("사과", "NNG", 0, 2)], -1.0)])
+
+    candidate = KoreanAnalyzer(WholeNounDictionary(), kiwi).analyze("사과", (0, 2))[0]
+
+    assert {feature.label for feature in candidate.features} == set()
+    assert candidate.lemma == "사과"
+
+
+def test_internal_kiwi_search_is_deeper_than_popup_candidate_limit() -> None:
+    kiwi = RecordingKiwi(
+        [([Token("먹", "VV", 0, 1), Token("어요", "EF", 1, 2)], -1.0)]
+    )
+
+    candidates = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(
+        "먹어요", (0, 3), max_candidates=5
+    )
+
+    assert kiwi.requested_top_n == 10
+    assert len(candidates) <= 5

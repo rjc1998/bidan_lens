@@ -28,9 +28,14 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
 - `analysis` receives the full OCR line plus the selected span. Raw morphology tags are
   internal and are translated into ordered lexical components with surface, lemma, and a
   beginner-facing contextual role. Auxiliary tags prioritize KRDict helping-verb/helping-
-  adjective groups while retaining other homographs in source order. When the first Kiwi
-  analysis has no local definition, a known particle suffix may produce a promoted candidate
-  only when its remaining stem has a local dictionary entry.
+    adjective groups while retaining other homographs in source order. The adapter examines ten
+    Kiwi analyses while exposing at most five popup candidates. A richer multi-component analysis
+    may lead only when every component has a local definition, its adjusted Kiwi score is within
+    1.0 of the leader, and it does not displace a contextual auxiliary. When the first Kiwi
+    analysis has no local definition, a known particle suffix may produce a promoted candidate
+    only when its remaining stem has a local dictionary entry; an already segmented,
+    dictionary-backed noun may also recover a missing particle feature without changing its
+    lemma or definitions.
 - `dictionary` compiles a versioned source export into a read-only runtime database.
   Exact headwords take precedence over aliases; aliases remain a fallback.
   `DictionarySourceAdapter` is the seam for future sources.

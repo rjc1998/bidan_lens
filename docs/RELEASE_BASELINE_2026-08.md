@@ -41,22 +41,27 @@ verbs across four ending patterns and 50 reviewed common nouns across two partic
 
 The corrected corpora are locked under `F:\bidan-lens-eval-ud218-v4.2`; the release split is
 unevaluated. Independent direct KRDict conformance is now separated from analyzer correctness
-and passes 243/243 unique groups. The 400-case development language tier is 86.00% overall,
-93.50% for auxiliary cases, and 78.50% for multi-lexical cases. The remaining aggregate
-language failures are 32 primary lemmas, 10 grammar roles, eight component roles, five
-component surfaces, and one component-count mismatch.
+and passes 243/243 unique groups. After conservative score-bounded multi-component promotion,
+the 400-case development language tier is 86.50% overall, 93.50% for auxiliary cases, and
+79.50% for multi-lexical cases. The remaining aggregate language failures are 31 primary
+lemmas, 10 grammar roles, eight component roles, four component surfaces, and one
+component-count mismatch. Internal Kiwi search now examines ten analyses while the popup remains
+capped at five; primary-lemma failures with no matching navigable candidate decreased from 23
+to 18.
 
 The 200-case rendered quick tier is 96.43% whole-eojeol OCR, 74.50% functional context,
-58.00% component accuracy, 44.00% fully correct popup, and 2.11% negative activation, with
-257.87 ms median / 402.65 ms p95 automated latency. These are provisional development
+59.00% component accuracy, 45.00% fully correct popup, and 2.11% negative activation, with
+271.72 ms median / 403.47 ms p95 automated latency. These are provisional development
 measurements; a complete v4.2 render run has not been performed and release remains blocked.
 
 The development/release lock SHA-256 values are
 `46ced15df84f27bc858f8700c68cc9fa58f36f9407e6610bc3050d0056475567` and
 `55babf1b1c53c101016b65b371bdd56b540e36aff6c9edbb93623c9e0acf6aeb`.
-The language and quick report SHA-256 values are
-`b2e56708d5077519704529bc56c7ff2f6e6bb292b16cb472777930250cf09b69` and
-`3c9f9d0226913933cf89d24621bb0fc8dd85eed0f511125b0dc411b148a4b16f`.
+The latest aggregate-only language and quick reports are
+`report-language-multilexical.json` and `report-quick-multilexical.json`; their SHA-256 values
+are `06bb601d45c1a4c7e60a0c39efd9844e619a42594b379603eb662de1ec71c613` and
+`58bb895d28816e6bd80286792577af0b8205c3f96cc33e7f53f720c7d498c21f`. The preceding v4.2
+reports remain preserved under their original filenames.
 
 ## Superseded plain-v1 schema-v4 development evidence
 

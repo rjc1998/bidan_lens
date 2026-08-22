@@ -48,6 +48,7 @@ from benchmarks.plain_corpus import (
     STRESS_COUNT,
     STRESS_SIZE,
 )
+from bidan_lens.analysis.grammar import known_particle_suffixes
 from bidan_lens.analysis.korean import KoreanAnalyzer
 from bidan_lens.dictionary.store import DictionaryStore, SqliteDictionaryStore
 from bidan_lens.models import (
@@ -1131,6 +1132,11 @@ def evaluate_language(
     failures: Counter[str] = Counter()
     role_confusions: Counter[str] = Counter()
     missing_grammar_roles: Counter[str] = Counter()
+    primary_lemma_alternative_ranks: Counter[str] = Counter()
+    primary_lemma_alternative_signals: Counter[str] = Counter()
+    primary_lemma_structure: Counter[str] = Counter()
+    particle_recovery_signals: Counter[str] = Counter()
+    multi_component_rerank_audit: Counter[str] = Counter()
     all_results: list[bool] = []
     for sample in samples:
         candidates = analyzer.analyze(sample.sentence, sample.sentence_span)
@@ -1140,6 +1146,37 @@ def evaluate_language(
         language_class = sample.target.language_class
         if language_class is None:
             raise CorpusError('focused language sample has no language class')
+        if first is not None:
+            richer = next(
+                (
+                    candidate
+                    for candidate in candidates[1:]
+                    if len(candidate.lexical_components) > len(first.lexical_components)
+                    and len(candidate.lexical_components) >= 2
+                    and all(
+                        component.dictionary_entries
+                        for component in candidate.lexical_components
+                    )
+                ),
+                None,
+            )
+            if richer is not None:
+                gap = first.score - richer.score
+                if gap <= 0.25:
+                    gap_bucket = 'gap_le_0_25'
+                elif gap <= 0.5:
+                    gap_bucket = 'gap_le_0_5'
+                elif gap <= 1.0:
+                    gap_bucket = 'gap_le_1_0'
+                else:
+                    gap_bucket = 'gap_gt_1_0'
+                if _language_failure_stage(richer, sample.target) is None:
+                    outcome = 'recover'
+                elif failure_stage is None:
+                    outcome = 'regress'
+                else:
+                    outcome = 'still_incorrect'
+                multi_component_rerank_audit[f'{gap_bucket}_{outcome}'] += 1
         grouped[language_class].append(correct)
         if failure_stage is not None:
             failures[failure_stage] += 1
@@ -1155,12 +1192,152 @@ def evaluate_language(
                             f'{expected.learner_role} -> {actual.learner_role}'
                         ] += 1
                         break
+            elif failure_stage == 'primary_lemma':
+                expected_components = sample.target.expected_components
+                actual_components = first.lexical_components if first is not None else ()
+                primary_lemma_structure[
+                    f'component_count_{len(expected_components)}_to_{len(actual_components)}'
+                ] += 1
+                if len(actual_components) == len(expected_components):
+                    primary_lemma_structure['component_count_matches'] += 1
+                    surfaces_match = all(
+                        _normal(actual.surface) == expected.surface
+                        for actual, expected in zip(
+                            actual_components, expected_components, strict=True
+                        )
+                    )
+                    roles_match = all(
+                        actual.learner_role == expected.learner_role
+                        for actual, expected in zip(
+                            actual_components, expected_components, strict=True
+                        )
+                    )
+                    lemmas_match = sum(
+                        _normal(actual.lemma) == expected.lemma
+                        for actual, expected in zip(
+                            actual_components, expected_components, strict=True
+                        )
+                    )
+                    if surfaces_match:
+                        primary_lemma_structure['component_surfaces_match'] += 1
+                    if roles_match:
+                        primary_lemma_structure['component_roles_match'] += 1
+                    if lemmas_match == len(expected_components):
+                        primary_lemma_structure['all_component_lemmas_match'] += 1
+                    elif lemmas_match == len(expected_components) - 1:
+                        primary_lemma_structure['one_component_lemma_differs'] += 1
+                matching = next(
+                    (
+                        (rank, candidate)
+                        for rank, candidate in enumerate(candidates[1:], start=2)
+                        if _normal(candidate.lemma) == sample.target.expected_lemma
+                    ),
+                    None,
+                )
+                primary_lemma_alternative_ranks[
+                    f'rank_{matching[0]}' if matching is not None else 'no_match'
+                ] += 1
+                if matching is not None and first is not None:
+                    alternative = matching[1]
+                    if sample.target.expected_spacing is not None:
+                        primary_lemma_alternative_signals['verified_spacing'] += 1
+                    if _component_matches(alternative, sample.target):
+                        primary_lemma_alternative_signals['complete_components'] += 1
+                    if _dictionary_matches(alternative, sample.target):
+                        primary_lemma_alternative_signals['complete_dictionary'] += 1
+                    alternative_labels = {
+                        feature.label for feature in alternative.features
+                    }
+                    alternative_labels.update(
+                        morpheme.learner_label for morpheme in alternative.morphemes
+                    )
+                    if sample.target.expected_labels <= alternative_labels:
+                        primary_lemma_alternative_signals['complete_grammar'] += 1
+                    first_component_count = len(first.lexical_components)
+                    alternative_component_count = len(alternative.lexical_components)
+                    if alternative_component_count > first_component_count:
+                        primary_lemma_alternative_signals['more_components'] += 1
+                    elif alternative_component_count == first_component_count:
+                        primary_lemma_alternative_signals['equal_components'] += 1
+                    else:
+                        primary_lemma_alternative_signals['fewer_components'] += 1
+                    first_defined = sum(
+                        bool(component.dictionary_entries)
+                        for component in first.lexical_components
+                    )
+                    alternative_defined = sum(
+                        bool(component.dictionary_entries)
+                        for component in alternative.lexical_components
+                    )
+                    if alternative_defined > first_defined:
+                        primary_lemma_alternative_signals[
+                            'more_defined_components'
+                        ] += 1
+                    elif alternative_defined == first_defined:
+                        primary_lemma_alternative_signals[
+                            'equal_defined_components'
+                        ] += 1
+                    else:
+                        primary_lemma_alternative_signals[
+                            'fewer_defined_components'
+                        ] += 1
             elif failure_stage == 'grammar_roles' and first is not None:
                 actual_labels = {feature.label for feature in first.features}
                 actual_labels.update(
                     morpheme.learner_label for morpheme in first.morphemes
                 )
-                missing_grammar_roles.update(sample.target.expected_labels - actual_labels)
+                missing = sample.target.expected_labels - actual_labels
+                missing_grammar_roles.update(missing)
+                if 'particle' in missing:
+                    particle_recovery_signals['cases'] += 1
+                    particle_recovery_signals[
+                        f'component_count_{len(first.lexical_components)}'
+                    ] += 1
+                    particle_recovery_signals[
+                        f'target_class_{sample.target.target_class}'
+                    ] += 1
+                    if sample.target.expected_components:
+                        suffix_length = len(sample.target.text) - len(
+                            ''.join(
+                                component.surface
+                                for component in sample.target.expected_components
+                            )
+                        )
+                        particle_recovery_signals[
+                            f'oracle_nonlexical_length_{suffix_length}'
+                        ] += 1
+                    suffix = next(
+                        (
+                            value
+                            for value in known_particle_suffixes()
+                            if sample.target.text.endswith(value)
+                            and len(sample.target.text) > len(value)
+                        ),
+                        None,
+                    )
+                    if suffix is not None:
+                        particle_recovery_signals['known_suffix'] += 1
+                        base = sample.target.text[: -len(suffix)]
+                        if dictionary.lookup(base, 'noun', 1) or dictionary.lookup(
+                            base, None, 1
+                        ):
+                            particle_recovery_signals['dictionary_backed_base'] += 1
+                        if _normal(first.lemma) == base:
+                            particle_recovery_signals['candidate_lemma_matches_base'] += 1
+                        if len(first.lexical_components) == 1:
+                            component = first.lexical_components[0]
+                            if component.learner_role in {
+                                'noun',
+                                'name or proper noun',
+                                'pronoun',
+                                'number',
+                                'dependent noun',
+                            }:
+                                particle_recovery_signals['single_noun_component'] += 1
+                            if _normal(component.surface) == base:
+                                particle_recovery_signals[
+                                    'component_surface_matches_base'
+                                ] += 1
         all_results.append(correct)
     if not all_results:
         raise CorpusError('plain evaluation contains no focused language samples')
@@ -1177,6 +1354,17 @@ def evaluate_language(
         'failure_stages': dict(sorted(failures.items())),
         'component_role_confusions': dict(sorted(role_confusions.items())),
         'missing_grammar_roles': dict(sorted(missing_grammar_roles.items())),
+        'primary_lemma_alternative_ranks': dict(
+            sorted(primary_lemma_alternative_ranks.items())
+        ),
+        'primary_lemma_alternative_signals': dict(
+            sorted(primary_lemma_alternative_signals.items())
+        ),
+        'primary_lemma_structure': dict(sorted(primary_lemma_structure.items())),
+        'particle_recovery_signals': dict(sorted(particle_recovery_signals.items())),
+        'multi_component_rerank_audit': dict(
+            sorted(multi_component_rerank_audit.items())
+        ),
         'by_class': {
             language_class: {
                 'samples': len(values),

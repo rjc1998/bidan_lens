@@ -197,3 +197,54 @@ def test_same_role_homographs_remain_source_ordered() -> None:
     entries = KoreanAnalyzer(RoleDictionary())._ordered_entries('먹다', 'VV')
 
     assert [entry.entry_id for entry in entries] == ['hear', 'eat']
+
+
+def test_close_complete_multi_component_analysis_is_promoted() -> None:
+    analyses = {
+        '갔다오다': [
+            ([Token('갔다오', 'VV', 0, 3), Token('다', 'EF', 3, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 0, 1),
+                    Token('었', 'EP', 0, 1),
+                    Token('다', 'EC', 1, 1),
+                    Token('오', 'VV', 2, 1),
+                    Token('다', 'EF', 3, 1),
+                ],
+                -1.5,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(RoleDictionary(), ContextKiwi(analyses)).analyze(
+        '갔다오다', (0, 4)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '가다',
+        '오다',
+    ]
+
+
+def test_distant_multi_component_analysis_is_not_promoted() -> None:
+    analyses = {
+        '갔다오다': [
+            ([Token('갔다오', 'VV', 0, 3), Token('다', 'EF', 3, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 0, 1),
+                    Token('었', 'EP', 0, 1),
+                    Token('다', 'EC', 1, 1),
+                    Token('오', 'VV', 2, 1),
+                    Token('다', 'EF', 3, 1),
+                ],
+                -3.0,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(RoleDictionary(), ContextKiwi(analyses)).analyze(
+        '갔다오다', (0, 4)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == ['갔다오다']

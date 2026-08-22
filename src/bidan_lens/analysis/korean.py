@@ -32,6 +32,7 @@ _VERB_TAGS = {"VV", "VA", "VX", "XSV", "XSA"}
 
 
 _LEXICAL_TAGS = _VERB_TAGS | {'NNG', 'NNP', 'NNB', 'NP', 'NR'}
+_KIWI_ANALYSIS_DEPTH = 10
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -75,6 +76,7 @@ class KoreanAnalyzer:
         start, end = target_span
         surface = sentence[start:end]
         candidates = self._analyze_candidates(sentence, target_span, max_candidates)
+        candidates = self._augment_known_particle_features(surface, candidates)
         particle = self._particle_candidate(surface, candidates)
         if particle is not None:
             remaining = (candidate for candidate in candidates if candidate is not particle)
@@ -89,6 +91,45 @@ class KoreanAnalyzer:
             )
             for candidate in candidates
         )
+
+    @staticmethod
+    def _augment_known_particle_features(
+        surface: str, candidates: tuple[AnalysisCandidate, ...]
+    ) -> tuple[AnalysisCandidate, ...]:
+        """Recover a particle label only from an already segmented noun base."""
+        augmented: list[AnalysisCandidate] = []
+        noun_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+        }
+        for candidate in candidates:
+            labels = {feature.label for feature in candidate.features}
+            labels.update(item.learner_label for item in candidate.morphemes)
+            if 'particle' in labels or len(candidate.lexical_components) != 1:
+                augmented.append(candidate)
+                continue
+            component = candidate.lexical_components[0]
+            suffix = next(
+                (
+                    item
+                    for item in known_particle_suffixes()
+                    if surface.endswith(item)
+                    and len(surface) > len(item)
+                    and component.surface == surface[: -len(item)]
+                    and component.learner_role in noun_roles
+                    and bool(component.dictionary_entries)
+                ),
+                None,
+            )
+            if suffix is None:
+                augmented.append(candidate)
+                continue
+            features = (*candidate.features, *learner_features([(suffix, 'JX')]))
+            augmented.append(replace(candidate, features=features))
+        return tuple(augmented)
 
     def _particle_candidate(
         self, surface: str, candidates: tuple[AnalysisCandidate, ...]
@@ -135,7 +176,9 @@ class KoreanAnalyzer:
     ) -> tuple[AnalysisCandidate, ...]:
         start, end = target_span
         surface = sentence[start:end]
-        analyses = self.kiwi.analyze(sentence, top_n=max_candidates)
+        analyses = self.kiwi.analyze(
+            sentence, top_n=max(max_candidates, _KIWI_ANALYSIS_DEPTH)
+        )
         candidates: list[AnalysisCandidate] = []
         contextual_auxiliary_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
@@ -193,10 +236,31 @@ class KoreanAnalyzer:
             ),
             reverse=True,
         )
+        candidates = self._promote_close_complete_multi_component(
+            candidates, contextual_auxiliary_ids
+        )
         limited = candidates[:max_candidates]
         if len(limited) > 1:
             limited = [replace(candidate, uncertain=True) for candidate in limited]
         return tuple(limited)
+
+    @staticmethod
+    def _promote_close_complete_multi_component(
+        candidates: list[AnalysisCandidate], contextual_auxiliary_ids: set[int]
+    ) -> list[AnalysisCandidate]:
+        if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
+            return candidates
+        first = candidates[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            components = candidate.lexical_components
+            if (
+                first.score - candidate.score <= 1.0
+                and len(components) > len(first.lexical_components)
+                and len(components) >= 2
+                and all(component.dictionary_entries for component in components)
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
 
     @staticmethod
     def _recover_lemma(tokens: list[_Token], surface: str) -> str:
