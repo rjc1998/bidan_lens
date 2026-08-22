@@ -1,4 +1,4 @@
-"""End-to-end, aggregate-only evaluation for the v3 plain-v1 corpus."""
+"""End-to-end, aggregate-only evaluation for the v4 plain-v1 corpus."""
 
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ from benchmarks.plain_corpus import (
     STRESS_SIZE,
 )
 from bidan_lens.analysis.korean import KoreanAnalyzer
-from bidan_lens.dictionary.store import SqliteDictionaryStore
+from bidan_lens.dictionary.store import DictionaryStore, SqliteDictionaryStore
 from bidan_lens.models import (
     AnalysisCandidate,
     BoundingBox,
@@ -754,6 +754,118 @@ def _dictionary_matches(candidate: AnalysisCandidate | None, target: PlainTarget
     return actual == expected and actual_components == expected_components
 
 
+def _role_dictionary_positions(learner_role: str) -> tuple[str, ...]:
+    if learner_role == 'helping verb':
+        return ('보조 동사', '보조 형용사')
+    if learner_role == 'descriptive verb':
+        return ('adjective',)
+    if learner_role == 'action verb':
+        return ('verb',)
+    if learner_role == 'noun':
+        return ('noun',)
+    return ()
+
+
+def _direct_component_entries(
+    dictionary: DictionaryStore, component: ExpectedComponent
+) -> tuple[DictionaryEntry, ...]:
+    ordered: list[DictionaryEntry] = []
+    seen: set[str] = set()
+    for part_of_speech in _role_dictionary_positions(component.learner_role):
+        for entry in dictionary.lookup(component.lemma, part_of_speech, 10):
+            if entry.entry_id not in seen:
+                seen.add(entry.entry_id)
+                ordered.append(entry)
+    for entry in dictionary.lookup(component.lemma, None, 10):
+        if entry.entry_id not in seen:
+            seen.add(entry.entry_id)
+            ordered.append(entry)
+    return tuple(ordered[:10])
+
+
+def _direct_dictionary_conformance(
+    dictionary: DictionaryStore, samples: tuple[LanguageSample, ...]
+) -> dict[str, object]:
+    expected_groups: dict[
+        tuple[str, str, tuple[tuple[str, str, tuple[tuple[int, str], ...]], ...]],
+        ExpectedComponent,
+    ] = {}
+    for sample in samples:
+        for component in sample.target.expected_components:
+            signature = tuple(_expected_signature(entry) for entry in component.entries)
+            expected_groups.setdefault(
+                (component.lemma, component.learner_role, signature), component
+            )
+    matches = 0
+    mismatch_reasons: Counter[str] = Counter()
+    for component in expected_groups.values():
+        actual = tuple(
+            _entry_signature(entry)
+            for entry in _direct_component_entries(dictionary, component)
+        )
+        expected = tuple(_expected_signature(entry) for entry in component.entries)
+        if actual == expected:
+            matches += 1
+        else:
+            actual_ids = tuple(entry[0] for entry in actual)
+            expected_ids = tuple(entry[0] for entry in expected)
+            if set(actual_ids) != set(expected_ids):
+                mismatch_reasons['entry_set'] += 1
+            elif actual_ids != expected_ids:
+                mismatch_reasons['entry_order'] += 1
+            elif tuple(entry[1] for entry in actual) != tuple(
+                entry[1] for entry in expected
+            ):
+                mismatch_reasons['headword'] += 1
+            else:
+                mismatch_reasons['senses'] += 1
+    total = len(expected_groups)
+    if total == 0:
+        raise CorpusError('plain evaluation contains no dictionary conformance groups')
+    return {
+        'groups': total,
+        'matching_groups': matches,
+        'mismatching_groups': total - matches,
+        'mismatch_reasons': dict(sorted(mismatch_reasons.items())),
+        'pct': _percent(matches, total),
+    }
+
+
+def _language_failure_stage(
+    candidate: AnalysisCandidate | None, target: PlainTarget
+) -> str | None:
+    if candidate is None:
+        return 'missing_candidate'
+    if _normal(candidate.lemma) != target.expected_lemma:
+        return 'primary_lemma'
+    labels = {feature.label for feature in candidate.features}
+    labels.update(morpheme.learner_label for morpheme in candidate.morphemes)
+    if not target.expected_labels <= labels:
+        return 'grammar_roles'
+    if len(candidate.lexical_components) != len(target.expected_components):
+        return 'component_count'
+    for actual, expected in zip(
+        candidate.lexical_components, target.expected_components, strict=True
+    ):
+        if _normal(actual.surface) != expected.surface:
+            return 'component_surface'
+        if _normal(actual.lemma) != expected.lemma:
+            return 'component_lemma'
+        if actual.learner_role != expected.learner_role:
+            return 'component_role'
+        if tuple(_entry_signature(entry) for entry in actual.dictionary_entries) != tuple(
+            _expected_signature(entry) for entry in expected.entries
+        ):
+            return 'contextual_dictionary_group'
+    if tuple(_entry_signature(entry) for entry in candidate.dictionary_entries) != tuple(
+        _expected_signature(entry) for entry in target.expected_dictionary_entries
+    ):
+        return 'primary_dictionary_group'
+    if not _spacing_matches(candidate, target):
+        return 'spacing'
+    return None
+
+
 def _evaluate_sample(
     engine: PlainEngineLike, analyzer: AnalyzerLike, sample: PlainSample
 ) -> SampleOutcome:
@@ -1004,43 +1116,45 @@ def evaluate_plain(
 
 
 def evaluate_language(
-    analyzer: AnalyzerLike, samples: tuple[LanguageSample, ...]
+    analyzer: AnalyzerLike,
+    dictionary: DictionaryStore,
+    samples: tuple[LanguageSample, ...],
 ) -> dict[str, object]:
     grouped: dict[str, list[bool]] = defaultdict(list)
-    dictionary_matches: list[bool] = []
+    grouped_failures: dict[str, Counter[str]] = defaultdict(Counter)
+    failures: Counter[str] = Counter()
     all_results: list[bool] = []
     for sample in samples:
         candidates = analyzer.analyze(sample.sentence, sample.sentence_span)
         first = candidates[0] if candidates else None
-        correct = bool(
-            first
-            and _analysis_matches(first, sample.target)
-            and _dictionary_matches(first, sample.target)
-            and _spacing_matches(first, sample.target)
-        )
-        dictionary_correct = _dictionary_matches(first, sample.target)
+        failure_stage = _language_failure_stage(first, sample.target)
+        correct = failure_stage is None
         language_class = sample.target.language_class
         if language_class is None:
             raise CorpusError('focused language sample has no language class')
         grouped[language_class].append(correct)
-        dictionary_matches.append(dictionary_correct)
+        if failure_stage is not None:
+            failures[failure_stage] += 1
+            grouped_failures[language_class][failure_stage] += 1
         all_results.append(correct)
     if not all_results:
         raise CorpusError('plain evaluation contains no focused language samples')
     successes = sum(all_results)
     low, high = _wilson_interval(successes, len(all_results))
+    conformance = _direct_dictionary_conformance(dictionary, samples)
     return {
         'samples': len(all_results),
         'fully_correct_first_popup_pct': _percent(successes, len(all_results)),
         'fully_correct_first_popup_ci95_low_pct': round(low * 100, 2),
         'fully_correct_first_popup_ci95_high_pct': round(high * 100, 2),
-        'direct_krdict_conformance_pct': _percent(
-            sum(dictionary_matches), len(dictionary_matches)
-        ),
+        'direct_krdict_conformance_pct': conformance['pct'],
+        'direct_krdict_conformance': conformance,
+        'failure_stages': dict(sorted(failures.items())),
         'by_class': {
             language_class: {
                 'samples': len(values),
                 'fully_correct_first_popup_pct': _percent(sum(values), len(values)),
+                'failure_stages': dict(sorted(grouped_failures[language_class].items())),
             }
             for language_class, values in sorted(grouped.items())
         },
@@ -1055,6 +1169,7 @@ def run_plain(
     diagnostics: Path | None = None,
     engine: PlainEngineLike | None = None,
     analyzer: AnalyzerLike | None = None,
+    dictionary: DictionaryStore | None = None,
 ) -> dict[str, object]:
     validation = validate_plain_corpus(corpus, allow_incomplete=quick)
     corpus_id, locked = _lock_files(corpus)
@@ -1074,14 +1189,21 @@ def run_plain(
             ),
         )
     if analyzer is None:
-        analyzer = KoreanAnalyzer(SqliteDictionaryStore(_asset(assets, "dictionary.sqlite3")))
+        dictionary = dictionary or SqliteDictionaryStore(_asset(assets, 'dictionary.sqlite3'))
+        analyzer = KoreanAnalyzer(dictionary)
+    if language_samples and dictionary is None:
+        dictionary = SqliteDictionaryStore(_asset(assets, 'dictionary.sqlite3'))
     plain, outcomes = evaluate_plain(engine, analyzer, plain_samples)
     stress: dict[str, object] | None = None
     stress_outcomes: tuple[SampleOutcome, ...] = ()
     if stress_samples:
         stress, stress_outcomes = evaluate_plain(engine, analyzer, stress_samples)
         stress["release_blocking"] = False
-    language = evaluate_language(analyzer, language_samples) if language_samples else None
+    language = (
+        evaluate_language(analyzer, dictionary, language_samples)
+        if language_samples and dictionary is not None
+        else None
+    )
     if diagnostics is not None:
         _write_diagnostics(diagnostics, (*outcomes, *stress_outcomes))
     split_counts = Counter(sample.provenance.source_split for sample in plain_samples)

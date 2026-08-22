@@ -484,25 +484,33 @@ def _component_role(tag: str) -> str | None:
     return None
 
 
-def _component_pos(tag: str) -> str | None:
+def _component_positions(tag: str) -> tuple[str, ...]:
     if tag in {'px', 'vx'}:
-        return '보조 동사'
+        return ('보조 동사', '보조 형용사')
     if tag in {'pvg', 'vv', 'xsv'}:
-        return 'verb'
+        return ('verb',)
     if tag in {'paa', 'va', 'xsa'}:
-        return 'adjective'
+        return ('adjective',)
     if tag.startswith('n'):
-        return 'noun'
-    return None
+        return ('noun',)
+    return ()
 
 
 def _ordered_oracle_entries(
-    oracle: Mapping[str, tuple[OracleEntry, ...]], lemma: str, pos: str | None
+    oracle: Mapping[str, tuple[OracleEntry, ...]],
+    lemma: str,
+    positions: tuple[str, ...],
 ) -> tuple[OracleEntry, ...]:
-    matching = _oracle_lookup(oracle, lemma, pos)
-    seen = {entry.entry_id for entry in matching}
-    remaining = tuple(entry for entry in oracle.get(lemma, ()) if entry.entry_id not in seen)
-    return (*matching, *remaining)[:10]
+    available = oracle.get(lemma, ())
+    ordered: list[OracleEntry] = []
+    seen: set[str] = set()
+    for position in positions:
+        for entry in available:
+            if entry.part_of_speech in {position, None} and entry.entry_id not in seen:
+                seen.add(entry.entry_id)
+                ordered.append(entry)
+    ordered.extend(entry for entry in available if entry.entry_id not in seen)
+    return tuple(ordered[:10])
 
 
 def _expected_components(
@@ -532,7 +540,7 @@ def _expected_components(
         elif tag in {'pvg', 'paa', 'px', 'vv', 'va', 'vx', 'xsv', 'xsa'}:
             lemma = form if form.endswith('다') else form + '다'
         entries = _ordered_oracle_entries(
-            oracle, lemma, _component_pos(component_tag)
+            oracle, lemma, _component_positions(component_tag)
         )
         components.append(OracleComponent(surface, lemma, role, entries))
         index += 1

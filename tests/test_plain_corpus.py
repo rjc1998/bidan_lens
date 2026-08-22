@@ -20,6 +20,7 @@ from benchmarks.plain_corpus import (
     _candidate_pool,
     _exclude_split_overlap,
     _line_records,
+    _ordered_oracle_entries,
     _punctuate,
     _render_spec,
     _select_candidates,
@@ -292,6 +293,22 @@ def test_independent_krdict_oracle_sorts_multiple_archive_members(tmp_path: Path
     entries = load_krdict_oracle(archive)
 
     assert set(entries) == {"하나", "둘"}
+
+
+def test_auxiliary_oracle_groups_both_helping_parts_of_speech_first() -> None:
+    entries = {
+        '버리다': (
+            OracleEntry('1', '버리다', ((1, 'discard'),), 'verb'),
+            OracleEntry('2', '버리다', ((1, 'completion'),), '보조 동사'),
+            OracleEntry('3', '버리다', ((1, 'state'),), '보조 형용사'),
+        )
+    }
+
+    ordered = _ordered_oracle_entries(
+        entries, '버리다', ('보조 동사', '보조 형용사')
+    )
+
+    assert [entry.entry_id for entry in ordered] == ['2', '3', '1']
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -9,7 +9,9 @@ from PIL import Image
 from benchmarks.locked_corpus import CorpusError
 from benchmarks.plain_corpus import PLAIN_ORACLE
 from benchmarks.plain_evaluator import (
+    LanguageSample,
     _functional_context,
+    evaluate_language,
     evaluate_plain,
     load_plain_samples,
     lock_plain_corpus,
@@ -58,6 +60,16 @@ class FakeAnalyzer:
         self, _sentence: str, _span: tuple[int, int], max_candidates: int = 5
     ) -> tuple[AnalysisCandidate, ...]:
         return self.candidates[:max_candidates]
+
+
+@dataclass
+class FakeDictionary:
+    entries: tuple[DictionaryEntry, ...]
+
+    def lookup(
+        self, _lemma: str, _part_of_speech: str | None = None, _limit: int = 10
+    ) -> tuple[DictionaryEntry, ...]:
+        return self.entries
 
 
 def _entry(reverse: bool = False) -> DictionaryEntry:
@@ -302,6 +314,60 @@ def test_plain_pipeline_reports_dictionary_order_failure(tmp_path: Path) -> None
     assert result["exact_krdict_fidelity_first_pct"] == 0.0
     assert result["fully_correct_first_popup_pct"] == 0.0
     assert outcomes[0].failed_stage == "dictionary"
+
+
+def test_language_dictionary_conformance_is_independent_of_analyzer(
+    tmp_path: Path,
+) -> None:
+    plain_sample = _load(_corpus(tmp_path))[0]
+    language_sample = LanguageSample(
+        'language-1',
+        SENTENCE,
+        TARGET_SPAN,
+        replace(plain_sample.target, language_class='multi-lexical'),
+        plain_sample.provenance,
+    )
+
+    result = evaluate_language(
+        FakeAnalyzer((_candidate(correct=False),)),
+        FakeDictionary((_entry(),)),
+        (language_sample,),
+    )
+
+    assert result['fully_correct_first_popup_pct'] == 0.0
+    assert result['direct_krdict_conformance_pct'] == 100.0
+    assert result['direct_krdict_conformance'] == {
+        'groups': 1,
+        'matching_groups': 1,
+        'mismatching_groups': 0,
+        'mismatch_reasons': {},
+        'pct': 100.0,
+    }
+    assert result['failure_stages'] == {'primary_lemma': 1}
+
+
+def test_language_dictionary_conformance_detects_direct_store_mismatch(
+    tmp_path: Path,
+) -> None:
+    plain_sample = _load(_corpus(tmp_path))[0]
+    language_sample = LanguageSample(
+        'language-1',
+        SENTENCE,
+        TARGET_SPAN,
+        replace(plain_sample.target, language_class='multi-lexical'),
+        plain_sample.provenance,
+    )
+
+    result = evaluate_language(
+        FakeAnalyzer((_candidate(),)),
+        FakeDictionary((_entry(reverse=True),)),
+        (language_sample,),
+    )
+
+    assert result['fully_correct_first_popup_pct'] == 100.0
+    assert result['direct_krdict_conformance_pct'] == 0.0
+    assert result['direct_krdict_conformance']['mismatching_groups'] == 1
+    assert result['direct_krdict_conformance']['mismatch_reasons'] == {'senses': 1}
 
 
 def test_plain_pipeline_counts_alternative_candidate_recovery(tmp_path: Path) -> None:
