@@ -209,15 +209,14 @@ class PaddleRecognizer:
         )
         background = np.median(border, axis=0)
         foreground = np.max(np.abs(source - background), axis=2) > 24
-        padding = max(1, round(rgb.height * 0.15))
         result: list[tuple[int, int]] = []
         for index in range(len(clean) - 1):
             rough_left = max(0, math.floor(clean[index]))
             rough_right = min(rgb.width, math.ceil(clean[index + 1]))
             columns = np.flatnonzero(foreground[:, rough_left:rough_right].sum(axis=0))
             if len(columns):
-                left = max(0, rough_left + int(columns[0]) - padding)
-                right = min(rgb.width, rough_left + int(columns[-1]) + padding + 1)
+                left = rough_left + int(columns[0])
+                right = rough_left + int(columns[-1]) + 1
             else:
                 left, right = rough_left, rough_right
             if right - left >= 3:

@@ -172,28 +172,13 @@ class DictionaryPopup(QFrame):
             self.position.clear()
             return
         self.correction.setText(
-            f"Interpreted as: {candidate.interpreted_surface}"
+            f'Spacing: {candidate.interpreted_surface}'
             if candidate.interpreted_surface and candidate.interpreted_surface != candidate.surface
-            else ""
+            else ''
         )
-        if candidate.interpreted_surface and candidate.interpreted_surface != candidate.surface:
-            self.correction.setText(f'Spacing: {candidate.interpreted_surface}')
         self.lemma.setText(f"Dictionary form: {candidate.lemma}")
-        definitions = [
-            sense.definition for entry in candidate.dictionary_entries for sense in entry.senses
-        ]
-        self.definitions.setText(
-            "\n".join(
-                f"{index}. {definition}" for index, definition in enumerate(definitions[:5], 1)
-            )
-            or "No English definition found"
-        )
-        parts = [f"{part.surface}: {part.learner_label}" for part in candidate.morphemes]
-        parts.extend(f"{feature.label}: {feature.explanation}" for feature in candidate.features)
-        self.breakdown.setText("\n".join(parts))
         self.definitions.setText(_definitions_text(candidate))
         self.breakdown.setText(_breakdown_text(candidate))
-        uncertainty = " · uncertain" if candidate.uncertain else ""
         uncertainty = ' · uncertain' if candidate.uncertain else ''
         self.position.setText(
             f"{self._result.selected_index + 1}/{len(self._result.candidates)}{uncertainty}"

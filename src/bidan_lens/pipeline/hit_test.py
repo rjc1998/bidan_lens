@@ -3,7 +3,7 @@ from __future__ import annotations
 from bidan_lens.models import HoverTarget, OcrDocument
 
 
-def hit_test(document: OcrDocument, x: float, y: float, padding: float = 1.5) -> HoverTarget | None:
+def hit_test(document: OcrDocument, x: float, y: float, padding: float = 0.0) -> HoverTarget | None:
     local_x = x - document.origin_x
     local_y = y - document.origin_y
     matches = []

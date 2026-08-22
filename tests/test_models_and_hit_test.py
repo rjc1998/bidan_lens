@@ -46,4 +46,4 @@ def test_hit_test_returns_whole_word_with_sentence_context() -> None:
 def test_hit_test_does_not_select_spaces_or_punctuation() -> None:
     line = make_line("한국어, 공부", BoundingBox(0, 0, 100, 20), 0.9)
     document = OcrDocument((line,), 1.0)
-    assert hit_test(document, 48, 10, padding=0) is None
+    assert hit_test(document, 48, 10) is None
