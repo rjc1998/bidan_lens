@@ -18,6 +18,7 @@ from benchmarks.plain_corpus import (
     UdSentence,
     UdToken,
     _candidate_pool,
+    _component_role,
     _exclude_split_overlap,
     _line_records,
     _ordered_oracle_entries,
@@ -309,6 +310,20 @@ def test_auxiliary_oracle_groups_both_helping_parts_of_speech_first() -> None:
     )
 
     assert [entry.entry_id for entry in ordered] == ['2', '3', '1']
+
+
+@pytest.mark.parametrize(
+    ('tag', 'role'),
+    [
+        ('ncn', 'noun'),
+        ('nq', 'name or proper noun'),
+        ('npp', 'pronoun'),
+        ('nnc', 'number'),
+        ('nbn', 'dependent noun'),
+    ],
+)
+def test_kaist_noun_subtypes_use_matching_learner_roles(tag: str, role: str) -> None:
+    assert _component_role(tag) == role
 
 
 @pytest.mark.parametrize(

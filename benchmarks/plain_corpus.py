@@ -479,6 +479,14 @@ def _component_role(tag: str) -> str | None:
         return 'descriptive verb'
     if tag in {'px', 'vx'}:
         return 'helping verb'
+    if tag.startswith('nq'):
+        return 'name or proper noun'
+    if tag.startswith('np'):
+        return 'pronoun'
+    if tag.startswith('nn'):
+        return 'number'
+    if tag.startswith('nb'):
+        return 'dependent noun'
     if tag.startswith('n'):
         return 'noun'
     return None
@@ -721,6 +729,7 @@ def _candidate_pool(
                 components = (
                     OracleComponent(surface, lemma, target_class, dictionary_entries),
                 )
+            lemma = components[0].lemma
             if components[0].entries:
                 dictionary_entries = components[0].entries
             if len(components) >= 2:

@@ -137,15 +137,17 @@ class KoreanAnalyzer:
         surface = sentence[start:end]
         analyses = self.kiwi.analyze(sentence, top_n=max_candidates)
         candidates: list[AnalysisCandidate] = []
+        contextual_auxiliary_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         for rank, analysis in enumerate(analyses):
             raw_tokens, kiwi_score = analysis
             tokens = [_to_token(token) for token in raw_tokens]
-            target_tokens = [
-                token
-                for token in tokens
+            target_pairs = [
+                (index, token)
+                for index, token in enumerate(tokens)
                 if token.start < end and token.start + max(token.length, len(token.form)) > start
             ]
+            target_tokens = [token for _, token in target_pairs]
             if not target_tokens:
                 continue
             lemma = self._recover_lemma(target_tokens, surface)
@@ -153,7 +155,15 @@ class KoreanAnalyzer:
             if key in seen:
                 continue
             seen.add(key)
-            components = self._lexical_components(target_tokens)
+            first_target_index = target_pairs[0][0]
+            preceding_tag = (
+                _base_tag(tokens[first_target_index - 1].tag)
+                if first_target_index > 0
+                else None
+            )
+            components = self._lexical_components(target_tokens, preceding_tag)
+            if components:
+                lemma = components[0].lemma
             entries = components[0].dictionary_entries if components else ()
             score = float(kiwi_score) - rank * 0.05 + (0.4 if entries else 0)
             morphemes = tuple(
@@ -161,19 +171,28 @@ class KoreanAnalyzer:
                 for token in target_tokens
             )
             features = learner_features([(token.form, token.tag) for token in target_tokens])
-            candidates.append(
-                AnalysisCandidate(
-                    surface=surface,
-                    lemma=lemma,
-                    score=score,
-                    morphemes=morphemes,
-                    features=features,
-                    dictionary_entries=entries,
-                    lexical_components=components,
-                    uncertain=not bool(entries),
-                )
+            candidate = AnalysisCandidate(
+                surface=surface,
+                lemma=lemma,
+                score=score,
+                morphemes=morphemes,
+                features=features,
+                dictionary_entries=entries,
+                lexical_components=components,
+                uncertain=not bool(entries),
             )
-        candidates.sort(key=lambda candidate: candidate.score, reverse=True)
+            candidates.append(candidate)
+            if preceding_tag == 'EC' and any(
+                component.learner_role == 'helping verb' for component in components
+            ):
+                contextual_auxiliary_ids.add(id(candidate))
+        candidates.sort(
+            key=lambda candidate: (
+                id(candidate) in contextual_auxiliary_ids,
+                candidate.score,
+            ),
+            reverse=True,
+        )
         limited = candidates[:max_candidates]
         if len(limited) > 1:
             limited = [replace(candidate, uncertain=True) for candidate in limited]
@@ -203,14 +222,16 @@ class KoreanAnalyzer:
         return token.form
 
     def _lexical_components(
-        self, tokens: list[_Token]
+        self, tokens: list[_Token], preceding_tag: str | None = None
     ) -> tuple[LexicalComponent, ...]:
         components: list[LexicalComponent] = []
         index = 0
+        previous_tag = preceding_tag
         while index < len(tokens):
             token = tokens[index]
             tag = _base_tag(token.tag)
             if tag not in _LEXICAL_TAGS:
+                previous_tag = tag
                 index += 1
                 continue
             surface = token.form
@@ -226,6 +247,13 @@ class KoreanAnalyzer:
                     lookup_tag = following_tag
                     role = 'action verb' if following_tag == 'XSV' else 'descriptive verb'
                     index += 1
+            if (
+                lookup_tag in {'VV', 'VA'}
+                and previous_tag == 'EC'
+                and self._has_auxiliary_entry(lemma)
+            ):
+                lookup_tag = 'VX'
+                role = 'helping verb'
             entries = self._ordered_entries(lemma, lookup_tag)
             explanation = (
                 _AUXILIARY_EXPLANATIONS.get(lemma)
@@ -236,8 +264,15 @@ class KoreanAnalyzer:
             components.append(
                 LexicalComponent(surface, lemma, role, entries, explanation)
             )
+            previous_tag = tag
             index += 1
         return tuple(components)
+
+    def _has_auxiliary_entry(self, lemma: str) -> bool:
+        return bool(
+            self.dictionary.lookup(lemma, '보조 동사', 1)
+            or self.dictionary.lookup(lemma, '보조 형용사', 1)
+        )
 
     def _ordered_entries(
         self, lemma: str, tag: str

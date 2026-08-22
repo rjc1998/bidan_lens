@@ -88,6 +88,37 @@ def _analyzer() -> KoreanAnalyzer:
                 -1.0,
             )
         ],
+        '먹어 치우다': [
+            (
+                [
+                    Token('먹', 'VV', 0, 1),
+                    Token('어', 'EC', 1, 1),
+                    Token('치우', 'VV', 3, 2),
+                    Token('다', 'EF', 5, 1),
+                ],
+                -1.0,
+            )
+        ],
+        '먹어 놓다': [
+            (
+                [
+                    Token('먹', 'VV', 0, 1),
+                    Token('어', 'EC', 1, 1),
+                    Token('놓', 'VV', 3, 1),
+                    Token('다', 'EF', 4, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('먹', 'VV', 0, 1),
+                    Token('어', 'EC', 1, 1),
+                    Token('놓', 'VX', 3, 1),
+                    Token('다', 'EF', 4, 1),
+                ],
+                -2.0,
+            ),
+        ],
         '쓰레기를 버리다': [
             (
                 [
@@ -121,6 +152,37 @@ def test_context_selects_auxiliary_entry_and_explanation() -> None:
     assert component.contextual_explanation == 'indicates completion of the preceding action'
     rendered = _definitions_text(candidate)
     assert rendered.index('marks completion') < rendered.index('to throw away')
+
+
+def test_context_recovers_auxiliary_role_when_kiwi_returns_action_verb() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '치우다': (
+            _entry('clear', '치우다', 'verb', 'to clear away'),
+            _entry('finish', '치우다', '보조 동사', 'marks emphatic completion'),
+        ),
+    }
+    analyzer = KoreanAnalyzer(dictionary, _analyzer().kiwi)
+
+    candidate = analyzer.analyze('먹어 치우다', (3, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+    assert candidate.lexical_components[0].dictionary_entries[0].entry_id == 'finish'
+
+
+def test_context_reranks_kiwi_helping_alternative_after_connective() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '놓다': (_entry('put', '놓다', 'verb', 'to put'),),
+    }
+    analyzer = KoreanAnalyzer(dictionary, _analyzer().kiwi)
+
+    candidates = analyzer.analyze('먹어 놓다', (3, 5))
+
+    assert candidates[0].lexical_components[0].learner_role == 'helping verb'
+    assert candidates[1].lexical_components[0].learner_role == 'action verb'
 
 
 def test_main_verb_leads_with_ordinary_dictionary_group() -> None:

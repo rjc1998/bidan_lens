@@ -1123,6 +1123,8 @@ def evaluate_language(
     grouped: dict[str, list[bool]] = defaultdict(list)
     grouped_failures: dict[str, Counter[str]] = defaultdict(Counter)
     failures: Counter[str] = Counter()
+    role_confusions: Counter[str] = Counter()
+    missing_grammar_roles: Counter[str] = Counter()
     all_results: list[bool] = []
     for sample in samples:
         candidates = analyzer.analyze(sample.sentence, sample.sentence_span)
@@ -1136,6 +1138,23 @@ def evaluate_language(
         if failure_stage is not None:
             failures[failure_stage] += 1
             grouped_failures[language_class][failure_stage] += 1
+            if failure_stage == 'component_role' and first is not None:
+                for actual, expected in zip(
+                    first.lexical_components,
+                    sample.target.expected_components,
+                    strict=True,
+                ):
+                    if actual.learner_role != expected.learner_role:
+                        role_confusions[
+                            f'{expected.learner_role} -> {actual.learner_role}'
+                        ] += 1
+                        break
+            elif failure_stage == 'grammar_roles' and first is not None:
+                actual_labels = {feature.label for feature in first.features}
+                actual_labels.update(
+                    morpheme.learner_label for morpheme in first.morphemes
+                )
+                missing_grammar_roles.update(sample.target.expected_labels - actual_labels)
         all_results.append(correct)
     if not all_results:
         raise CorpusError('plain evaluation contains no focused language samples')
@@ -1150,6 +1169,8 @@ def evaluate_language(
         'direct_krdict_conformance_pct': conformance['pct'],
         'direct_krdict_conformance': conformance,
         'failure_stages': dict(sorted(failures.items())),
+        'component_role_confusions': dict(sorted(role_confusions.items())),
+        'missing_grammar_roles': dict(sorted(missing_grammar_roles.items())),
         'by_class': {
             language_class: {
                 'samples': len(values),
