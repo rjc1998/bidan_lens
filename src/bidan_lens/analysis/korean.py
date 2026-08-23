@@ -77,7 +77,7 @@ class KoreanAnalyzer:
         start, end = target_span
         surface = sentence[start:end]
         candidates = self._analyze_candidates(sentence, target_span, max_candidates)
-        candidates = self._augment_known_particle_features(surface, candidates)
+        candidates = self._augment_verified_particle_features(surface, candidates)
         particle = self._particle_candidate(surface, candidates)
         if particle is not None:
             remaining = (candidate for candidate in candidates if candidate is not particle)
@@ -146,11 +146,10 @@ class KoreanAnalyzer:
             ),
         )
 
-    @staticmethod
-    def _augment_known_particle_features(
-        surface: str, candidates: tuple[AnalysisCandidate, ...]
+    def _augment_verified_particle_features(
+        self, surface: str, candidates: tuple[AnalysisCandidate, ...]
     ) -> tuple[AnalysisCandidate, ...]:
-        """Recover a particle label only from an already segmented noun base."""
+        """Recover a particle label only from a verified segmented noun prefix."""
         augmented: list[AnalysisCandidate] = []
         noun_roles = {
             'noun',
@@ -162,23 +161,26 @@ class KoreanAnalyzer:
         for candidate in candidates:
             labels = {feature.label for feature in candidate.features}
             labels.update(item.learner_label for item in candidate.morphemes)
-            if 'particle' in labels or len(candidate.lexical_components) != 1:
+            components = candidate.lexical_components
+            if (
+                'particle' in labels
+                or not components
+                or not all(
+                    component.learner_role in noun_roles
+                    and bool(component.dictionary_entries)
+                    for component in components
+                )
+            ):
                 augmented.append(candidate)
                 continue
-            component = candidate.lexical_components[0]
-            suffix = next(
-                (
-                    item
-                    for item in known_particle_suffixes()
-                    if surface.endswith(item)
-                    and len(surface) > len(item)
-                    and component.surface == surface[: -len(item)]
-                    and component.learner_role in noun_roles
-                    and bool(component.dictionary_entries)
-                ),
-                None,
-            )
-            if suffix is None:
+            lexical_surface = ''.join(component.surface for component in components)
+            if not surface.startswith(lexical_surface) or len(lexical_surface) >= len(surface):
+                augmented.append(candidate)
+                continue
+            suffix = surface[len(lexical_surface) :]
+            if suffix not in known_particle_suffixes() and not self.dictionary.lookup(
+                suffix, 'particle', 1
+            ):
                 augmented.append(candidate)
                 continue
             features = (*candidate.features, *learner_features([(suffix, 'JX')]))

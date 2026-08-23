@@ -42,28 +42,35 @@ verbs across four ending patterns and 50 reviewed common nouns across two partic
 The corrected corpora are locked under `F:\bidan-lens-eval-ud218-v4.2`; the release split is
 unevaluated. Independent direct KRDict conformance is now separated from analyzer correctness
 and passes 243/243 unique groups. After conservative score-bounded multi-component promotion,
-the 400-case development language tier is 87.75% overall, 93.50% for auxiliary cases, and
-82.00% for multi-lexical cases. The remaining aggregate language failures are 26 primary
-lemmas, 10 grammar roles, eight component roles, four component surfaces, and one
+the 400-case development language tier is 88.00% overall, 93.50% for auxiliary cases, and
+82.50% for multi-lexical cases. The remaining aggregate language failures are 26 primary
+lemmas, nine grammar roles, eight component roles, four component surfaces, and one
 component-count mismatch. Internal Kiwi search now examines ten analyses while the popup remains
 capped at five; primary-lemma failures with no matching navigable candidate decreased from 23
 to 17. An isolated-eojeol analysis is used only after dictionary-backed particle recovery and
 only when the contextual leader remains undefined and every component in the richer split has
 a local definition.
 
+A text- and lemma-independent pairwise linear ranker was trained on 106 non-quick natural
+multi-lexical development cases. It regressed five cases in cross-validation and eight held-out
+cases without confidence gating. A threshold with zero cross-validation regressions still
+produced five held-out recoveries and five regressions, so no learned weights were shipped.
+Likewise, treating any final morpheme with a KRDict particle homograph as a particle would
+mislabel 119 held-out and 51 quick cases. The implemented particle recovery is therefore limited
+to an exact suffix after a fully dictionary-backed noun-component prefix.
+
 The 200-case rendered quick tier is 96.43% whole-eojeol OCR, 74.50% functional context,
-59.00% component accuracy, 45.00% fully correct popup, and 2.11% negative activation, with
-247.53 ms median / 405.51 ms p95 automated latency. These are provisional development
+60.50% component accuracy, 46.50% fully correct popup, and 2.11% negative activation, with
+231.20 ms median / 371.56 ms p95 automated latency. These are provisional development
 measurements; a complete v4.2 render run has not been performed and release remains blocked.
 
 The development/release lock SHA-256 values are
 `46ced15df84f27bc858f8700c68cc9fa58f36f9407e6610bc3050d0056475567` and
 `55babf1b1c53c101016b65b371bdd56b540e36aff6c9edbb93623c9e0acf6aeb`.
 The latest aggregate-only language and quick reports are
-`report-language-multilexical-remaining.json` and
-`report-quick-multilexical-remaining.json`; their SHA-256 values are
-`eb34ce81ce3881f51aaf9e7c66933c9a5d9baca4f5f385285a62f6a2201826a8` and
-`085317b3c9fc190b801ed79ebdabdde12540463358c92d45d94e884b5ae9d80c`. The preceding v4.2
+`report-language-krdict-particle.json` and `report-quick-krdict-particle.json`; their SHA-256
+values are `ed856242711e2b4e2d00effb7e7121f94d1435517fb214642185ddb2a60007ae` and
+`0dfe94ad7d9be0fa0c9fa7d60cd570ee47c55797f92cdb2fad59a45463c5b898`. The preceding v4.2
 reports remain preserved under their original filenames.
 
 ## Superseded plain-v1 schema-v4 development evidence

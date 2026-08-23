@@ -33,8 +33,9 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     may lead only when every component has a local definition, its adjusted Kiwi score is within
     1.5 of the leader, and it does not displace a contextual auxiliary. When the first Kiwi
     analysis has no local definition, a known particle suffix may produce a promoted candidate
-    only when its remaining stem has a local dictionary entry; an already segmented,
-    dictionary-backed noun may also recover a missing particle feature without changing its
+    only when its remaining stem has a local dictionary entry; an already segmented sequence of
+    dictionary-backed nouns may also recover a missing particle feature when its remaining suffix
+    is a known particle or an exact KRDict particle entry. This does not change the candidate's
     lemma or definitions. If that particle recovery still leaves an undefined leader, an
     isolated-eojeol analysis may lead only when it supplies more lexical components and every
     component has a local definition.

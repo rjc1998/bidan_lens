@@ -189,6 +189,49 @@ def test_whole_dictionary_noun_ending_like_particle_is_not_split() -> None:
     assert candidate.lemma == "사과"
 
 
+def test_krdict_particle_recovers_feature_after_multiple_noun_components() -> None:
+    class CompoundParticleDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            known = {
+                "학교": ("school", "noun"),
+                "생활": ("life", "noun"),
+                "부터": ("starting from", "particle"),
+            }
+            value = known.get(lemma)
+            if value is None or part_of_speech not in {None, value[1]}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    value[1],
+                    None,
+                    "beginner",
+                    (DictionarySense(value[0]),),
+                ),
+            )
+
+    kiwi = FakeKiwi(
+        [
+            (
+                [
+                    Token("학교", "NNG", 0, 2),
+                    Token("생활", "NNG", 2, 2),
+                    Token("부터", "ETM", 4, 2),
+                ],
+                -1.0,
+            )
+        ]
+    )
+
+    candidate = KoreanAnalyzer(CompoundParticleDictionary(), kiwi).analyze(
+        "학교생활부터", (0, 6)
+    )[0]
+
+    assert [part.lemma for part in candidate.lexical_components] == ["학교", "생활"]
+    assert "particle" in {feature.label for feature in candidate.features}
+
+
 def test_internal_kiwi_search_is_deeper_than_popup_candidate_limit() -> None:
     kiwi = RecordingKiwi(
         [([Token("먹", "VV", 0, 1), Token("어요", "EF", 1, 2)], -1.0)]
