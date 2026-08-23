@@ -1162,14 +1162,14 @@ def evaluate_language(
             )
             if richer is not None:
                 gap = first.score - richer.score
-                if gap <= 0.25:
-                    gap_bucket = 'gap_le_0_25'
-                elif gap <= 0.5:
+                if gap <= 0.5:
                     gap_bucket = 'gap_le_0_5'
                 elif gap <= 1.0:
                     gap_bucket = 'gap_le_1_0'
+                elif gap <= 1.5:
+                    gap_bucket = 'gap_le_1_5'
                 else:
-                    gap_bucket = 'gap_gt_1_0'
+                    gap_bucket = 'gap_gt_1_5'
                 if _language_failure_stage(richer, sample.target) is None:
                     outcome = 'recover'
                 elif failure_stage is None:

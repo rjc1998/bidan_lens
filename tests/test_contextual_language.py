@@ -248,3 +248,58 @@ def test_distant_multi_component_analysis_is_not_promoted() -> None:
     )[0]
 
     assert [component.lemma for component in candidate.lexical_components] == ['갔다오다']
+
+
+def test_isolated_analysis_recovers_defined_components_for_undefined_leader() -> None:
+    analyses = {
+        '오늘 갔다오다': [
+            (
+                [Token('갔다오', 'VV', 3, 3), Token('다', 'EF', 6, 1)],
+                -1.0,
+            )
+        ],
+        '갔다오다': [
+            ([Token('갔다오', 'VV', 0, 3), Token('다', 'EF', 3, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 0, 1),
+                    Token('었', 'EP', 0, 1),
+                    Token('다', 'EC', 1, 1),
+                    Token('오', 'VV', 2, 1),
+                    Token('다', 'EF', 3, 1),
+                ],
+                -3.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(RoleDictionary(), ContextKiwi(analyses)).analyze(
+        '오늘 갔다오다', (3, 7)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '가다',
+        '오다',
+    ]
+
+
+def test_isolated_analysis_does_not_replace_defined_contextual_leader() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '갔다오다': (_entry('round-trip', '갔다오다', 'verb', 'to go and return'),),
+    }
+    analyses = {
+        '오늘 갔다오다': [
+            (
+                [Token('갔다오', 'VV', 3, 3), Token('다', 'EF', 6, 1)],
+                -1.0,
+            )
+        ],
+    }
+    kiwi = ContextKiwi(analyses)
+
+    candidate = KoreanAnalyzer(dictionary, kiwi).analyze('오늘 갔다오다', (3, 7))[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == ['갔다오다']
+    assert list(kiwi.analyses) == ['오늘 갔다오다']

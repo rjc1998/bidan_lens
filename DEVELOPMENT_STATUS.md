@@ -56,14 +56,15 @@ functional context, 57.95% complete ordered components, 42.30% fully correct fir
 latency and false-promotion gates but misses popup, negative-activation, dictionary-conformance,
 and required-stratum gates.
 
-The latest v4.2 development language tier records 86.50% fully correct first popups, 93.50%
-auxiliary correctness, 79.50% multi-lexical correctness, and 100% independent direct KRDict
-conformance across 243 unique groups. Conservative score-bounded component promotion improves
-the multi-lexical tier by one percentage point without a held-out regression; deeper internal
-Kiwi search reduces primary-lemma failures with no navigable matching candidate from 23 to 18.
+The latest v4.2 development language tier records 87.75% fully correct first popups, 93.50%
+auxiliary correctness, 82.00% multi-lexical correctness, and 100% independent direct KRDict
+conformance across 243 unique groups. Conservative score-bounded component promotion and an
+undefined-leader isolated-eojeol fallback improve the multi-lexical tier by 3.5 percentage
+points over the corrected v4.2 baseline. Deeper internal Kiwi search reduces primary-lemma
+failures with no navigable matching candidate from 23 to 17.
 Its 200-sample rendered quick tier records 96.43% whole-eojeol OCR, 74.50% functional context,
 59.00% component accuracy, 45.00% fully correct popups, and 2.11% negative activation, with
-271.72 ms median / 403.47 ms p95 automated latency. A complete v4.2 development render
+247.53 ms median / 405.51 ms p95 automated latency. A complete v4.2 development render
 evaluation has not yet been run. Multi-lexical language, rendered popup, functional-context,
 negative-activation, and required-stratum gates still block release and foreground evidence. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
@@ -77,7 +78,7 @@ negative-activation, and required-stratum gates still block release and foregrou
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- improve the held-out multi-lexical tier from 79.50% to at least the 88% exceptional floor;
+- improve the held-out multi-lexical tier from 82.00% to at least the 88% exceptional floor;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;

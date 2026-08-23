@@ -33,6 +33,7 @@ _VERB_TAGS = {"VV", "VA", "VX", "XSV", "XSA"}
 
 _LEXICAL_TAGS = _VERB_TAGS | {'NNG', 'NNP', 'NNB', 'NP', 'NR'}
 _KIWI_ANALYSIS_DEPTH = 10
+_MULTI_COMPONENT_SCORE_MARGIN = 1.5
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -81,6 +82,9 @@ class KoreanAnalyzer:
         if particle is not None:
             remaining = (candidate for candidate in candidates if candidate is not particle)
             candidates = (particle, *remaining)[:max_candidates]
+        candidates = self._isolated_defined_component_fallback(
+            sentence, surface, candidates, max_candidates
+        )
         correction = self.conservative_correction(surface)
         if not correction:
             return candidates
@@ -90,6 +94,56 @@ class KoreanAnalyzer:
                 interpreted_surface=correction,
             )
             for candidate in candidates
+        )
+
+    def _isolated_defined_component_fallback(
+        self,
+        sentence: str,
+        surface: str,
+        candidates: tuple[AnalysisCandidate, ...],
+        max_candidates: int,
+    ) -> tuple[AnalysisCandidate, ...]:
+        if sentence == surface or not candidates or candidates[0].dictionary_entries:
+            return candidates
+        first = candidates[0]
+        isolated = self._analyze_candidates(surface, (0, len(surface)), max_candidates)
+        richer = next(
+            (
+                candidate
+                for candidate in isolated
+                if len(candidate.lexical_components) > len(first.lexical_components)
+                and len(candidate.lexical_components) >= 2
+                and all(
+                    component.dictionary_entries
+                    for component in candidate.lexical_components
+                )
+            ),
+            None,
+        )
+        if richer is None:
+            return candidates
+        signature = self._candidate_signature(richer)
+        promoted = next(
+            (
+                candidate
+                for candidate in candidates
+                if self._candidate_signature(candidate) == signature
+            ),
+            richer,
+        )
+        remaining = (candidate for candidate in candidates if candidate is not promoted)
+        return (promoted, *remaining)[:max_candidates]
+
+    @staticmethod
+    def _candidate_signature(
+        candidate: AnalysisCandidate,
+    ) -> tuple[str, tuple[tuple[str, str, str], ...]]:
+        return (
+            candidate.lemma,
+            tuple(
+                (component.surface, component.lemma, component.learner_role)
+                for component in candidate.lexical_components
+            ),
         )
 
     @staticmethod
@@ -254,7 +308,7 @@ class KoreanAnalyzer:
         for index, candidate in enumerate(candidates[1:], start=1):
             components = candidate.lexical_components
             if (
-                first.score - candidate.score <= 1.0
+                first.score - candidate.score <= _MULTI_COMPONENT_SCORE_MARGIN
                 and len(components) > len(first.lexical_components)
                 and len(components) >= 2
                 and all(component.dictionary_entries for component in components)

@@ -200,3 +200,26 @@ def test_internal_kiwi_search_is_deeper_than_popup_candidate_limit() -> None:
 
     assert kiwi.requested_top_n == 10
     assert len(candidates) <= 5
+
+
+def test_particle_fallback_precedes_isolated_component_recovery() -> None:
+    class SentenceKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            analyses = {
+                "오늘 어디에": [([Token("미상", "NNG", 3, 2)], -1.0)],
+                "어디에": [
+                    (
+                        [Token("어디", "NP", 0, 2), Token("에", "NNG", 2, 1)],
+                        -1.0,
+                    )
+                ],
+            }
+            return analyses[text][:top_n]
+
+    candidate = KoreanAnalyzer(FakeDictionary(), SentenceKiwi([])).analyze(
+        "오늘 어디에", (3, 6)
+    )[0]
+
+    assert candidate.lemma == "어디"
+    assert {feature.label for feature in candidate.features} == {"particle"}
+    assert len(candidate.lexical_components) == 1
