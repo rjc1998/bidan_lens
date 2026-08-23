@@ -9,9 +9,12 @@ from PIL import Image
 from benchmarks.locked_corpus import CorpusError
 from benchmarks.plain_corpus import PLAIN_ORACLE
 from benchmarks.plain_evaluator import (
+    ExpectedComponent,
     LanguageSample,
     _functional_context,
+    _normalized_oracle_labels,
     _role_dictionary_positions,
+    _write_diagnostics,
     evaluate_language,
     evaluate_plain,
     load_plain_samples,
@@ -35,6 +38,17 @@ SENTENCE = "오늘 (어디에서) 만나요"
 TARGET = "어디에서"
 TARGET_SPAN = (4, 8)
 TARGET_BOX = BoundingBox(50, 10, 110, 30)
+
+
+def test_oracle_particle_label_requires_unrepresented_particle_surface() -> None:
+    noun = ExpectedComponent('\ud559\uc0dd', '\ud559\uc0dd', 'noun', ())
+
+    assert _normalized_oracle_labels(
+        '\ud559\uc0dd', frozenset({'particle'}), (noun,)
+    ) == frozenset()
+    assert _normalized_oracle_labels(
+        '\ud559\uc0dd\uc740', frozenset({'particle'}), (noun,)
+    ) == frozenset({'particle'})
 
 
 class FakeOcr:
@@ -285,6 +299,19 @@ def test_functional_context_ignores_edges_but_preserves_internal_structure() -> 
     expected_span = (5, 9)
 
     assert _functional_context(
+        '\ud559\uad50\uc5d0 \u00b7\uc18d\uc8c4\uc640',
+        (0, 3),
+        '\ud559\uad50\uc5d0 \uc18d\uc8c4\uc640',
+        (0, 3),
+    )
+    assert _functional_context(
+        '\uac00 \ub098 \ub2e4',
+        (2, 3),
+        '\uac00 \u300c\u300d \ub098 \ub2e4',
+        (5, 6),
+    )
+
+    assert _functional_context(
         '어제 학교에서 12:30에 갔어요',
         (3, 7),
         expected,
@@ -400,6 +427,7 @@ def test_plain_pipeline_counts_alternative_candidate_recovery(tmp_path: Path) ->
     assert result["fully_correct_first_popup_pct"] == 0.0
     assert result["alternative_candidate_recovery_pct"] == 100.0
     assert outcomes[0].failed_stage == "analysis"
+    assert outcomes[0].failure_detail == 'primary_lemma'
 
 
 @pytest.mark.parametrize(
@@ -452,6 +480,22 @@ def test_plain_quick_run_excludes_nonblocking_stress_tier(tmp_path: Path) -> Non
     assert result["plain"]["samples"] == 1
     assert result["plain_stress"] is None
     assert result["release_eligible"] is False
+
+
+def test_plain_diagnostics_include_only_negative_activation_categories(
+    tmp_path: Path,
+) -> None:
+    samples = _load(_corpus(tmp_path))
+    _, outcomes = evaluate_plain(FakeOcr(), FakeAnalyzer((_candidate(),)), samples)
+    outcome = replace(outcomes[0], negative_activations=("punctuation",))
+    path = tmp_path / "diagnostics.json"
+
+    _write_diagnostics(path, (outcome,))
+
+    failure = json.loads(path.read_text(encoding="utf-8"))["failures"][0]
+    assert failure["negative_activation_kinds"] == ["punctuation"]
+    assert failure["failure_detail"] is None
+    assert "sentence" not in failure
 
 
 def test_plain_lock_detects_tampering_and_cross_category_duplicates(tmp_path: Path) -> None:

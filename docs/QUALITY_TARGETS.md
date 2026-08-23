@@ -67,8 +67,10 @@ The `plain-v1` evaluator measures:
 
 It reports aggregate values and 95% Wilson intervals, plus strata by size, font, renderer,
 scale, punctuation, weight, theme, and layout. Release output contains no sample text or
-pixels. Optional development diagnostics contain only stable sample IDs, failed stages, and
-render strata.
+pixels. Optional development diagnostics contain only stable sample IDs, failed stages, render
+strata, negative-activation categories, and categorical failure details. Local language- and
+context-review files likewise contain only stable IDs and categorical decisions; the interactive
+reviewers may display public locked development-corpus text but never persist it.
 
 Exact KRDict fidelity certifies faithful local dictionary presentation. It does not certify
 contextual best-sense ranking or pedagogical quality. Synthetic browser and desktop fixtures

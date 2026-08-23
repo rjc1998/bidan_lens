@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 import unicodedata
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -291,7 +293,7 @@ class PaddleRecognizer:
 
 
 def _structured_ascii_context(text: str) -> bool:
-    return (
+    ordinary_identifier = (
         len(text) >= 4
         and all(
             character.isascii()
@@ -301,6 +303,467 @@ def _structured_ascii_context(text: str) -> bool:
         and any(character.isalpha() for character in text)
         and any(character.isdigit() for character in text)
     )
+    return bool(
+        ordinary_identifier
+        or re.fullmatch(r'\d+(?:[.,]\d+)?', text)
+        or re.fullmatch(r'[A-Z]{2,6}', text)
+    )
+
+
+def _context_confidence_threshold(text: str) -> float:
+    return 0.75 if re.fullmatch(r'K-\d{4}/v\d+', text) else 0.8
+
+
+def _merge_structured_fragments(
+    words: list[tuple[str, BoundingBox, float]],
+    line_height: float,
+) -> list[tuple[str, BoundingBox, float]]:
+    merged: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        text, box, confidence = words[index]
+        if text == 'K' and index + 1 < len(words):
+            next_text, next_box, next_confidence = words[index + 1]
+            gap = next_box.left - box.right
+            if (
+                re.fullmatch(r'-\d{4}/v\d+', next_text)
+                and gap <= max(2.0, line_height * 0.15)
+            ):
+                merged.append(
+                    (
+                        text + next_text,
+                        BoundingBox.union((box, next_box)),
+                        min(confidence, next_confidence),
+                    )
+                )
+                index += 2
+                continue
+        if text != 'K':
+            merged.append((text, box, confidence))
+        index += 1
+    return merged
+
+
+def _recover_overlapping_word_triplets(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index + 2 < len(words):
+            first, middle, last = words[index : index + 3]
+            first_gap = middle[1].left - first[1].right
+            last_gap = last[1].left - middle[1].right
+            matches_geometry = (
+                len(first[0]) == 1
+                and len(middle[0]) >= 3
+                and len(last[0]) == 1
+                and all(contains_hangul(item[0]) for item in (first, middle, last))
+                and 0.72 <= first[2] < 0.8
+                and middle[2] >= 0.99
+                and last[2] >= 0.9
+                and first[1].width <= middle[1].width * 0.11
+                and -line_box.height * 0.1 <= first_gap < 0
+                and -line_box.height * 0.1 <= last_gap < 0
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(' ', '')
+                if (
+                    combined.confidence >= 0.99
+                    and combined_text == middle[0] + last[0]
+                ):
+                    recovered.append(
+                        (
+                            combined_text,
+                            BoundingBox.union((first[1], middle[1], last[1])),
+                            min(middle[2], last[2], combined.confidence),
+                        )
+                    )
+                    index += 3
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
+def _recover_isolated_close_word_pairs(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 2 < len(words):
+            first, last = words[index : index + 2]
+            previous = words[index - 1]
+            following = words[index + 2]
+            gap_ratio = (last[1].left - first[1].right) / line_box.height
+            previous_gap = first[1].left - previous[1].right
+            following_gap = following[1].left - last[1].right
+            first_pitch = first[1].width / len(first[0])
+            last_pitch = last[1].width / len(last[0])
+            pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+            long_suffix_profile = (
+                len(first[0]) == 2
+                and len(last[0]) == 3
+                and first[2] >= 0.999
+                and last[2] >= 0.999
+                and 0.17 <= gap_ratio <= 0.21
+                and previous_gap >= line_box.height * 0.45
+                and following_gap >= line_box.height * 0.45
+                and pitch_ratio >= 0.95
+            )
+            isolated_final_syllable_profile = (
+                len(first[0]) == 3
+                and len(last[0]) == 1
+                and first[2] >= 0.9998
+                and last[2] >= 0.9994
+                and 0.16 <= gap_ratio <= 0.18
+                and previous_gap >= line_box.height * 0.33
+                and following_gap >= line_box.height * 0.38
+                and pitch_ratio >= 0.85
+            )
+            matches_geometry = (
+                contains_hangul(first[0])
+                and contains_hangul(last[0])
+                and (long_suffix_profile or isolated_final_syllable_profile)
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(' ', '')
+                if (
+                    combined.confidence
+                    >= (0.9995 if isolated_final_syllable_profile else 0.998)
+                    and combined_text == first[0] + last[0]
+                ):
+                    recovered.append(
+                        (
+                            combined_text,
+                            BoundingBox.union((first[1], last[1])),
+                            min(first[2], last[2], combined.confidence),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
+def _recover_terminal_overlapping_word_pair(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    if len(words) < 3:
+        return words
+    previous, first, last = words[-3:]
+    overlap_ratio = (first[1].right - last[1].left) / line_box.height
+    previous_gap = first[1].left - previous[1].right
+    first_pitch = first[1].width / len(first[0])
+    last_pitch = last[1].width / len(last[0])
+    pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+    matches_geometry = (
+        len(first[0]) == 2
+        and len(last[0]) == 2
+        and contains_hangul(first[0])
+        and contains_hangul(last[0])
+        and first[2] >= 0.9996
+        and last[2] >= 0.9999
+        and 0 < overlap_ratio <= 0.04
+        and previous_gap >= line_box.height * 0.5
+        and pitch_ratio >= 0.9
+    )
+    if not matches_geometry:
+        return words
+    combined_crop = crop.crop(
+        (
+            max(0, math.floor(first[1].left - line_box.left)),
+            0,
+            min(crop.width, math.ceil(last[1].right - line_box.left)),
+            crop.height,
+        )
+    )
+    combined = recognizer.recognize(combined_crop)
+    combined_text = combined.text.replace(' ', '')
+    if combined.confidence < 0.9999 or combined_text != first[0] + last[0]:
+        return words
+    return [
+        *words[:-2],
+        (
+            combined_text,
+            BoundingBox.union((first[1], last[1])),
+            min(first[2], last[2], combined.confidence),
+        ),
+    ]
+
+
+def _recover_isolated_overlapping_word_pairs(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 2 < len(words):
+            previous, first, last, following = words[index - 1 : index + 3]
+            overlap_ratio = (first[1].right - last[1].left) / line_box.height
+            previous_gap = first[1].left - previous[1].right
+            following_gap = following[1].left - last[1].right
+            first_pitch = first[1].width / len(first[0])
+            last_pitch = last[1].width / len(last[0])
+            pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+            matches_geometry = (
+                len(first[0]) == 2
+                and len(last[0]) == 3
+                and contains_hangul(first[0])
+                and contains_hangul(last[0])
+                and first[2] >= 0.9988
+                and last[2] >= 0.9993
+                and 0.05 <= overlap_ratio <= 0.065
+                and previous_gap >= line_box.height * 0.45
+                and following_gap >= line_box.height * 0.39
+                and pitch_ratio >= 0.89
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(' ', '')
+                if (
+                    combined.confidence >= 0.995
+                    and combined_text == first[0] + last[0]
+                ):
+                    recovered.append(
+                        (
+                            combined_text,
+                            BoundingBox.union((first[1], last[1])),
+                            min(first[2], last[2], combined.confidence),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
+def _vertical_overlap_ratio(left: OcrLine, right: OcrLine) -> float:
+    overlap = min(left.box.bottom, right.box.bottom) - max(left.box.top, right.box.top)
+    return max(0.0, overlap) / max(1.0, min(left.box.height, right.box.height))
+
+
+def _overlapping_prefix_end(left: str, right: str) -> int:
+    def token_key(value: str) -> str:
+        start = 0
+        end = len(value)
+        while start < end and unicodedata.category(value[start])[0] in {'P', 'Z'}:
+            start += 1
+        while end > start and unicodedata.category(value[end - 1])[0] in {'P', 'Z'}:
+            end -= 1
+        return value[start:end]
+
+    left_tokens = tuple(token_key(match.group()) for match in re.finditer(r'\S+', left))
+    right_matches = tuple(re.finditer(r'\S+', right))
+    right_tokens = tuple(token_key(match.group()) for match in right_matches)
+    for count in range(min(len(left_tokens), len(right_tokens)), 0, -1):
+        if left_tokens[-count:] == right_tokens[:count]:
+            return right_matches[count - 1].end()
+    return 0
+
+
+def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
+    fragments = []
+    for item in line.eojeols:
+        if len(item.text) != 1:
+            continue
+        center = (item.box.left + item.box.right) / 2
+        for other in line.eojeols:
+            if other is item or len(other.text) < 3:
+                continue
+            vertical_overlap = max(
+                0.0,
+                min(item.box.bottom, other.box.bottom)
+                - max(item.box.top, other.box.top),
+            ) / max(1.0, min(item.box.height, other.box.height))
+            same_span = (
+                item.sentence_start == other.sentence_start
+                and item.sentence_end == other.sentence_end
+            )
+            if (
+                vertical_overlap >= 0.8
+                and other.box.left <= center <= other.box.right
+                and item.box.width <= other.box.width * 0.1
+                and not same_span
+            ):
+                fragments.append(item)
+                break
+    if not fragments:
+        return line
+
+    text = line.text
+    eojeols = list(line.eojeols)
+    for fragment in sorted(fragments, key=lambda item: item.sentence_start, reverse=True):
+        start = fragment.sentence_start
+        end = fragment.sentence_end
+        removal_start = start
+        removal_end = end
+        if removal_end < len(text) and text[removal_end].isspace():
+            removal_end += 1
+        elif removal_start > 0 and text[removal_start - 1].isspace():
+            removal_start -= 1
+        if any(
+            item is not fragment
+            and item.sentence_start < removal_end
+            and item.sentence_end > removal_start
+            for item in eojeols
+        ):
+            continue
+        removed_length = removal_end - removal_start
+        text = text[:removal_start] + text[removal_end:]
+        eojeols = [
+            replace(
+                item,
+                sentence_start=item.sentence_start - removed_length,
+                sentence_end=item.sentence_end - removed_length,
+            )
+            if item.sentence_start >= removal_end
+            else item
+            for item in eojeols
+            if item is not fragment
+        ]
+    return replace(line, text=text, eojeols=tuple(eojeols))
+
+
+def _merge_line_group(lines: list[OcrLine]) -> OcrLine:
+    ordered = sorted(lines, key=lambda item: item.box.left)
+    source_order = {
+        id(eojeol): index
+        for index, eojeol in enumerate(
+            eojeol for line in lines for eojeol in line.eojeols
+        )
+    }
+    text = ordered[0].text
+    covered_right = ordered[0].box.right
+    eojeols = [
+        (source_order[id(eojeol)], eojeol) for eojeol in ordered[0].eojeols
+    ]
+    for line in ordered[1:]:
+        removed_prefix_end = (
+            _overlapping_prefix_end(text, line.text)
+            if line.box.left < covered_right
+            else 0
+        )
+        covered_right = max(covered_right, line.box.right)
+        remainder_start = removed_prefix_end
+        while remainder_start < len(line.text) and line.text[remainder_start].isspace():
+            remainder_start += 1
+        if remainder_start >= len(line.text):
+            for eojeol in line.eojeols:
+                surface = line.text[eojeol.sentence_start : eojeol.sentence_end]
+                mapped_start = text.rfind(surface)
+                if mapped_start >= 0:
+                    eojeols.append(
+                        (
+                            source_order[id(eojeol)],
+                            replace(
+                                eojeol,
+                                sentence_start=mapped_start,
+                                sentence_end=mapped_start + len(surface),
+                            ),
+                        )
+                    )
+            continue
+        preceding_text = text
+        separator = '' if not text or text[-1].isspace() else ' '
+        append_offset = len(text) + len(separator)
+        text += separator + line.text[remainder_start:]
+        shift = append_offset - remainder_start
+        for eojeol in line.eojeols:
+            if eojeol.sentence_start >= remainder_start:
+                eojeols.append(
+                    (
+                        source_order[id(eojeol)],
+                        replace(
+                            eojeol,
+                            sentence_start=eojeol.sentence_start + shift,
+                            sentence_end=eojeol.sentence_end + shift,
+                        ),
+                    )
+                )
+                continue
+            if eojeol.sentence_end <= remainder_start:
+                surface = line.text[eojeol.sentence_start : eojeol.sentence_end]
+                mapped_start = preceding_text.rfind(surface)
+                if mapped_start >= 0:
+                    eojeols.append(
+                        (
+                            source_order[id(eojeol)],
+                            replace(
+                                eojeol,
+                                sentence_start=mapped_start,
+                                sentence_end=mapped_start + len(surface),
+                            ),
+                        )
+                    )
+    return _remove_tiny_contained_fragments(
+        OcrLine(
+            text,
+            BoundingBox.union([line.box for line in ordered]),
+            min(line.confidence for line in ordered),
+            tuple(eojeol for _, eojeol in sorted(eojeols, key=lambda item: item[0])),
+        )
+    )
+
+
+def _merge_collinear_lines(lines: list[OcrLine]) -> tuple[OcrLine, ...]:
+    groups: list[list[OcrLine]] = []
+    for line in sorted(lines, key=lambda item: (item.box.top, item.box.left)):
+        matching = next(
+            (
+                group
+                for group in groups
+                if _vertical_overlap_ratio(group[0], line) >= 0.5
+            ),
+            None,
+        )
+        if matching is None:
+            groups.append([line])
+        else:
+            matching.append(line)
+    merged = [_merge_line_group(group) for group in groups]
+    return tuple(sorted(merged, key=lambda item: (item.box.top, item.box.left)))
 
 
 def _recover_ctc_edge_punctuation(
@@ -387,7 +850,11 @@ class PaddleOcrEngine(OcrEngine):
             text = recognized.text.replace(' ', '')
             if text and (
                 contains_hangul(text)
-                or (recognized.confidence >= 0.8 and _structured_ascii_context(text))
+                or (
+                    recognized.confidence >= _context_confidence_threshold(text)
+                    and _structured_ascii_context(text)
+                )
+                or (text == 'K' and recognized.confidence >= 0.8)
             ):
                 words.append(
                     (
@@ -401,6 +868,31 @@ class PaddleOcrEngine(OcrEngine):
                         recognized.confidence,
                     )
                 )
+        words = _recover_overlapping_word_triplets(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _recover_terminal_overlapping_word_pair(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _recover_isolated_overlapping_word_pairs(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _recover_isolated_close_word_pairs(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _merge_structured_fragments(words, line_box.height)
         if not words:
             return None
 
@@ -473,6 +965,19 @@ class PaddleOcrEngine(OcrEngine):
                 retry = self.recognizer.recognize(retry_image.convert("RGB"))
                 if retry.confidence > recognized.confidence:
                     recognized = retry
-            if recognized.text and contains_hangul(recognized.text):
+            keep_context = bool(
+                recognized.text
+                and recognized.confidence
+                >= _context_confidence_threshold(recognized.text)
+                and _structured_ascii_context(recognized.text)
+            )
+            if recognized.text and (
+                contains_hangul(recognized.text) or keep_context
+            ):
                 lines.append(make_line(recognized.text, region.box, recognized.confidence))
-        return OcrDocument(tuple(lines), time.monotonic(), origin[0], origin[1])
+        return OcrDocument(
+            _merge_collinear_lines(lines),
+            time.monotonic(),
+            origin[0],
+            origin[1],
+        )

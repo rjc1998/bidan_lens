@@ -84,6 +84,48 @@ python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
 Diagnostics include stable sample IDs, failed stages, and render strata only. They never
 include recognized text, expected text, definitions, or pixels.
 
+Review development language disagreements locally with
+`python -m benchmarks.language_review ASSETS CORPUS DECISIONS`. The interactive command
+displays one locked public-corpus case at a time, but its JSON output persists only the corpus
+ID, stable sample IDs, failure categories, and categorical decisions. Use `--inspect` to view
+unresolved cases without writing and `--audit` to require a complete, current review.
+
+The available decisions are Kiwi analysis error, annotation-convention difference,
+equivalent learner interpretation, corpus-oracle defect, and genuinely ambiguous Korean.
+Review only development data; do not inspect or classify release disagreements before the
+development thresholds are frozen.
+
+Review quick-tier functional-context disagreements locally with
+`python -m benchmarks.context_review ASSETS CORPUS DECISIONS`. It follows the same privacy
+boundary: expected and recognized public-corpus text is displayed only during local review,
+while the decision file contains only the corpus ID, stable sample IDs, and categorical
+decisions. Use `--inspect` for unresolved cases and `--audit` to require complete coverage.
+The available decisions are missed or merged OCR word boundary, incorrect line/sentence
+reconstruction, punctuation or structured-ASCII handling, incorrect target span, and genuinely
+ambiguous layout.
+With `--inspect`, `--decision CATEGORY` limits local display to current cases in one reviewed
+category, and `--sample-id ID` selects one current stable ID. `--geometry-only` emits only IDs,
+render metadata, lengths, spans, Unicode-category counts, per-eojeol boxes and confidence, and
+text-equality/geometry signals between adjacent eojeols. These inspection views remain
+local-only and never change the decision report.
+For a single stable ID, `--segmentation-only` additionally reports detector regions, raw word
+segments, recognition lengths/confidence/category counts, and equality flags for overlapping
+triplets, overlapping pairs, and unusually close pairs. Close-pair diagnostics also expose only
+prefix/suffix equality and an added-terminal-punctuation flag, never the characters themselves.
+The view never emits recognized or oracle text.
+
+Review first-popup analysis and dictionary disagreements only after target and functional
+context are correct with
+`python -m benchmarks.popup_review ASSETS CORPUS DECISIONS`. Its report persists only stable
+sample IDs, categorical failure stages, and the same five categorical language decisions.
+`--failure-stage STAGE` and `--decision CATEGORY` can revisit current reviewed cases during
+local inspection. `--structure-only` emits only stable IDs, categorical decisions, lengths,
+roles, counts, scores, and equality flags; it omits corpus and analysis text. `--audit` detects
+missing, resolved, or stage-changed decisions without storing corpus text.
+After structure-only review, record one decision without redisplaying corpus text with
+`--sample-id ID --record-decision CATEGORY`; the reviewer derives and persists the current
+categorical failure stage itself.
+
 Run the complete development corpus until its provisional gates pass and the thresholds are
 explicitly frozen. Build and lock the release corpus beforehand, but do not evaluate it until
 then. The eventual release command is:

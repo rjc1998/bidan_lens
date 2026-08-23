@@ -454,6 +454,10 @@ def _expected_dictionary_pos(token: UdToken) -> str | None:
         return "adjective"
     if any(tag.startswith("n") for tag in tags) or token.upos in {"NOUN", "PROPN"}:
         return "noun"
+    if any(tag in {'mag', 'maj', 'mad'} for tag in tags) or token.upos == 'ADV':
+        return 'adverb'
+    if any(tag.startswith('mm') for tag in tags) or token.upos == 'DET':
+        return 'determiner'
     return None
 
 
@@ -461,46 +465,74 @@ def _oracle_lookup(
     entries: Mapping[str, tuple[OracleEntry, ...]], lemma: str, part_of_speech: str | None
 ) -> tuple[OracleEntry, ...]:
     available = entries.get(lemma, ())
-    if part_of_speech is not None:
-        matching = tuple(
-            entry
-            for entry in available
-            if entry.part_of_speech in {part_of_speech, None}
-        )
-        if matching:
-            available = matching
-    return available[:10]
+    if part_of_speech is None:
+        return available[:10]
+    matching = tuple(
+        entry
+        for entry in available
+        if entry.part_of_speech in {part_of_speech, None}
+    )
+    remaining = tuple(entry for entry in available if entry not in matching)
+    return (*matching, *remaining)[:10]
 
 
 def _component_role(tag: str) -> str | None:
     if tag in {'pvg', 'vv', 'xsv'}:
         return 'action verb'
-    if tag in {'paa', 'va', 'xsa'}:
+    if tag in {'paa', 'va', 'xsa', 'xsm'}:
         return 'descriptive verb'
     if tag in {'px', 'vx'}:
         return 'helping verb'
-    if tag.startswith('nq'):
+    if tag == 'nnp' or tag.startswith('nq'):
         return 'name or proper noun'
-    if tag.startswith('np'):
+    if tag == 'np' or tag.startswith('np'):
         return 'pronoun'
-    if tag.startswith('nn'):
+    if tag == 'nr' or tag.startswith(('nnc', 'nno')):
         return 'number'
-    if tag.startswith('nb'):
+    if tag == 'nnb' or tag.startswith('nb'):
         return 'dependent noun'
     if tag.startswith('n'):
         return 'noun'
+    if tag in {'mag', 'maj', 'mad'}:
+        return 'adverb'
+    if tag.startswith('mm'):
+        return 'determiner'
     return None
 
 
-def _component_positions(tag: str) -> tuple[str, ...]:
+def _upos_component_role(upos: str) -> str:
+    return {
+        'NOUN': 'noun',
+        'PROPN': 'name or proper noun',
+        'PRON': 'pronoun',
+        'NUM': 'number',
+        'VERB': 'action verb',
+        'ADJ': 'descriptive verb',
+        'AUX': 'helping verb',
+        'ADV': 'adverb',
+        'DET': 'determiner',
+    }.get(upos, 'word')
+
+
+def _component_positions(tag: str, role: str | None = None) -> tuple[str, ...]:
+    if role == 'helping verb':
+        return ('보조 동사', '보조 형용사')
+    if role == 'descriptive verb':
+        return ('adjective',)
+    if role == 'action verb':
+        return ('verb',)
     if tag in {'px', 'vx'}:
         return ('보조 동사', '보조 형용사')
     if tag in {'pvg', 'vv', 'xsv'}:
         return ('verb',)
-    if tag in {'paa', 'va', 'xsa'}:
+    if tag in {'paa', 'va', 'xsa', 'xsm'}:
         return ('adjective',)
     if tag.startswith('n'):
         return ('noun',)
+    if tag in {'mag', 'maj', 'mad'}:
+        return ('adverb',)
+    if tag.startswith('mm'):
+        return ('determiner',)
     return ()
 
 
@@ -534,21 +566,37 @@ def _expected_components(
         if role is None:
             index += 1
             continue
+        if token.upos == 'ADJ' and role == 'action verb':
+            role = 'descriptive verb'
+        elif token.upos == 'AUX' and role in {'action verb', 'descriptive verb'}:
+            role = 'helping verb'
         surface = form
         lemma = form
         component_tag = tag
         if tag.startswith('n') and index + 1 < min(len(forms), len(tags)):
             following_tag = tags[index + 1]
-            if following_tag in {'xsv', 'xsa'}:
+            if following_tag in {'xsv', 'xsa', 'xsm'}:
                 surface += _normalized(forms[index + 1])
                 lemma = surface + '다'
                 component_tag = following_tag
                 role = _component_role(component_tag) or role
                 index += 1
+            elif following_tag == 'xsn':
+                suffix_closes_noun = (
+                    index + 2 >= min(len(forms), len(tags))
+                    or (
+                        tags[index + 2].startswith('j')
+                        and tags[index + 2] != 'jp'
+                    )
+                )
+                if forms[index + 1] != '들' and suffix_closes_noun:
+                    surface += _normalized(forms[index + 1])
+                    lemma = surface
+                    index += 1
         elif tag in {'pvg', 'paa', 'px', 'vv', 'va', 'vx', 'xsv', 'xsa'}:
             lemma = form if form.endswith('다') else form + '다'
         entries = _ordered_oracle_entries(
-            oracle, lemma, _component_positions(component_tag)
+            oracle, lemma, _component_positions(component_tag, role)
         )
         components.append(OracleComponent(surface, lemma, role, entries))
         index += 1
@@ -612,6 +660,13 @@ def _expected_lemma(token: UdToken) -> str | None:
     forms, tags = _morph_parts(token)
     if not forms:
         return None
+    for index, tag in enumerate(tags):
+        if (
+            tag.startswith('n')
+            and index + 1 < min(len(forms), len(tags))
+            and tags[index + 1] == 'xsm'
+        ):
+            return forms[index] + forms[index + 1] + '다'
     verb_roots = {"pvg", "paa", "px", "vv", "va", "vx", "xsv", "xsa"}
     for index, tag in enumerate(tags):
         if tag.startswith("n") and index + 1 < min(len(forms), len(tags)) and tags[index + 1] in {
@@ -633,6 +688,8 @@ def _expected_labels(token: UdToken) -> frozenset[str]:
     forms, tags = _morph_parts(token)
     labels: set[str] = set()
     for form, tag in zip(forms, tags, strict=False):
+        if tag == 'jp':
+            continue
         if tag.startswith("j"):
             labels.add("particle")
         if tag.startswith("e"):
@@ -709,6 +766,21 @@ def _candidate_pool(
             if not dictionary_entries:
                 continue
             labels = _expected_labels(token) if morphology else frozenset()
+            components = _expected_components(token, oracle)
+            if (
+                'particle' in labels
+                and len(components) == 1
+                and components[0].learner_role
+                in {
+                    'noun',
+                    'name or proper noun',
+                    'pronoun',
+                    'number',
+                    'dependent noun',
+                }
+                and components[0].surface == surface
+            ):
+                labels -= {'particle'}
             tags = _morph_parts(token)[1]
             if "particle" in labels:
                 target_class = "particle"
@@ -720,14 +792,18 @@ def _candidate_pool(
                 target_class = "plain"
             else:
                 continue
-            components = (
-                _expected_components(token, oracle)
-                if morphology
-                else (OracleComponent(surface, lemma, 'word', dictionary_entries),)
-            )
             if not components:
                 components = (
-                    OracleComponent(surface, lemma, target_class, dictionary_entries),
+                    OracleComponent(
+                        surface,
+                        lemma,
+                        (
+                            target_class
+                            if morphology
+                            else _upos_component_role(token.upos)
+                        ),
+                        dictionary_entries,
+                    ),
                 )
             lemma = components[0].lemma
             if components[0].entries:

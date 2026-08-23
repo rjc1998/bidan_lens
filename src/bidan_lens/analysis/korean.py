@@ -28,12 +28,25 @@ class _Token:
     length: int
 
 
-_VERB_TAGS = {"VV", "VA", "VX", "XSV", "XSA"}
+_VERB_TAGS = {"VV", "VA", "VX", "VCN", "XSV", "XSA"}
 
 
-_LEXICAL_TAGS = _VERB_TAGS | {'NNG', 'NNP', 'NNB', 'NP', 'NR'}
+_LEXICAL_TAGS = _VERB_TAGS | {
+    'NNG',
+    'NNP',
+    'NNB',
+    'NP',
+    'NR',
+    'MAG',
+    'MAJ',
+    'MM',
+}
 _KIWI_ANALYSIS_DEPTH = 10
 _MULTI_COMPONENT_SCORE_MARGIN = 1.5
+_SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
+_WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
+_INFLECTED_VERB_SCORE_MARGIN = 0.75
+_COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -77,6 +90,12 @@ class KoreanAnalyzer:
         start, end = target_span
         surface = sentence[start:end]
         candidates = self._analyze_candidates(sentence, target_span, max_candidates)
+        candidates = self._promote_close_wrapper_context_candidate(
+            sentence,
+            target_span,
+            candidates,
+            max_candidates,
+        )
         candidates = self._augment_verified_particle_features(surface, candidates)
         particle = self._particle_candidate(surface, candidates)
         if particle is not None:
@@ -95,6 +114,44 @@ class KoreanAnalyzer:
             )
             for candidate in candidates
         )
+
+    def _promote_close_wrapper_context_candidate(
+        self,
+        sentence: str,
+        target_span: tuple[int, int],
+        candidates: tuple[AnalysisCandidate, ...],
+        max_candidates: int,
+    ) -> tuple[AnalysisCandidate, ...]:
+        if len(candidates) < 2:
+            return candidates
+        start, end = target_span
+        left = start
+        while left > 0 and unicodedata.category(sentence[left - 1]).startswith('P'):
+            left -= 1
+        right = end
+        while right < len(sentence) and unicodedata.category(sentence[right]).startswith('P'):
+            right += 1
+        if left == start or right == end:
+            return candidates
+        unwrapped = sentence[:left] + sentence[start:end] + sentence[right:]
+        unwrapped_span = (left, left + end - start)
+        contextual = self._analyze_candidates(
+            unwrapped,
+            unwrapped_span,
+            max_candidates,
+        )
+        if not contextual or not contextual[0].dictionary_entries:
+            return candidates
+        signature = self._candidate_signature(contextual[0])
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                self._candidate_signature(candidate) == signature
+                and candidate.dictionary_entries
+                and candidates[0].score - candidate.score
+                <= _WRAPPER_CONTEXT_SCORE_MARGIN
+            ):
+                return (candidate, *candidates[:index], *candidates[index + 1 :])
+        return candidates
 
     def _isolated_defined_component_fallback(
         self,
@@ -117,6 +174,7 @@ class KoreanAnalyzer:
                     component.dictionary_entries
                     for component in candidate.lexical_components
                 )
+                and not self._has_unrepresented_word_part(candidate)
             ),
             None,
         )
@@ -133,6 +191,17 @@ class KoreanAnalyzer:
         )
         remaining = (candidate for candidate in candidates if candidate is not promoted)
         return (promoted, *remaining)[:max_candidates]
+
+    @staticmethod
+    def _has_unrepresented_word_part(candidate: AnalysisCandidate) -> bool:
+        lexical_surface = ''.join(
+            component.surface for component in candidate.lexical_components
+        )
+        return any(
+            morpheme.learner_label == 'word part'
+            and morpheme.surface not in lexical_surface
+            for morpheme in candidate.morphemes
+        )
 
     @staticmethod
     def _candidate_signature(
@@ -237,6 +306,7 @@ class KoreanAnalyzer:
         )
         candidates: list[AnalysisCandidate] = []
         contextual_auxiliary_ids: set[int] = set()
+        post_particle_inflected_verb_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         for rank, analysis in enumerate(analyses):
             raw_tokens, kiwi_score = analysis
@@ -255,12 +325,15 @@ class KoreanAnalyzer:
                 continue
             seen.add(key)
             first_target_index = target_pairs[0][0]
-            preceding_tag = (
-                _base_tag(tokens[first_target_index - 1].tag)
-                if first_target_index > 0
-                else None
+            preceding_context_tag = next(
+                (
+                    tag
+                    for token in reversed(tokens[:first_target_index])
+                    if not (tag := _base_tag(token.tag)).startswith('S')
+                ),
+                None,
             )
-            components = self._lexical_components(target_tokens, preceding_tag)
+            components = self._lexical_components(target_tokens, preceding_context_tag)
             if components:
                 lemma = components[0].lemma
             entries = components[0].dictionary_entries if components else ()
@@ -281,17 +354,28 @@ class KoreanAnalyzer:
                 uncertain=not bool(entries),
             )
             candidates.append(candidate)
-            if preceding_tag == 'EC' and any(
+            if preceding_context_tag == 'EC' and any(
                 component.learner_role == 'helping verb' for component in components
             ):
                 contextual_auxiliary_ids.add(id(candidate))
-        candidates.sort(
-            key=lambda candidate: (
-                id(candidate) in contextual_auxiliary_ids,
-                candidate.score,
-            ),
-            reverse=True,
+            if (
+                preceding_context_tag is not None
+                and preceding_context_tag.startswith('J')
+                and any(
+                    component.learner_role in {'action verb', 'descriptive verb'}
+                    for component in components
+                )
+                and any(feature.label == 'verb ending' for feature in features)
+            ):
+                post_particle_inflected_verb_ids.add(id(candidate))
+        candidates.sort(key=lambda candidate: candidate.score, reverse=True)
+        candidates = self._promote_contextual_auxiliary(
+            candidates, contextual_auxiliary_ids
         )
+        candidates = self._promote_close_inflected_verb_after_particle(
+            candidates, post_particle_inflected_verb_ids
+        )
+        candidates = self._promote_close_complete_inflected_word(candidates)
         candidates = self._promote_close_complete_multi_component(
             candidates, contextual_auxiliary_ids
         )
@@ -301,19 +385,102 @@ class KoreanAnalyzer:
         return tuple(limited)
 
     @staticmethod
-    def _promote_close_complete_multi_component(
+    def _promote_contextual_auxiliary(
         candidates: list[AnalysisCandidate], contextual_auxiliary_ids: set[int]
     ) -> list[AnalysisCandidate]:
         if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
             return candidates
         first = candidates[0]
         for index, candidate in enumerate(candidates[1:], start=1):
+            if id(candidate) not in contextual_auxiliary_ids:
+                continue
+            if (
+                first.lemma != candidate.lemma
+                or first.score - candidate.score
+                <= _SAME_LEMMA_AUXILIARY_SCORE_MARGIN
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    @staticmethod
+    def _promote_close_inflected_verb_after_particle(
+        candidates: list[AnalysisCandidate], inflected_verb_ids: set[int]
+    ) -> list[AnalysisCandidate]:
+        if not candidates or id(candidates[0]) in inflected_verb_ids:
+            return candidates
+        first = candidates[0]
+        noun_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+        }
+        if not first.lexical_components or not all(
+            component.learner_role in noun_roles
+            for component in first.lexical_components
+        ):
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                id(candidate) in inflected_verb_ids
+                and first.score - candidate.score <= _INFLECTED_VERB_SCORE_MARGIN
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    def _promote_close_complete_inflected_word(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or not self._has_unrepresented_word_part(candidates[0]):
+            return candidates
+        first = candidates[0]
+        verb_roles = {'action verb', 'descriptive verb'}
+        for index, candidate in enumerate(candidates[1:], start=1):
+            labels = {feature.label for feature in candidate.features}
+            labels.update(item.learner_label for item in candidate.morphemes)
             components = candidate.lexical_components
+            if (
+                first.score - candidate.score <= _COMPLETE_INFLECTED_SCORE_MARGIN
+                and components
+                and sum(len(component.surface) for component in components)
+                == len(candidate.surface)
+                and any(component.learner_role in verb_roles for component in components)
+                and all(component.dictionary_entries for component in components)
+                and 'verb ending' in labels
+                and not self._has_unrepresented_word_part(candidate)
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    @staticmethod
+    def _promote_close_complete_multi_component(
+        candidates: list[AnalysisCandidate], contextual_auxiliary_ids: set[int]
+    ) -> list[AnalysisCandidate]:
+        if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
+            return candidates
+        first = candidates[0]
+        if (
+            len(first.lexical_components) == 1
+            and first.lexical_components[0].learner_role == 'pronoun'
+            and first.lexical_components[0].dictionary_entries
+        ):
+            return candidates
+        first_labels = {feature.label for feature in first.features}
+        first_labels.update(item.learner_label for item in first.morphemes)
+        for index, candidate in enumerate(candidates[1:], start=1):
+            components = candidate.lexical_components
+            candidate_labels = {feature.label for feature in candidate.features}
+            candidate_labels.update(item.learner_label for item in candidate.morphemes)
             if (
                 first.score - candidate.score <= _MULTI_COMPONENT_SCORE_MARGIN
                 and len(components) > len(first.lexical_components)
                 and len(components) >= 2
                 and all(component.dictionary_entries for component in components)
+                and not (
+                    'particle' in first_labels and 'particle' not in candidate_labels
+                )
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
@@ -348,8 +515,27 @@ class KoreanAnalyzer:
         index = 0
         previous_tag = preceding_tag
         while index < len(tokens):
+            component_index = index
             token = tokens[index]
             tag = _base_tag(token.tag)
+            if tag == 'XR' and index + 1 < len(tokens):
+                suffix = tokens[index + 1]
+                if _base_tag(suffix.tag) == 'XSA':
+                    surface = token.form + suffix.form
+                    lemma = surface + '다'
+                    entries = self._ordered_entries(lemma, 'XSA')
+                    if entries:
+                        components.append(
+                            LexicalComponent(
+                                surface,
+                                lemma,
+                                'descriptive verb',
+                                entries,
+                            )
+                        )
+                        previous_tag = 'XSA'
+                        index += 2
+                        continue
             if tag not in _LEXICAL_TAGS:
                 previous_tag = tag
                 index += 1
@@ -366,6 +552,28 @@ class KoreanAnalyzer:
                     lemma = surface + '다'
                     lookup_tag = following_tag
                     role = 'action verb' if following_tag == 'XSV' else 'descriptive verb'
+                    index += 1
+            if tag.startswith('N') and index > 0:
+                prefix = tokens[component_index - 1]
+                if _base_tag(prefix.tag) == 'XPN':
+                    prefixed = prefix.form + lemma
+                    if self._ordered_entries(prefixed, lookup_tag):
+                        surface = prefix.form + surface
+                        lemma = prefixed
+            if tag.startswith('N') and index + 1 < len(tokens):
+                suffix = tokens[index + 1]
+                following_tag = _base_tag(suffix.tag)
+                suffix_closes_noun = (
+                    index + 2 >= len(tokens)
+                    or _base_tag(tokens[index + 2].tag).startswith('J')
+                )
+                if (
+                    following_tag == 'XSN'
+                    and suffix.form != '들'
+                    and suffix_closes_noun
+                ):
+                    surface += suffix.form
+                    lemma += suffix.form
                     index += 1
             if (
                 lookup_tag in {'VV', 'VA'}
@@ -399,10 +607,14 @@ class KoreanAnalyzer:
     ) -> tuple[DictionaryEntry, ...]:
         if tag == 'VX':
             roles = ('보조 동사', '보조 형용사')
-        elif tag in {'VA', 'XSA'}:
+        elif tag in {'VA', 'VCN', 'XSA'}:
             roles = ('adjective',)
         elif tag in {'VV', 'XSV'}:
             roles = ('verb',)
+        elif tag in {'MAG', 'MAJ'}:
+            roles = ('adverb',)
+        elif tag == 'MM':
+            roles = ('determiner',)
         elif tag.startswith('N'):
             roles = ('noun',)
         else:

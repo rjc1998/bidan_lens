@@ -37,7 +37,152 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
-## Plain-v1 schema-v4.2 follow-up
+## Plain-v1 schema-v4.9 development follow-up
+
+The current development-only corpus is locked under
+`F:\bidan-lens-eval-ud218-v4.9\dev`. It contains 2,000 main, 250 nonblocking stress,
+400 held-out language, and 200 locked quick cases. Its language tier is 90.50% overall,
+93.00% auxiliary, and 88.00% multi-lexical, with 100% direct KRDict conformance across
+244 independent groups. The multi-lexical exceptional floor therefore remains met.
+
+The v4.9 oracle uses independent GSD/KAIST morphology to expose adverb, determiner, and
+negative-copula components; refines broad GSD verb tags with UPOS roles; conservatively attaches
+terminal noun suffixes; and orders the expected KRDict part-of-speech group first while retaining
+other homographs in source order. The runtime rejects isolated component promotion when a
+derivational word part would be omitted and can prefer a close inflected-verb interpretation
+after a particle even when punctuation intervenes. Connective auxiliary context likewise
+survives intervening punctuation, and richer multi-component promotion cannot discard an
+already-supported particle feature. The 400-case language cross-check preserved 90.50%
+overall, 93.00% auxiliary, and the required 88.00% multi-lexical result. Dictionary-confirmed
+bound roots and adjective-forming suffixes are presented as one descriptive-verb component.
+
+The accepted 200-case v4.9 quick result is 96.35% whole-eojeol OCR, 91.00% target selection,
+84.50% functional context, 67.00% exact sentence transcription, 92.00% complete components,
+94.50% exact KRDict fidelity, and 78.50% fully correct first popup. Alternative-candidate
+recovery is 88.00%, false promotions remain zero, and automated latency is 222.04 ms median /
+334.04 ms p95. The remaining categorical failures are 18 target, 13 context, and 12 analysis;
+the analysis details are four primary lemmas and eight component roles.
+
+The context review contains 39 decisions: 18 incorrect line/sentence reconstructions, six
+missed or merged OCR word boundaries, and 15 punctuation or structured-ASCII cases. Its v4.9
+audit has 13 active cases, 26 resolved IDs, and no missing decisions. The first-popup review
+contains 48 decisions and persists only stable IDs, categorical stages, decisions, and a
+categorical summary. Its v4.9 state has 12 active cases and 36 resolved reviewed IDs; after the
+newly exposed grammar-role case was classified, the decision history is 21 Kiwi-analysis errors,
+12 corpus-oracle defects, seven equivalent learner interpretations, four genuinely ambiguous
+cases, and four annotation-convention differences.
+The reviewed grammar-role oracle defect is resolved by removing a particle label only when a
+single noun-like component accounts for the target's complete punctuation-trimmed surface.
+A defined pronoun that already leads by analyzer score is retained instead of being replaced by
+a more fragmented determiner-plus-dependent-noun interpretation.
+A score-bounded connective-auxiliary promotion experiment was rejected because it produced no
+net popup gain and reduced exact KRDict fidelity from 93.50% to 93.00%.
+A narrower accepted rule bounds only same-lemma action-versus-auxiliary alternatives while
+preserving different-lemma contextual recovery.
+An immediate paired-punctuation check can promote a close, dictionary-backed candidate already
+present in the original analysis when the same sentence without only those wrappers supports it;
+the displayed OCR and sentence context are not altered.
+An audit of all eight active role cases against pinned KAIST UPOS, XPOS, and dependency evidence
+corrected two review categories without changing an oracle or score. A wider wrapped-adverb
+promotion was rejected because it produced byte-identical quick diagnostics and no metric change.
+
+The context reviewer's geometry-only inspection can select a single stable ID and reports
+Unicode-category counts, per-eojeol geometry, confidence, spans, detector/segment provenance, and
+text-equality signals without emitting text. A broad recognition-confirmed close-fragment merge
+was rejected after it resolved three reviewed cases but introduced nine new failures. A bounded
+overlapping-triplet recovery is accepted only when a narrow low-confidence leading sliver is
+discarded and combined recognition exactly confirms the high-confidence middle-plus-trailing
+surface. A second recovery joins only unusually close fragments isolated between ordinary word
+gaps when confidence, character pitch, and combined recognition all agree. Together, the triplet
+recovery and separately bounded 2+3 and 3+1 close-pair profiles resolved three cases without
+creating a new context, target, or negative-pointer failure.
+Two additional profiles recover shallowly overlapping 2+2 terminal or internally isolated 2+3
+fragments only when surrounding geometry, character pitch, fragment confidence, and exact
+combined recognition agree. They resolved two more context cases without regressions.
+The remaining punctuation-wrapped CJK case is a recognizer-coverage limitation rather than safely
+reconstructable text; another reviewed reconstruction case is a character-recognition mismatch
+rather than a boundary defect.
+The nine still-active reconstruction decisions were screened again using structural-only output:
+three are recognition-dominated, one requires unsupported CJK coverage, four mix detector
+fragmentation and recognition errors without an independently confirmed correction, and one
+loses terminal punctuation. A terminal-punctuation retry was rejected after exact-sentence
+accuracy fell from 67.00% to 66.50% without a context or popup gain.
+The remaining active punctuation case drops two unsupported CJK-only regions. The three active
+boundary cases respectively require internal splitting inside recognized regions, have a false
+split geometrically indistinguishable from ordinary spaces, or lack independent combined-
+recognition confirmation. A narrow low-confidence 1+2 merge experiment was rejected because it
+produced byte-identical quick diagnostics and no metric change; global splitting remains
+unchanged.
+
+Aggregate negative activation remains 0.21%. Blank, English, near-miss, and punctuation probes
+have zero activations; whitespace remains 2/191, or 1.05%, and fails the strict per-category
+below-0.5% gate. A zero-ink hover-exclusion experiment removed only one activation while
+reducing target selection to 85.50%, context to 76.00%, and popup correctness to 64.00%; it was
+rejected and removed.
+
+The v4.9 development lock SHA-256 is
+`f23f2388e580a889bd0ef363052ec72ab51c76ad57eacc68d3eca094242be5ab`.
+The context-review, first-popup-review, and accepted quick diagnostic SHA-256 values are
+`66b6cc918598dcad6d5517cc2db721396533d06fef8153ae52d144f31ff97720`,
+`835c61529dc5a1181c09921f333ba133c618c761b7a08f27e7cf8cf2edf85859`, and
+`0f244818f10644f71a0956469372f872d39c6df929311f285f0a523294d77f39`.
+The accepted aggregate quick report SHA-256 is
+`3994d7ad437415c7620ff3bb17bd6c7ff314de59f2fdfa191f1917d0d7cbf603`.
+The complete 2,000-sample v4.9 render run is deferred because quick popup, functional-context,
+and per-category negative-activation gates remain weak. Thresholds are not frozen; the
+untouched v4.2 release split and foreground benchmark remain unevaluated.
+
+## Superseded plain-v1 schema-v4.5 development follow-up
+
+The former development-only corpus is locked under
+`F:\bidan-lens-eval-ud218-v4.5\dev`. Its 400-case held-out language tier is 90.50%
+overall, 93.00% for auxiliary cases, and 88.00% for multi-lexical cases, with 100% direct
+KRDict conformance across 244 independent groups. Multi-lexical accuracy therefore recovers
+11 net cases from the v4.2 82.50% result and reaches the exceptional floor. Its remaining
+multi-lexical failures are 18 primary lemmas, two grammar roles, two component roles, one
+component surface, and one component count.
+
+The local reviewer classified all 35 original v4.2 multi-lexical disagreements without
+persisting corpus text: 16 equivalent learner interpretations, eight corpus-oracle defects,
+five Kiwi-analysis errors, three annotation-convention differences, and three genuinely
+ambiguous cases. After the general corrections, its audit reports 31 active cases, four
+resolved stable IDs, and no stale decisions. The implemented corrections normalize the KAIST
+derivational-adjective and copula conventions, restore dictionary-backed noun prefixes, and
+conservatively attach terminal noun suffixes. They do not introduce sentence- or lemma-specific
+overrides.
+
+The context reviewer classified 39 stable IDs without persisting text: 18 incorrect line or
+sentence reconstructions, six missed or merged OCR word boundaries, and 15 punctuation or
+structured-ASCII cases. The accepted reconstruction changes recover 19 of those IDs. They
+retain high-confidence numeric, uppercase, and version context, merge collinear fragments in
+reading order, and remove physically overlapping duplicate fragments after edge-punctuation
+normalization. The v4.5 oracle also corrects generic GSD component roles from independent UPOS
+evidence. No global OCR splitting threshold was changed.
+
+The accepted 200-case v4.5 quick result is 96.03% whole-eojeol OCR, 91.00% target selection,
+81.00% functional context, 73.00% complete components, 79.50% exact KRDict fidelity, and
+58.00% fully correct first popup, with 221.36 ms median / 332.36 ms p95 automated latency.
+The interior Hangul-glyph hover rule lowers aggregate negative activation from the initial
+v4.4 3.37% to 0.21%. Blank, English, near-miss, and punctuation probes are at zero; whitespace
+remains 2/191, or 1.05%, and therefore fails the strict per-category below-0.5% gate.
+
+Two broader OCR-boundary experiments were rejected during cross-validation. Adaptive visual
+splitting removed the whitespace activations but reduced whole-eojeol OCR to 82.66% and popup
+correctness to 27.00%. Raw CTC glyph boxes preserved 96.03% OCR but reduced target selection
+to 46.00% and popup correctness to 26.00%. Neither experiment remains in the code.
+An adaptive hover-gap exclusion also removed the two whitespace activations, but reduced target
+selection to 87.00%, context to 77.00%, and popup correctness to 50.50%; it too was removed.
+
+The v4.5 development lock SHA-256 is
+`583d6f4cbaa36c9ead71e327196da016274a36c2b234c14c93c0e502e6432228`. The context-review
+and accepted quick diagnostic SHA-256 values are
+`9b4fe2fd3568dfade1c8a0d24b35e5b5bce8c4f2642834a0051b62314c7b509d` and
+`7d1fed02501fd6069c358b3da62c6d809456666447558d9c093d6ed83843cf98`.
+The complete 2,000-sample v4.5 render run is deferred because quick popup, functional-context,
+and per-category negative-activation gates remain weak. Thresholds are not frozen; the
+untouched v4.2 release split and the foreground benchmark remain unevaluated.
+
+## Superseded plain-v1 schema-v4.2 follow-up
 
 The corrected corpora are locked under `F:\bidan-lens-eval-ud218-v4.2`; the release split is
 unevaluated. Independent direct KRDict conformance is now separated from analyzer correctness

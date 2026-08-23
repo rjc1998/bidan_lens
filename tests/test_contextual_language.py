@@ -185,6 +185,165 @@ def test_context_reranks_kiwi_helping_alternative_after_connective() -> None:
     assert candidates[1].lexical_components[0].learner_role == 'action verb'
 
 
+def test_context_does_not_promote_distant_same_lemma_helping_alternative() -> None:
+    sentence = '\uba39\uc5b4 \ub193\ub2e4'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\ub193\ub2e4': (_entry('put', '\ub193\ub2e4', 'verb', 'to put'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('\uba39', 'VV', 0, 1),
+                    Token('\uc5b4', 'EC', 1, 1),
+                    Token('\ub193', 'VV', 3, 1),
+                    Token('\ub2e4', 'EF', 4, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('\uba39', 'VV', 0, 1),
+                    Token('\uc5b4', 'EC', 1, 1),
+                    Token('\ub193', 'VX', 3, 1),
+                    Token('\ub2e4', 'EF', 4, 1),
+                ],
+                -4.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 5)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+
+
+def test_context_still_promotes_distant_different_lemma_helping_analysis() -> None:
+    sentence = '\uba39\uc5b4 \ub193\ub2e4'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\ub193\ub2e4': (_entry('put', '\ub193\ub2e4', 'verb', 'to put'),),
+        '\ub193\uc544\ub450\ub2e4': (
+            _entry('keep', '\ub193\uc544\ub450\ub2e4', 'verb', 'to leave in place'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('\uba39', 'VV', 0, 1),
+                    Token('\uc5b4', 'EC', 1, 1),
+                    Token('\ub193', 'VV', 3, 1),
+                    Token('\ub2e4', 'EF', 4, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('\uba39', 'VV', 0, 1),
+                    Token('\uc5b4', 'EC', 1, 1),
+                    Token('\ub193\uc544\ub450', 'VX', 3, 1),
+                    Token('\ub2e4', 'EF', 4, 1),
+                ],
+                -4.0,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 5)
+    )[0]
+
+    assert candidate.lemma == '\ub193\uc544\ub450\ub2e4'
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_context_recovers_auxiliary_role_across_punctuation() -> None:
+    sentence = '\uba39\uc5b4 [\ubc84\ub9ac\ub2e4]'
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('\uba39', 'VV', 0, 1),
+                    Token('\uc5b4', 'EC', 1, 1),
+                    Token('[', 'SSO', 3, 1),
+                    Token('\ubc84\ub9ac', 'VV', 4, 2),
+                    Token('\ub2e4', 'EF', 6, 1),
+                    Token(']', 'SSC', 7, 1),
+                ],
+                -1.0,
+            )
+        ]
+    }
+
+    candidate = KoreanAnalyzer(RoleDictionary(), ContextKiwi(analyses)).analyze(
+        sentence, (4, 7)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_close_candidate_supported_by_unwrapped_context_is_promoted() -> None:
+    sentence = '\ub9d0\ud560 \uc218 \u2018\uc788\ub2e4\u2019'
+    unwrapped = '\ub9d0\ud560 \uc218 \uc788\ub2e4'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\uc788\ub2e4': (
+            _entry('remain', '\uc788\ub2e4', 'verb', 'to remain'),
+            _entry('exist', '\uc788\ub2e4', 'adjective', 'to exist'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            ([Token('\uc788', 'VV', 6, 1), Token('\ub2e4', 'EF', 7, 1)], -1.0),
+            ([Token('\uc788', 'VA', 6, 1), Token('\ub2e4', 'EF', 7, 1)], -1.4),
+        ],
+        unwrapped: [
+            ([Token('\uc788', 'VA', 5, 1), Token('\ub2e4', 'EF', 6, 1)], -1.0),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (6, 8)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'descriptive verb'
+
+
+def test_unwrapped_context_does_not_promote_distant_candidate() -> None:
+    sentence = '\ub9d0\ud560 \uc218 \u2018\uc788\ub2e4\u2019'
+    unwrapped = '\ub9d0\ud560 \uc218 \uc788\ub2e4'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\uc788\ub2e4': (
+            _entry('remain', '\uc788\ub2e4', 'verb', 'to remain'),
+            _entry('exist', '\uc788\ub2e4', 'adjective', 'to exist'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            ([Token('\uc788', 'VV', 6, 1), Token('\ub2e4', 'EF', 7, 1)], -1.0),
+            ([Token('\uc788', 'VA', 6, 1), Token('\ub2e4', 'EF', 7, 1)], -3.0),
+        ],
+        unwrapped: [
+            ([Token('\uc788', 'VA', 5, 1), Token('\ub2e4', 'EF', 6, 1)], -1.0),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (6, 8)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+
+
 def test_main_verb_leads_with_ordinary_dictionary_group() -> None:
     candidate = _analyzer().analyze('쓰레기를 버리다', (5, 8))[0]
 
@@ -248,6 +407,153 @@ def test_distant_multi_component_analysis_is_not_promoted() -> None:
     )[0]
 
     assert [component.lemma for component in candidate.lexical_components] == ['갔다오다']
+
+
+def test_multi_component_promotion_does_not_discard_particle_feature() -> None:
+    sentence = '\uc11c\uc6b8\ub3c4'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\uc11c\uc6b8': (_entry('place', '\uc11c\uc6b8', 'noun', 'place'),),
+        '\ub3c4': (_entry('province', '\ub3c4', 'noun', 'province'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [Token('\uc11c\uc6b8', 'NNP', 0, 2), Token('\ub3c4', 'JX', 2, 1)],
+                -1.0,
+            ),
+            (
+                [Token('\uc11c\uc6b8', 'NNP', 0, 2), Token('\ub3c4', 'NNG', 2, 1)],
+                -1.5,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (0, 3)
+    )[0]
+
+    assert len(candidate.lexical_components) == 1
+    assert 'particle' in {feature.label for feature in candidate.features}
+
+
+def test_defined_pronoun_is_not_replaced_by_fragmented_analysis() -> None:
+    sentence = '\uadf8\uac83\uc740'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\uadf8': (_entry('that-determiner', '\uadf8', 'determiner', 'that'),),
+        '\uac83': (_entry('thing', '\uac83', 'noun', 'thing'),),
+        '\uadf8\uac83': (_entry('that-pronoun', '\uadf8\uac83', 'noun', 'that'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('\uadf8', 'MM', 0, 1),
+                    Token('\uac83', 'NNB', 1, 1),
+                    Token('\uc740', 'JX', 2, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [Token('\uadf8\uac83', 'NP', 0, 2), Token('\uc740', 'JX', 2, 1)],
+                -0.7,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (0, 3)
+    )[0]
+
+    assert candidate.lemma == '\uadf8\uac83'
+    assert [component.learner_role for component in candidate.lexical_components] == [
+        'pronoun'
+    ]
+
+
+def test_close_inflected_verb_after_particle_leads_noun_homograph() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '대해': (_entry('ocean', '대해', 'noun', 'ocean'),),
+        '대하다': (_entry('regarding', '대하다', 'verb', 'regard'),),
+    }
+    analyses = {
+        '문제에 [대해]': [
+            (
+                [
+                    Token('문제', 'NNG', 0, 2),
+                    Token('에', 'JKB', 2, 1),
+                    Token('[', 'SS', 4, 1),
+                    Token('대해', 'NNG', 5, 2),
+                    Token(']', 'SS', 7, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('문제', 'NNG', 0, 2),
+                    Token('에', 'JKB', 2, 1),
+                    Token('[', 'SS', 4, 1),
+                    Token('대하', 'VV', 5, 2),
+                    Token('어', 'EC', 6, 1),
+                    Token(']', 'SS', 7, 1),
+                ],
+                -1.3,
+            ),
+        ],
+        '문제에 대해': [
+            (
+                [
+                    Token('문제', 'NNG', 0, 2),
+                    Token('에', 'JKB', 2, 1),
+                    Token('대하', 'VV', 4, 2),
+                    Token('어', 'EC', 5, 1),
+                ],
+                -1.0,
+            )
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        '문제에 [대해]', (5, 7)
+    )[0]
+
+    assert candidate.lemma == '대하다'
+
+
+def test_isolated_fallback_rejects_unrepresented_word_part() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '마피아': (_entry('mafia', '마피아', 'noun', 'mafia'),),
+        '의': (_entry('meaning', '의', 'noun', 'meaning'),),
+    }
+    analyses = {
+        '오늘 마피아끼리의': [
+            ([Token('마피아끼리', 'NNG', 3, 5), Token('의', 'JX', 8, 1)], -1.0)
+        ],
+        '마피아끼리의': [
+            ([Token('마피아끼리', 'NNG', 0, 5), Token('의', 'JX', 5, 1)], -1.0),
+            (
+                [
+                    Token('마피아', 'NNG', 0, 3),
+                    Token('끼리', 'XSN', 3, 2),
+                    Token('의', 'NNG', 5, 1),
+                ],
+                -3.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        '오늘 마피아끼리의', (3, 9)
+    )[0]
+
+    assert candidate.lemma == '마피아끼리'
 
 
 def test_isolated_analysis_recovers_defined_components_for_undefined_leader() -> None:

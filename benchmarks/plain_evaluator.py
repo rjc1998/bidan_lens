@@ -163,6 +163,7 @@ class SampleOutcome:
     negative_activations: tuple[str, ...]
     latency_ms: float
     failed_stage: str | None
+    failure_detail: str | None
 
 
 class PlainEngineLike(Protocol):
@@ -245,6 +246,34 @@ def _expected_components(value: Any) -> tuple[ExpectedComponent, ...]:
     return tuple(components)
 
 
+def _normalized_oracle_labels(
+    text: str,
+    labels: frozenset[str],
+    components: tuple[ExpectedComponent, ...],
+) -> frozenset[str]:
+    start = 0
+    end = len(text)
+    while start < end and unicodedata.category(text[start])[0] in {'P', 'Z'}:
+        start += 1
+    while end > start and unicodedata.category(text[end - 1])[0] in {'P', 'Z'}:
+        end -= 1
+    noun_roles = {
+        'noun',
+        'name or proper noun',
+        'pronoun',
+        'number',
+        'dependent noun',
+    }
+    if (
+        'particle' in labels
+        and len(components) == 1
+        and components[0].learner_role in noun_roles
+        and components[0].surface == text[start:end]
+    ):
+        return labels - {'particle'}
+    return labels
+
+
 def _negative_probes(value: Any) -> tuple[NegativeProbe, ...]:
     if not isinstance(value, list) or not value:
         raise CorpusError('plain sample has no negative probes')
@@ -302,17 +331,24 @@ def _target(value: Any) -> PlainTarget:
     box = _box(value.get("box"))
     if not box.contains(float(pointer[0]), float(pointer[1])):
         raise CorpusError("plain target pointer is outside its eojeol")
+    normalized_text = _normal(text)
+    components = _expected_components(value.get('expected_components'))
+    normalized_labels = _normalized_oracle_labels(
+        normalized_text,
+        frozenset(labels),
+        components,
+    )
     return PlainTarget(
-        _normal(text),
+        normalized_text,
         box,
         (float(pointer[0]), float(pointer[1])),
         _normal(sentence),
         (start, end),
         _normal(lemma),
-        frozenset(labels),
+        normalized_labels,
         _expected_entries(value.get("expected_dictionary_entries")),
         str(target_class),
-        _expected_components(value.get('expected_components')),
+        components,
         _normal(spacing) if isinstance(spacing, str) else None,
         language_class,
     )
@@ -662,24 +698,30 @@ def _expected_signature(
     return (entry.entry_id, entry.headword, entry.senses)
 
 
-_IGNORABLE_EDGE_PUNCTUATION = frozenset(
-    map(
-        chr,
-        (
-            33, 34, 39, 40, 41, 44, 45, 46, 47, 58, 59, 63, 91, 93, 123, 125,
-            0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D, 0x2026,
-            0x3008, 0x3009, 0x300A, 0x300B,
-        ),
-    )
-)
+def _trim_context_edges(value: str) -> str:
+    start = 0
+    end = len(value)
+    while start < end and unicodedata.category(value[start])[0] in {'P', 'Z'}:
+        start += 1
+    while end > start and unicodedata.category(value[end - 1])[0] in {'P', 'Z'}:
+        end -= 1
+    return value[start:end]
 
 
 def _context_tokens(sentence: str) -> tuple[tuple[str, ...], tuple[tuple[int, int], ...]]:
     matches = tuple(re.finditer(r'\S+', _normal(sentence)))
-    tokens = tuple(
-        match.group().strip(''.join(_IGNORABLE_EDGE_PUNCTUATION)) for match in matches
+    values = tuple(
+        (
+            _trim_context_edges(match.group()),
+            match.span(),
+        )
+        for match in matches
     )
-    return tokens, tuple(match.span() for match in matches)
+    retained = tuple(value for value in values if value[0])
+    return (
+        tuple(value[0] for value in retained),
+        tuple(value[1] for value in retained),
+    )
 
 
 def _target_token_index(spans: tuple[tuple[int, int], ...], target_span: tuple[int, int]) -> int:
@@ -926,6 +968,11 @@ def _evaluate_sample(
             target.sentence, (target.sentence_start, target.sentence_end)
         )
     end_first = end_candidates[0] if end_candidates else None
+    failure_detail = (
+        _language_failure_stage(end_first, sample.target)
+        if target_hit and functional_context
+        else None
+    )
     first_correct = _analysis_matches(end_first, sample.target) and _dictionary_matches(
         end_first, sample.target
     ) and bool(end_first and _spacing_matches(end_first, sample.target))
@@ -954,12 +1001,12 @@ def _evaluate_sample(
         failed_stage = "target"
     elif not functional_context:
         failed_stage = "context"
-    elif not _analysis_matches(end_first, sample.target):
-        failed_stage = "analysis"
-    elif not _dictionary_matches(end_first, sample.target):
+    elif failure_detail in {'contextual_dictionary_group', 'primary_dictionary_group'}:
         failed_stage = "dictionary"
-    elif end_first is not None and not _spacing_matches(end_first, sample.target):
+    elif failure_detail == 'spacing':
         failed_stage = 'spacing'
+    elif failure_detail is not None:
+        failed_stage = "analysis"
     else:
         failed_stage = None
     return SampleOutcome(
@@ -980,6 +1027,7 @@ def _evaluate_sample(
         negative_activations,
         latency_ms,
         failed_stage,
+        failure_detail,
     )
 
 
@@ -1095,13 +1143,15 @@ def _write_diagnostics(path: Path, outcomes: tuple[SampleOutcome, ...]) -> None:
         {
             "sample_id": item.sample_id,
             "failed_stage": item.failed_stage,
+            "failure_detail": item.failure_detail,
             "size_px": item.render.size_px,
             "font": item.render.font,
             "renderer": item.render.renderer,
             "punctuation": item.render.punctuation,
+            "negative_activation_kinds": sorted(set(item.negative_activations)),
         }
         for item in outcomes
-        if item.failed_stage is not None
+        if item.failed_stage is not None or item.negative_activations
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

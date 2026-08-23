@@ -43,7 +43,9 @@ _TAG_LABELS = {
     "VA": "descriptive verb",
     "VX": "helping verb",
     "MAG": "adverb",
+    "MAJ": "adverb",
     "MM": "determiner",
+    "VCN": "descriptive verb",
 }
 
 

@@ -23,8 +23,9 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
 ## Boundaries
 
 - `ocr` owns pixel preprocessing, local ONNX inference, line text, and geometry.
-- `pipeline.hit_test` selects a complete whitespace-delimited eojeol. Punctuation and
-  blank space do not create targets.
+- `pipeline.hit_test` selects a complete whitespace-delimited eojeol only when the pointer
+  is inside a conservative inner region and over Hangul glyph geometry. Punctuation, ASCII
+  context, eojeol edges, and blank space do not create targets.
 - `analysis` receives the full OCR line plus the selected span. Raw morphology tags are
   internal and are translated into ordered lexical components with surface, lemma, and a
   beginner-facing contextual role. Auxiliary tags prioritize KRDict helping-verb/helping-
@@ -37,8 +38,16 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     dictionary-backed nouns may also recover a missing particle feature when its remaining suffix
     is a known particle or an exact KRDict particle entry. This does not change the candidate's
     lemma or definitions. If that particle recovery still leaves an undefined leader, an
-    isolated-eojeol analysis may lead only when it supplies more lexical components and every
-    component has a local definition.
+    isolated-eojeol analysis may lead only when it supplies more lexical components, every
+    component has a local definition, and no derivational word part is left unrepresented.
+    A close inflected-verb alternative may outrank a noun homograph after a particle; intervening
+    punctuation is ignored for that context check while immediate-tag auxiliary logic is
+    unchanged. Dictionary-backed noun prefixes can be restored to the
+    following lexical component, and a terminal noun suffix can extend that component only in
+    conservative end/particle contexts; plural `들`, between-noun suffixes, and copular
+    contexts are not rewritten.
+    Adverbs, conjunctive adverbs, determiners, and negative copulas are exposed as conservative
+    learner components with matching role-first dictionary lookup.
 - `dictionary` compiles a versioned source export into a read-only runtime database.
   Exact headwords take precedence over aliases; aliases remain a fallback.
   `DictionarySourceAdapter` is the seam for future sources.
@@ -49,7 +58,11 @@ its dynamic-width CTC space probabilities to identify candidate eojeol crops, ti
 those crops against foreground pixels, and splits a missed CTC boundary only at an unusually
 wide completely blank visual gap. It recognizes the resulting crops independently and
 rebuilds the containing line with per-character and per-eojeol geometry. High-confidence
-structured ASCII identifiers remain in sentence context but never become hover targets.
+numeric tokens and uppercase abbreviations remain in sentence context, as do complete
+`K-YYYY/vN` identifiers at a conservative lower confidence threshold. Adjacent `K` and
+`-YYYY/vN` fragments may be rejoined. Collinear detector fragments are reconstructed in
+left-to-right reading order, and physically overlapping duplicate text is removed only after
+edge-punctuation normalization. These context tokens never become hover targets.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

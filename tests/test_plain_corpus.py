@@ -20,12 +20,17 @@ from benchmarks.plain_corpus import (
     _candidate_pool,
     _component_role,
     _exclude_split_overlap,
+    _expected_components,
+    _expected_labels,
+    _expected_lemma,
     _line_records,
+    _oracle_lookup,
     _ordered_oracle_entries,
     _punctuate,
     _render_spec,
     _select_candidates,
     _select_language_candidates,
+    _upos_component_role,
     acquire_plain,
     load_krdict_oracle,
 )
@@ -66,6 +71,96 @@ def test_candidate_pool_rejects_target_surface_inside_another_eojeol() -> None:
     oracle = {target: (OracleEntry('1', target, ((1, 'definition'),)),)}
 
     assert _candidate_pool((sentence,), 'source', 'dev', oracle, morphology=False) == []
+
+
+@pytest.mark.parametrize(
+    ('upos', 'role'),
+    [
+        ('NOUN', 'noun'),
+        ('PROPN', 'name or proper noun'),
+        ('PRON', 'pronoun'),
+        ('NUM', 'number'),
+        ('VERB', 'action verb'),
+        ('ADJ', 'descriptive verb'),
+        ('AUX', 'helping verb'),
+        ('ADV', 'adverb'),
+        ('DET', 'determiner'),
+    ],
+)
+def test_gsd_upos_supplies_a_learner_component_role(upos: str, role: str) -> None:
+    assert _upos_component_role(upos) == role
+
+
+def test_gsd_plain_candidate_uses_independent_xpos_lemma_and_components() -> None:
+    surface = '\ub530\ub77c'
+    lemma = '\ub530\ub974\ub2e4'
+    sentence = UdSentence(
+        'sentence-1',
+        f'\ubb38\uc81c\uc5d0 {surface} \uc6c0\uc9c1\uc778\ub2e4',
+        (UdToken('2', surface, '\ub530\ub974+\uc544', 'VERB', 'VV+EC', ''),),
+    )
+    oracle = {
+        surface: (OracleEntry('surface', surface, ((1, 'surface'),)),),
+        lemma: (OracleEntry('lemma', lemma, ((1, 'follow'),), 'verb'),),
+    }
+
+    candidates = _candidate_pool(
+        (sentence,),
+        'ud-korean-gsd-2.18',
+        'dev',
+        oracle,
+        morphology=False,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].lemma == lemma
+    assert candidates[0].components[0].surface == '\ub530\ub974'
+    assert candidates[0].components[0].learner_role == 'action verb'
+
+
+def test_source_components_cover_adverbs_and_terminal_noun_suffixes() -> None:
+    adverb = UdToken('1', '\ub2e4\uc2dc', '\ub2e4\uc2dc', 'ADV', 'mag', '')
+    suffixed_noun = UdToken(
+        '2',
+        '\ub9c8\ud53c\uc544\ub07c\ub9ac\uc758',
+        '\ub9c8\ud53c\uc544+\ub07c\ub9ac+\uc758',
+        'NOUN',
+        'nq+xsn+jcm',
+        '',
+    )
+    oracle = {
+        '\ub2e4\uc2dc': (OracleEntry('adverb', '\ub2e4\uc2dc', ((1, 'again'),), 'adverb'),),
+        '\ub9c8\ud53c\uc544\ub07c\ub9ac': (
+            OracleEntry('noun', '\ub9c8\ud53c\uc544\ub07c\ub9ac', ((1, 'group'),), 'noun'),
+        ),
+    }
+
+    assert _expected_components(adverb, oracle)[0].learner_role == 'adverb'
+    noun = _expected_components(suffixed_noun, oracle)[0]
+    assert noun.surface == '\ub9c8\ud53c\uc544\ub07c\ub9ac'
+    assert noun.lemma == '\ub9c8\ud53c\uc544\ub07c\ub9ac'
+
+
+def test_oracle_noun_suffix_before_copula_remains_unattached() -> None:
+    token = UdToken(
+        '1',
+        '\uc0dd\uc0b0\uc801\uc778',
+        '\uc0dd\uc0b0+\uc801+\uc774+\u3134',
+        'VERB',
+        'ncn+xsn+jp+etm',
+        '',
+    )
+    oracle = {
+        '\uc0dd\uc0b0': (OracleEntry('noun', '\uc0dd\uc0b0', ((1, 'production'),), 'noun'),),
+        '\uc0dd\uc0b0\uc801': (
+            OracleEntry('derived', '\uc0dd\uc0b0\uc801', ((1, 'productive'),), 'noun'),
+        ),
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.surface == '\uc0dd\uc0b0'
+    assert component.lemma == '\uc0dd\uc0b0'
 
 
 def test_desktop_renderer_retains_application_for_registered_fonts(tmp_path: Path) -> None:
@@ -312,6 +407,19 @@ def test_auxiliary_oracle_groups_both_helping_parts_of_speech_first() -> None:
     assert [entry.entry_id for entry in ordered] == ['2', '3', '1']
 
 
+def test_primary_oracle_keeps_other_homographs_after_expected_position() -> None:
+    entries = {
+        '\uc788\ub2e4': (
+            OracleEntry('verb', '\uc788\ub2e4', ((1, 'remain'),), 'verb'),
+            OracleEntry('adjective', '\uc788\ub2e4', ((1, 'exist'),), 'adjective'),
+        )
+    }
+
+    ordered = _oracle_lookup(entries, '\uc788\ub2e4', 'adjective')
+
+    assert [entry.entry_id for entry in ordered] == ['adjective', 'verb']
+
+
 @pytest.mark.parametrize(
     ('tag', 'role'),
     [
@@ -320,10 +428,71 @@ def test_auxiliary_oracle_groups_both_helping_parts_of_speech_first() -> None:
         ('npp', 'pronoun'),
         ('nnc', 'number'),
         ('nbn', 'dependent noun'),
+        ('nng', 'noun'),
+        ('nnp', 'name or proper noun'),
+        ('np', 'pronoun'),
+        ('nr', 'number'),
+        ('nnb', 'dependent noun'),
     ],
 )
-def test_kaist_noun_subtypes_use_matching_learner_roles(tag: str, role: str) -> None:
+def test_source_noun_subtypes_use_matching_learner_roles(tag: str, role: str) -> None:
     assert _component_role(tag) == role
+
+
+def test_gsd_upos_refines_broad_verb_xpos_role() -> None:
+    adjective = UdToken('1', '\uc788\ub2e4', '\uc788+\ub2e4', 'ADJ', 'VV+EF', '')
+    auxiliary = UdToken('2', '\ud558\ub2e4', '\ud558+\ub2e4', 'AUX', 'VV+EF', '')
+    oracle = {
+        '\uc788\ub2e4': (
+            OracleEntry('verb', '\uc788\ub2e4', ((1, 'remain'),), 'verb'),
+            OracleEntry('adjective', '\uc788\ub2e4', ((1, 'exist'),), 'adjective'),
+        ),
+        '\ud558\ub2e4': (
+            OracleEntry('verb', '\ud558\ub2e4', ((1, 'do'),), 'verb'),
+            OracleEntry('auxiliary', '\ud558\ub2e4', ((1, 'help'),), '\ubcf4\uc870 \ub3d9\uc0ac'),
+        ),
+    }
+
+    adjective_component = _expected_components(adjective, oracle)[0]
+    auxiliary_component = _expected_components(auxiliary, oracle)[0]
+
+    assert adjective_component.learner_role == 'descriptive verb'
+    assert [entry.entry_id for entry in adjective_component.entries] == [
+        'adjective',
+        'verb',
+    ]
+    assert auxiliary_component.learner_role == 'helping verb'
+    assert [entry.entry_id for entry in auxiliary_component.entries] == [
+        'auxiliary',
+        'verb',
+    ]
+
+
+def test_kaist_copula_is_not_reported_as_a_particle() -> None:
+    token = UdToken(
+        '1',
+        '\uac00\uce58\uc801\uc778',
+        '\uac00\uce58+\uc801+\uc774+\u3134',
+        'VERB',
+        'ncn+xsn+jp+etm',
+        '',
+    )
+
+    assert _expected_labels(token) == frozenset({'verb ending'})
+
+
+def test_kaist_xsm_suffix_produces_descriptive_verb_lemma_and_role() -> None:
+    token = UdToken(
+        '1',
+        '\uc2ec\ud574\uc9c0\uace0',
+        '\uc2ec+\ud558+\uc5b4+\uc9c0+\uace0',
+        'VERB',
+        'ncps+xsm+ecx+px+ecc',
+        '',
+    )
+
+    assert _expected_lemma(token) == '\uc2ec\ud558\ub2e4'
+    assert _component_role('xsm') == 'descriptive verb'
 
 
 @pytest.mark.parametrize(

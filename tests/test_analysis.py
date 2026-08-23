@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pytest
+
 from bidan_lens.analysis.korean import KoreanAnalyzer
 from bidan_lens.dictionary.store import DictionaryStore
 from bidan_lens.models import DictionaryEntry, DictionarySense
@@ -115,8 +117,8 @@ def test_multi_eojeol_construction_remains_two_targets_with_shared_context() -> 
 
 def test_only_provenance_backed_spacing_is_marked() -> None:
     analyzer = KoreanAnalyzer(FakeDictionary(), FakeKiwi([]))
-    assert analyzer.conservative_correction('갔다오다') == '갔다 오다'
-    assert analyzer.conservative_correction('먹고싶어요') is None
+    assert analyzer.conservative_correction("갔다오다") == "갔다 오다"
+    assert analyzer.conservative_correction("먹고싶어요") is None
 
 
 class PosFallbackDictionary(DictionaryStore):
@@ -224,22 +226,18 @@ def test_krdict_particle_recovers_feature_after_multiple_noun_components() -> No
         ]
     )
 
-    candidate = KoreanAnalyzer(CompoundParticleDictionary(), kiwi).analyze(
-        "학교생활부터", (0, 6)
-    )[0]
+    candidate = KoreanAnalyzer(CompoundParticleDictionary(), kiwi).analyze("학교생활부터", (0, 6))[
+        0
+    ]
 
     assert [part.lemma for part in candidate.lexical_components] == ["학교", "생활"]
     assert "particle" in {feature.label for feature in candidate.features}
 
 
 def test_internal_kiwi_search_is_deeper_than_popup_candidate_limit() -> None:
-    kiwi = RecordingKiwi(
-        [([Token("먹", "VV", 0, 1), Token("어요", "EF", 1, 2)], -1.0)]
-    )
+    kiwi = RecordingKiwi([([Token("먹", "VV", 0, 1), Token("어요", "EF", 1, 2)], -1.0)])
 
-    candidates = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(
-        "먹어요", (0, 3), max_candidates=5
-    )
+    candidates = KoreanAnalyzer(FakeDictionary(), kiwi).analyze("먹어요", (0, 3), max_candidates=5)
 
     assert kiwi.requested_top_n == 10
     assert len(candidates) <= 5
@@ -259,10 +257,248 @@ def test_particle_fallback_precedes_isolated_component_recovery() -> None:
             }
             return analyses[text][:top_n]
 
-    candidate = KoreanAnalyzer(FakeDictionary(), SentenceKiwi([])).analyze(
-        "오늘 어디에", (3, 6)
-    )[0]
+    candidate = KoreanAnalyzer(FakeDictionary(), SentenceKiwi([])).analyze("오늘 어디에", (3, 6))[0]
 
     assert candidate.lemma == "어디"
     assert {feature.label for feature in candidate.features} == {"particle"}
     assert len(candidate.lexical_components) == 1
+
+
+def test_terminal_derivational_noun_suffix_extends_component_surface() -> None:
+    base = "\uac00\ub2a5"
+    suffix = "\uc131"
+    kiwi = FakeKiwi([([Token(base, "NNG", 0, 2), Token(suffix, "XSN", 2, 1)], -1.0)])
+
+    candidate = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(base + suffix, (0, 3))[0]
+
+    assert candidate.lexical_components[0].surface == base + suffix
+    assert candidate.lexical_components[0].lemma == base + suffix
+
+
+def test_between_noun_suffix_is_not_assigned_to_either_component() -> None:
+    first = "\uc5b8\uc5b4"
+    suffix = "\uc801"
+    second = "\ub300\uad00"
+    kiwi = FakeKiwi(
+        [
+            (
+                [
+                    Token(first, "NNG", 0, 2),
+                    Token(suffix, "XSN", 2, 1),
+                    Token(second, "NNG", 3, 2),
+                ],
+                -1.0,
+            )
+        ]
+    )
+
+    candidate = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(first + suffix + second, (0, 5))[0]
+
+    assert [item.surface for item in candidate.lexical_components] == [first, second]
+
+
+def test_noun_suffix_before_copula_does_not_extend_component() -> None:
+    noun = "\uc0dd\uc0b0"
+    suffix = "\uc801"
+    kiwi = FakeKiwi(
+        [
+            (
+                [
+                    Token(noun, "NNG", 0, 2),
+                    Token(suffix, "XSN", 2, 1),
+                    Token("\uc774", "VCP", 3, 1),
+                ],
+                -1.0,
+            )
+        ]
+    )
+
+    candidate = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(noun + suffix + "\uc778", (0, 4))[0]
+
+    assert candidate.lexical_components[0].surface == noun
+
+
+def test_dictionary_backed_noun_prefix_recovers_complete_component() -> None:
+    prefix = "\uc7ac"
+    noun = "\uc0dd\uc0b0"
+    combined = prefix + noun
+
+    class PrefixDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != combined or part_of_speech not in {None, "noun"}:
+                return ()
+            return (
+                DictionaryEntry(
+                    combined,
+                    combined,
+                    "noun",
+                    None,
+                    None,
+                    (DictionarySense("reproduction"),),
+                ),
+            )
+
+    kiwi = FakeKiwi([([Token(prefix, "XPN", 0, 1), Token(noun, "NNG", 1, 2)], -1.0)])
+    candidate = KoreanAnalyzer(PrefixDictionary(), kiwi).analyze(combined, (0, 3))[0]
+
+    assert candidate.lemma == combined
+    assert candidate.lexical_components[0].surface == combined
+    assert candidate.lexical_components[0].lemma == combined
+
+
+def test_dictionary_backed_prefix_survives_noun_adjective_merge() -> None:
+    prefix = "\ubb34"
+    noun = "\uc758\ubbf8"
+    suffix = "\ud558"
+    lemma = prefix + noun + suffix + "\ub2e4"
+
+    class PrefixedAdjectiveDictionary(DictionaryStore):
+        def lookup(self, value: str, part_of_speech=None, limit: int = 10):
+            if value != lemma or part_of_speech not in {None, "adjective"}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    "adjective",
+                    None,
+                    None,
+                    (DictionarySense("meaningless"),),
+                ),
+            )
+
+    kiwi = FakeKiwi(
+        [
+            (
+                [
+                    Token(prefix, "XPN", 0, 1),
+                    Token(noun, "NNG", 1, 2),
+                    Token(suffix, "XSA", 3, 1),
+                ],
+                -1.0,
+            )
+        ]
+    )
+    candidate = KoreanAnalyzer(PrefixedAdjectiveDictionary(), kiwi).analyze(
+        prefix + noun + suffix, (0, 4)
+    )[0]
+
+    assert candidate.lemma == lemma
+    assert candidate.lexical_components[0].surface == prefix + noun + suffix
+    assert candidate.lexical_components[0].learner_role == "descriptive verb"
+
+
+@pytest.mark.parametrize(
+    ("tag", "role", "part_of_speech"),
+    [
+        ("MAG", "adverb", "adverb"),
+        ("MAJ", "adverb", "adverb"),
+        ("MM", "determiner", "determiner"),
+        ("VCN", "descriptive verb", "adjective"),
+    ],
+)
+def test_non_noun_lexical_tags_produce_dictionary_components(
+    tag: str,
+    role: str,
+    part_of_speech: str,
+) -> None:
+    surface = "\uc544\ub2c8" if tag == "VCN" else "\ub2e4\uc2dc"
+    lemma = surface + "\ub2e4" if tag == "VCN" else surface
+
+    class RoleDictionary(DictionaryStore):
+        def lookup(self, value: str, position=None, limit: int = 10):
+            if value != lemma or position not in {None, part_of_speech}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    part_of_speech,
+                    None,
+                    None,
+                    (DictionarySense("definition"),),
+                ),
+            )
+
+    tokens = [Token(surface, tag, 0, len(surface))]
+    if tag == "VCN":
+        tokens.append(Token("\ub2e4", "EF", len(surface), 1))
+    candidate = KoreanAnalyzer(RoleDictionary(), FakeKiwi([(tokens, -1.0)])).analyze(
+        surface + ("\ub2e4" if tag == "VCN" else ""), (0, len(lemma))
+    )[0]
+
+    assert candidate.lemma == lemma
+    assert candidate.lexical_components[0].learner_role == role
+    assert candidate.lexical_components[0].dictionary_entries
+
+
+class InflectedCandidateDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma not in {'\ud558\ub2e4', '\uac00\ub2a5\ud558\ub2e4'}:
+            return ()
+        return (
+            DictionaryEntry(
+                lemma,
+                lemma,
+                part_of_speech,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            ),
+        )
+
+
+def test_dictionary_backed_bound_root_and_adjective_suffix_form_one_component() -> None:
+    analyses = [
+        (
+            [
+                Token('\uac00\ub2a5', 'XR', 0, 2),
+                Token('\ud558', 'XSA', 2, 1),
+                Token('\uc5b4', 'EF', 2, 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    candidate = KoreanAnalyzer(
+        InflectedCandidateDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('\uac00\ub2a5\ud574', (0, 3))[0]
+
+    assert candidate.lemma == '\uac00\ub2a5\ud558\ub2e4'
+    assert candidate.lexical_components[0].surface == '\uac00\ub2a5\ud558'
+    assert candidate.lexical_components[0].learner_role == 'descriptive verb'
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_lemma'),
+    [(-2.5, '\uac00\ub2a5\ud558\ub2e4'), (-3.0, '\ud558\ub2e4')],
+)
+def test_complete_inflected_candidate_promotion_is_score_bounded(
+    alternative_score: float,
+    expected_lemma: str,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('\uac00\ub2a5', 'XPN', 0, 2),
+                Token('\ud558', 'XSA', 2, 1),
+                Token('\uc5b4', 'EF', 2, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uac00\ub2a5\ud558', 'VA', 0, 3),
+                Token('\uc5b4', 'EF', 2, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        InflectedCandidateDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('\uac00\ub2a5\ud574', (0, 3))[0]
+
+    assert candidate.lemma == expected_lemma
