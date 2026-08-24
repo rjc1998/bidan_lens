@@ -70,3 +70,14 @@ them inaccurate.
 - Report the checks run and their results. Explicitly identify anything not verified with
   real Windows capture, production assets, benchmark corpora, or a clean packaged system;
   do not imply those release gates passed without evidence.
+- After completing a task that changes tracked files and passing its required verification,
+  inspect the final status and diff, stage only files changed for that task, create a concise
+  commit, and push the current branch to its configured upstream before the final handoff.
+- Do not commit or push while pausing for clarification, while the task is incomplete or
+  blocked, when required verification fails, or when the repository is in a conflicted or
+  detached-HEAD state. Do not create an empty commit when the task changes no tracked files.
+- Never stage or commit pre-existing or unrelated user changes. Never force-push, rewrite
+  history, switch branches, or change remotes merely to make the push succeed. If the push is
+  rejected or authentication, network access, permissions, or a missing upstream prevents it,
+  preserve the local commit and report the blocker.
+- In the final handoff, report the commit hash, branch, verification performed, and push result.
