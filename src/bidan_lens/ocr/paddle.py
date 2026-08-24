@@ -17,7 +17,20 @@ from bidan_lens.models import BoundingBox, OcrDocument, OcrLine
 from bidan_lens.ocr.base import DetectedRegion, OcrEngine, RecognizedText
 from bidan_lens.ocr.hangul import contains_hangul, make_line
 
-_PAIRED_BOUNDARY_PUNCTUATION = frozenset('/-\u2013\u2014')
+_BOUNDARY_WRAPPERS = {
+    '/': '/',
+    '-': '-',
+    '\u2013': '\u2013',
+    '\u2014': '\u2014',
+    '\x22': '\x22',
+    '\x27': '\x27',
+    '\u2018': '\u2019',
+    '\u201c': '\u201d',
+    '(': ')',
+    '[': ']',
+}
+_ATTACHED_PARTICLE_WRAPPERS = frozenset('\x22\x27\u2018\u201c([')
+_TRAILING_BOUNDARY_PUNCTUATION = frozenset(':?!')
 
 
 def _session(model: Path) -> Any:
@@ -321,11 +334,12 @@ def _split_punctuation_wrapped_word(
     box: BoundingBox,
     confidence: float,
 ) -> list[tuple[str, BoundingBox, float]]:
-    '''Recover missing word boundaries around paired slash or dash wrappers.'''
+    '''Recover missing word boundaries around matched punctuation wrappers.'''
     for opening, punctuation in enumerate(text):
-        if punctuation not in _PAIRED_BOUNDARY_PUNCTUATION:
+        closing_punctuation = _BOUNDARY_WRAPPERS.get(punctuation)
+        if closing_punctuation is None:
             continue
-        closing = text.find(punctuation, opening + 1)
+        closing = text.find(closing_punctuation, opening + 1)
         while closing >= 0:
             inner = text[opening + 1 : closing]
             spans = tuple(
@@ -338,10 +352,16 @@ def _split_punctuation_wrapped_word(
                 if end > start
             )
             parts = tuple(text[start:end] for start, end in spans)
+            trailing = text[closing + 1 :]
             if (
                 contains_hangul(inner)
                 and len(parts) >= 2
                 and all(contains_hangul(part) for part in parts)
+                and not (
+                    punctuation in _ATTACHED_PARTICLE_WRAPPERS
+                    and trailing
+                    and len(trailing) == 1
+                )
             ):
                 width = box.width / len(text)
                 return [
@@ -357,7 +377,48 @@ def _split_punctuation_wrapped_word(
                     )
                     for start, end in spans
                 ]
-            closing = text.find(punctuation, closing + 1)
+            closing = text.find(closing_punctuation, closing + 1)
+    return [(text, box, confidence)]
+
+
+def _split_trailing_punctuation_boundary(
+    text: str,
+    box: BoundingBox,
+    confidence: float,
+) -> list[tuple[str, BoundingBox, float]]:
+    '''Recover a missed word boundary after terminal punctuation.'''
+    for index, punctuation in enumerate(text):
+        if punctuation not in _TRAILING_BOUNDARY_PUNCTUATION:
+            continue
+        end = index + 1
+        while end < len(text) and text[end] in _TRAILING_BOUNDARY_PUNCTUATION:
+            end += 1
+        left, right = text[:end], text[end:]
+        if not (contains_hangul(left) and contains_hangul(right)):
+            continue
+        width = box.width / len(text)
+        return [
+            (
+                left,
+                BoundingBox(
+                    box.left,
+                    box.top,
+                    box.left + end * width,
+                    box.bottom,
+                ),
+                confidence,
+            ),
+            (
+                right,
+                BoundingBox(
+                    box.left + end * width,
+                    box.top,
+                    box.right,
+                    box.bottom,
+                ),
+                confidence,
+            ),
+        ]
     return [(text, box, confidence)]
 
 
@@ -999,6 +1060,11 @@ class PaddleOcrEngine(OcrEngine):
         words = [
             part
             for text, box, confidence in words
+            for part in _split_trailing_punctuation_boundary(text, box, confidence)
+        ]
+        words = [
+            part
+            for text, box, confidence in words
             for part in _split_mandatory_auxiliary_spacing(text, box, confidence)
         ]
         words = _recover_overlapping_word_triplets(
@@ -1082,6 +1148,13 @@ class PaddleOcrEngine(OcrEngine):
                         part
                         for text, box, confidence in words
                         for part in _split_punctuation_wrapped_word(
+                            text, box, confidence
+                        )
+                    ]
+                    words = [
+                        part
+                        for text, box, confidence in words
+                        for part in _split_trailing_punctuation_boundary(
                             text, box, confidence
                         )
                     ]

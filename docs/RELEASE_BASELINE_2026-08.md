@@ -56,11 +56,11 @@ already-supported particle feature. The 400-case language cross-check preserved 
 overall, 93.00% auxiliary, and the required 88.00% multi-lexical result. Dictionary-confirmed
 bound roots and adjective-forming suffixes are presented as one descriptive-verb component.
 
-The accepted 200-case v4.9 quick result is 97.10% whole-eojeol OCR, 94.00% target selection,
-87.50% functional context, 69.00% exact sentence transcription, 92.00% complete components,
-94.50% exact KRDict fidelity, and 81.50% fully correct first popup. Alternative-candidate
-recovery is 91.00%, false promotions remain zero, and automated latency is 217.80 ms median /
-323.07 ms p95. The remaining categorical failures are 12 target, 13 context, and 12 analysis;
+The accepted 200-case v4.9 quick result is 97.46% whole-eojeol OCR, 96.00% target selection,
+89.50% functional context, 70.50% exact sentence transcription, 92.00% complete components,
+94.50% exact KRDict fidelity, and 83.50% fully correct first popup. Alternative-candidate
+recovery is 93.00%, false promotions remain zero, and automated latency is 207.95 ms median /
+322.07 ms p95. The remaining categorical failures are eight target, 13 context, and 12 analysis;
 the analysis details are four primary lemmas and eight component roles.
 
 The context review contains 39 decisions: 18 incorrect line/sentence reconstructions, six
@@ -125,17 +125,24 @@ near-miss, punctuation, and all 191 whitespace probes have zero activations. The
 per-category below-0.5% gate therefore passes. The earlier zero-ink hover-exclusion experiment
 remains rejected because it reduced target selection to 85.50%, context to 76.00%, and popup
 correctness to 64.00%.
+Matched quote and bracket wrappers also recover an adjacent multi-syllable Hangul word, while a
+directly attached one-syllable particle remains intact. Terminal `:`, `?`, or `!` punctuation
+can recover a following Hangul word only when both sides contain Hangul. These rules recovered
+four more target cases without changing the context-failure set or negative-pointer results.
+Two of the eight remaining target failures have expected boxes below the 720 px captured
+viewport and are corpus-construction defects requiring a future versioned corpus rebuild.
 
 The v4.9 development lock SHA-256 is
 `f23f2388e580a889bd0ef363052ec72ab51c76ad57eacc68d3eca094242be5ab`.
 The context-review, first-popup-review, and accepted quick diagnostic SHA-256 values are
 `66b6cc918598dcad6d5517cc2db721396533d06fef8153ae52d144f31ff97720`,
 `b397d3f1e0bf5eae15c2e438606320fb0ceed98c9f4e3cb7efaa9b07f4874a37`, and
-`0b2db6b9474054b2ec5d9c5426030b1ef80104367625d1f4b6d5ca191edabb4e`.
+`c6ffcf80053e7ca4ddb8330c8442e9d35fd7f8b57c5eb6c07a5eabc1c18a3f31`.
 The accepted aggregate quick report SHA-256 is
-`82e21fc8219c435f4e7a218482f0895d49b80f8938914a2fe0957031cf816c68`.
-The complete 2,000-sample v4.9 render run is deferred because quick popup and
-functional-context gates remain weak. Thresholds are not frozen; the
+`219814acb5946e7c2061135c4c2f52f862589bd696387d0c236471be9b31554c`.
+The complete 2,000-sample v4.9 render run is deferred because quick popup remains below its
+floor and two off-screen development samples require a versioned corpus correction. Thresholds
+are not frozen; the
 untouched v4.2 release split and foreground benchmark remain unevaluated.
 
 ## Superseded plain-v1 schema-v4.5 development follow-up

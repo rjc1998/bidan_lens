@@ -111,13 +111,13 @@ has the same visual gap as ordinary spaces and an unrecognized terminal mark, an
 last case was rejected because it produced byte-identical quick diagnostics and no metric change.
 No global OCR splitting threshold was changed.
 
-The accepted v4.9 200-case quick tier records 97.10% whole-eojeol OCR, 94.00% target
-selection, 87.50% functional context, 69.00% exact sentence transcription, 92.00% component
-accuracy, 94.50% exact KRDict fidelity, and 81.50% fully correct first popups, with 217.80 ms
-median / 323.07 ms p95 automated latency. Alternative-candidate recovery is 91.00% and false
-promotions remain zero. This is a 35-point popup gain over v4.2 and a 23.5-point gain over the
+The accepted v4.9 200-case quick tier records 97.46% whole-eojeol OCR, 96.00% target
+selection, 89.50% functional context, 70.50% exact sentence transcription, 92.00% component
+accuracy, 94.50% exact KRDict fidelity, and 83.50% fully correct first popups, with 207.95 ms
+median / 322.07 ms p95 automated latency. Alternative-candidate recovery is 93.00% and false
+promotions remain zero. This is a 37-point popup gain over v4.2 and a 25.5-point gain over the
 accepted v4.5 result. The remaining quick failures are 12 analysis cases (four primary lemmas
-and eight component roles), 13 context cases, and 12 target cases.
+and eight component roles), 13 context cases, and eight target cases.
 
 Privacy-safe target geometry review supported two narrowly bounded OCR corrections. Identical
 paired slash or dash characters can recover the word they wrap when every resulting part
@@ -129,6 +129,12 @@ English, near-miss, punctuation, and 191 whitespace probes have zero activations
 per-category below-0.5% gate passes. The earlier zero-ink hover-exclusion experiment remains
 rejected because it reduced target selection to 85.50%, context to 76.00%, and popup correctness
 to 64.00%.
+Matched curly/straight quote or bracket wrappers now use the same boundary recovery when the
+following word has multiple syllables; a directly attached one-syllable particle remains intact.
+A separate rule splits only after terminal `:`, `?`, or `!` punctuation when Hangul occurs on
+both sides. These additions recovered four more targets without a context or negative-pointer
+regression. Target geometry also exposed two remaining samples whose expected targets are below
+the 720 px captured viewport; those are corpus-construction defects, not runtime OCR failures.
 
 The first-popup reviewer has 48 stable-ID decisions and no persisted corpus text. Against
 v4.9, 12 cases remain active and 36 reviewed IDs are resolved. The complete decision history is
@@ -162,8 +168,8 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The multi-lexical and per-category negative-activation gates now pass, but rendered popup,
-functional-context, and required-stratum gates still block release and foreground evidence.
+The multi-lexical, functional-context, and per-category negative-activation gates now pass, but
+rendered popup and required-stratum gates still block release and foreground evidence.
 The complete 2,000-sample v4.9 render evaluation remains deliberately deferred until the quick
 language/popup path materially improves. Thresholds are not frozen, and neither the untouched
 release split nor the 500-attempt foreground benchmark has been run. See
@@ -178,8 +184,8 @@ release split nor the 500-attempt foreground benchmark has been run. See
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- preserve the now-passing 88.00% held-out multi-lexical and per-category negative-activation
-  gates while improving rendered functional context and first-popup correctness;
+- preserve the now-passing held-out multi-lexical, functional-context, and per-category
+  negative-activation gates while improving first-popup correctness;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;

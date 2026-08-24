@@ -15,6 +15,7 @@ from bidan_lens.ocr.paddle import (
     _remove_tiny_contained_fragments,
     _split_mandatory_auxiliary_spacing,
     _split_punctuation_wrapped_word,
+    _split_trailing_punctuation_boundary,
 )
 
 
@@ -24,16 +25,24 @@ class Detector:
 
 
 @pytest.mark.parametrize(
-    ('text', 'expected'),
+    ("text", "expected"),
     [
-        ('/\uc2e0\uc784/\uace0', ['/\uc2e0\uc784/', '\uace0']),
+        ("/\uc2e0\uc784/\uace0", ["/\uc2e0\uc784/", "\uace0"]),
         (
-            '\uc5f0\u2014\uc74c\uc2dd\uc810\u2014\uc788\uc5b4',
-            ['\uc5f0', '\u2014\uc74c\uc2dd\uc810\u2014', '\uc788\uc5b4'],
+            "\uc5f0\u2014\uc74c\uc2dd\uc810\u2014\uc788\uc5b4",
+            ["\uc5f0", "\u2014\uc74c\uc2dd\uc810\u2014", "\uc788\uc5b4"],
         ),
         (
-            '\ubbfc\uc8fc\ub2f9\uc5d0\uc120\u2014\ub610\u2014\uc720\ud544\uc6b0',
-            ['\ubbfc\uc8fc\ub2f9\uc5d0\uc120', '\u2014\ub610\u2014', '\uc720\ud544\uc6b0'],
+            "\ubbfc\uc8fc\ub2f9\uc5d0\uc120\u2014\ub610\u2014\uc720\ud544\uc6b0",
+            ["\ubbfc\uc8fc\ub2f9\uc5d0\uc120", "\u2014\ub610\u2014", "\uc720\ud544\uc6b0"],
+        ),
+        (
+            "\u201c\uc218\ub2e8\uc774\u201d\ud30c\uad34\ub41c",
+            ["\u201c\uc218\ub2e8\uc774\u201d", "\ud30c\uad34\ub41c"],
+        ),
+        (
+            "\ubc1c\uba85\uacfc\u2018\uc9c0\ub09c\ub0a0\uc758\u2019\ud559\uc2dd\uc790",
+            ["\ubc1c\uba85\uacfc", "\u2018\uc9c0\ub09c\ub0a0\uc758\u2019", "\ud559\uc2dd\uc790"],
         ),
     ],
 )
@@ -54,29 +63,72 @@ def test_paired_punctuation_recovers_wrapped_word_boundaries(
 def test_unpaired_punctuation_does_not_split_word() -> None:
     box = BoundingBox(10, 5, 110, 35)
 
-    assert _split_punctuation_wrapped_word('\ud55c-\uad6d', box, 0.91) == [
-        ('\ud55c-\uad6d', box, 0.91)
+    assert _split_punctuation_wrapped_word("\ud55c-\uad6d", box, 0.91) == [
+        ("\ud55c-\uad6d", box, 0.91)
     ]
 
 
+def test_wrapper_does_not_split_single_syllable_trailing_particle() -> None:
+    text = '\u201c\uc720\ub2c8\uc628\ud504\ub808\uc2a4\u201d\ub294'
+    box = BoundingBox(10, 5, 210, 35)
+
+    assert _split_punctuation_wrapped_word(text, box, 0.91) == [
+        (text, box, 0.91)
+    ]
+
+
+def test_slash_wrapper_can_split_single_syllable_following_word() -> None:
+    text = '/\uc2e0\uc784/\uace0'
+    box = BoundingBox(10, 5, 130, 35)
+
+    assert [
+        part[0] for part in _split_punctuation_wrapped_word(text, box, 0.91)
+    ] == ['/\uc2e0\uc784/', '\uace0']
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("\uc568\ubc94:\ucee4\ubc84", ["\uc568\ubc94:", "\ucee4\ubc84"]),
+        ("\uadfc\uac70\ub85c?\ud55c", ["\uadfc\uac70\ub85c?", "\ud55c"]),
+        ("\ud588\ub2e4!!\uadf8\ub7ec\ub098", ["\ud588\ub2e4!!", "\uadf8\ub7ec\ub098"]),
+    ],
+)
+def test_terminal_punctuation_recovers_following_word_boundary(
+    text: str,
+    expected: list[str],
+) -> None:
+    box = BoundingBox(10, 5, 10 + len(text) * 20, 35)
+
+    parts = _split_trailing_punctuation_boundary(text, box, 0.91)
+
+    assert [part[0] for part in parts] == expected
+    assert parts[0][1].left == box.left
+    assert parts[-1][1].right == box.right
+
+
+def test_internal_colon_without_following_hangul_does_not_split() -> None:
+    box = BoundingBox(10, 5, 110, 35)
+
+    assert _split_trailing_punctuation_boundary("K:2026", box, 0.91) == [("K:2026", box, 0.91)]
+
+
 def test_mandatory_auxiliary_spacing_is_recovered_with_terminal_punctuation() -> None:
-    text = '\ub450\uc5b4\uc57c\ud588\ub2e4!'
+    text = "\ub450\uc5b4\uc57c\ud588\ub2e4!"
     box = BoundingBox(10, 5, 130, 35)
 
     parts = _split_mandatory_auxiliary_spacing(text, box, 0.91)
 
-    assert [part[0] for part in parts] == ['\ub450\uc5b4\uc57c', '\ud588\ub2e4!']
+    assert [part[0] for part in parts] == ["\ub450\uc5b4\uc57c", "\ud588\ub2e4!"]
     assert parts[0][1] == BoundingBox(10, 5, 70, 35)
     assert parts[1][1] == BoundingBox(70, 5, 130, 35)
 
 
-@pytest.mark.parametrize('text', ['\uc57c\ud588\ub2e4', '\uc774\uc57c\uae30\ud588\ub2e4'])
+@pytest.mark.parametrize("text", ["\uc57c\ud588\ub2e4", "\uc774\uc57c\uae30\ud588\ub2e4"])
 def test_auxiliary_spacing_does_not_split_unrelated_words(text: str) -> None:
     box = BoundingBox(10, 5, 110, 35)
 
-    assert _split_mandatory_auxiliary_spacing(text, box, 0.91) == [
-        (text, box, 0.91)
-    ]
+    assert _split_mandatory_auxiliary_spacing(text, box, 0.91) == [(text, box, 0.91)]
 
 
 class RetryingRecognizer:
@@ -95,7 +147,7 @@ class SingleSegmentAuxiliaryRecognizer:
         return ((0, 100),)
 
     def recognize(self, _image):
-        return RecognizedText('\ub450\uc5b4\uc57c\ud588\ub2e4!', 0.99)
+        return RecognizedText("\ub450\uc5b4\uc57c\ud588\ub2e4!", 0.99)
 
 
 def test_engine_retries_once_and_returns_hangul_document() -> None:
@@ -111,12 +163,12 @@ def test_engine_retries_once_and_returns_hangul_document() -> None:
 def test_engine_recovers_auxiliary_spacing_on_single_segment_line() -> None:
     engine = PaddleOcrEngine(Detector(), SingleSegmentAuxiliaryRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\ub450\uc5b4\uc57c \ud588\ub2e4!'
+    assert document.lines[0].text == "\ub450\uc5b4\uc57c \ud588\ub2e4!"
     assert [word.text for word in document.lines[0].eojeols] == [
-        '\ub450\uc5b4\uc57c',
-        '\ud588\ub2e4',
+        "\ub450\uc5b4\uc57c",
+        "\ud588\ub2e4",
     ]
 
 
@@ -138,7 +190,7 @@ class WordSegmentingRecognizer:
         return ((0, 40), (50, 100))
 
     def recognize(self, _image):
-        values = ('\uc624\ub298', '\ub9cc\ub098\uc694')
+        values = ("\uc624\ub298", "\ub9cc\ub098\uc694")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -148,13 +200,13 @@ def test_engine_reconstructs_sentence_and_exact_word_geometry() -> None:
     recognizer = WordSegmentingRecognizer()
     engine = PaddleOcrEngine(Detector(), recognizer)
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
     assert recognizer.calls == 2
-    assert document.lines[0].text == '\uc624\ub298 \ub9cc\ub098\uc694'
+    assert document.lines[0].text == "\uc624\ub298 \ub9cc\ub098\uc694"
     assert [word.text for word in document.lines[0].eojeols] == [
-        '\uc624\ub298',
-        '\ub9cc\ub098\uc694',
+        "\uc624\ub298",
+        "\ub9cc\ub098\uc694",
     ]
     assert document.lines[0].eojeols[0].box == BoundingBox(10, 5, 50, 35)
     assert document.lines[0].eojeols[1].box == BoundingBox(60, 5, 110, 35)
@@ -168,7 +220,7 @@ class ContextSegmentingRecognizer:
         return ((0, 25), (30, 65), (70, 100))
 
     def recognize(self, _image):
-        values = ('\uc624\ub298', 'K-2026/v1', '\ub9cc\ub098\uc694')
+        values = ("\uc624\ub298", "K-2026/v1", "\ub9cc\ub098\uc694")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -177,12 +229,12 @@ class ContextSegmentingRecognizer:
 def test_engine_retains_structured_ascii_context_without_a_hover_target() -> None:
     engine = PaddleOcrEngine(Detector(), ContextSegmentingRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\uc624\ub298 K-2026/v1 \ub9cc\ub098\uc694'
+    assert document.lines[0].text == "\uc624\ub298 K-2026/v1 \ub9cc\ub098\uc694"
     assert [word.text for word in document.lines[0].eojeols] == [
-        '\uc624\ub298',
-        '\ub9cc\ub098\uc694',
+        "\uc624\ub298",
+        "\ub9cc\ub098\uc694",
     ]
 
 
@@ -195,12 +247,12 @@ class SupplementalContextRecognizer:
 
     def recognize(self, _image):
         values = (
-            ('\uc624\ub298', 0.99),
-            ('10', 0.99),
-            ('EC', 0.99),
-            ('K', 0.99),
-            ('-2024/v1', 0.99),
-            ('\ub9cc\ub098\uc694', 0.99),
+            ("\uc624\ub298", 0.99),
+            ("10", 0.99),
+            ("EC", 0.99),
+            ("K", 0.99),
+            ("-2024/v1", 0.99),
+            ("\ub9cc\ub098\uc694", 0.99),
         )
         text, confidence = values[self.calls]
         self.calls += 1
@@ -210,12 +262,12 @@ class SupplementalContextRecognizer:
 def test_engine_retains_numeric_abbreviation_and_joined_version_context() -> None:
     engine = PaddleOcrEngine(Detector(), SupplementalContextRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\uc624\ub298 10 EC K-2024/v1 \ub9cc\ub098\uc694'
+    assert document.lines[0].text == "\uc624\ub298 10 EC K-2024/v1 \ub9cc\ub098\uc694"
     assert [word.text for word in document.lines[0].eojeols] == [
-        '\uc624\ub298',
-        '\ub9cc\ub098\uc694',
+        "\uc624\ub298",
+        "\ub9cc\ub098\uc694",
     ]
 
 
@@ -232,7 +284,7 @@ class SequentialRecognizer:
         self.calls = 0
 
     def recognize(self, _image):
-        values = ('\uc624\ub298', '\ub9cc\ub098\uc694')
+        values = ("\uc624\ub298", "\ub9cc\ub098\uc694")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -241,16 +293,15 @@ class SequentialRecognizer:
 def test_engine_reconstructs_collinear_detector_fragments_as_one_sentence() -> None:
     engine = PaddleOcrEngine(CollinearDetector(), SequentialRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
     assert len(document.lines) == 1
-    assert document.lines[0].text == '\uc624\ub298 \ub9cc\ub098\uc694'
+    assert document.lines[0].text == "\uc624\ub298 \ub9cc\ub098\uc694"
     assert [
-        (word.text, word.sentence_start, word.sentence_end)
-        for word in document.lines[0].eojeols
+        (word.text, word.sentence_start, word.sentence_end) for word in document.lines[0].eojeols
     ] == [
-        ('\uc624\ub298', 0, 2),
-        ('\ub9cc\ub098\uc694', 3, 6),
+        ("\uc624\ub298", 0, 2),
+        ("\ub9cc\ub098\uc694", 3, 6),
     ]
 
 
@@ -259,7 +310,7 @@ class StructuredContextRegionRecognizer:
         self.calls = 0
 
     def recognize(self, _image):
-        values = ('\uc624\ub298', 'K-2026/v1')
+        values = ("\uc624\ub298", "K-2026/v1")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -271,10 +322,10 @@ def test_engine_merges_separate_structured_context_without_hover_target() -> Non
         StructuredContextRegionRecognizer(),
     )
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\uc624\ub298 K-2026/v1'
-    assert [word.text for word in document.lines[0].eojeols] == ['\uc624\ub298']
+    assert document.lines[0].text == "\uc624\ub298 K-2026/v1"
+    assert [word.text for word in document.lines[0].eojeols] == ["\uc624\ub298"]
 
 
 class OverlappingSequentialRecognizer:
@@ -282,7 +333,7 @@ class OverlappingSequentialRecognizer:
         self.calls = 0
 
     def recognize(self, _image):
-        values = ('\uc624\ub298 \ud559\uad50\uc5d0', '\ud559\uad50\uc5d0 \ub9cc\ub098\uc694')
+        values = ("\uc624\ub298 \ud559\uad50\uc5d0", "\ud559\uad50\uc5d0 \ub9cc\ub098\uc694")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -299,16 +350,12 @@ class OverlappingDetector:
 def test_engine_deduplicates_sentence_text_but_keeps_overlapping_word_geometry() -> None:
     engine = PaddleOcrEngine(OverlappingDetector(), OverlappingSequentialRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\uc624\ub298 \ud559\uad50\uc5d0 \ub9cc\ub098\uc694'
-    school_words = [
-        word for word in document.lines[0].eojeols if word.text == '\ud559\uad50\uc5d0'
-    ]
+    assert document.lines[0].text == "\uc624\ub298 \ud559\uad50\uc5d0 \ub9cc\ub098\uc694"
+    school_words = [word for word in document.lines[0].eojeols if word.text == "\ud559\uad50\uc5d0"]
     assert len(school_words) == 2
-    assert {
-        (word.sentence_start, word.sentence_end) for word in school_words
-    } == {(3, 6)}
+    assert {(word.sentence_start, word.sentence_end) for word in school_words} == {(3, 6)}
 
 
 class PunctuatedOverlapRecognizer:
@@ -316,7 +363,7 @@ class PunctuatedOverlapRecognizer:
         self.calls = 0
 
     def recognize(self, _image):
-        values = ('\ub610', '\ub610, \ub9cc\ub098\uc694')
+        values = ("\ub610", "\ub610, \ub9cc\ub098\uc694")
         value = values[self.calls]
         self.calls += 1
         return RecognizedText(value, 0.99)
@@ -325,26 +372,26 @@ class PunctuatedOverlapRecognizer:
 def test_engine_deduplicates_punctuation_variants_only_for_overlapping_regions() -> None:
     engine = PaddleOcrEngine(OverlappingDetector(), PunctuatedOverlapRecognizer())
 
-    document = engine.recognize(Image.new('RGB', (160, 60)))
+    document = engine.recognize(Image.new("RGB", (160, 60)))
 
-    assert document.lines[0].text == '\ub610 \ub9cc\ub098\uc694'
+    assert document.lines[0].text == "\ub610 \ub9cc\ub098\uc694"
 
 
 def test_tiny_contained_fragment_is_removed_and_spans_are_repaired() -> None:
     line = OcrLine(
-        '\ud559\uad50 \uc544 \ud559\uad50\uc5d0\uc11c',
+        "\ud559\uad50 \uc544 \ud559\uad50\uc5d0\uc11c",
         BoundingBox(0, 0, 120, 20),
         0.9,
         (
-            OcrEojeol('\ud559\uad50', BoundingBox(0, 0, 30, 20), 0.9, 0, 2),
-            OcrEojeol('\uc544', BoundingBox(50, 0, 55, 20), 0.8, 3, 4),
-            OcrEojeol('\ud559\uad50\uc5d0\uc11c', BoundingBox(20, 0, 100, 20), 0.9, 5, 9),
+            OcrEojeol("\ud559\uad50", BoundingBox(0, 0, 30, 20), 0.9, 0, 2),
+            OcrEojeol("\uc544", BoundingBox(50, 0, 55, 20), 0.8, 3, 4),
+            OcrEojeol("\ud559\uad50\uc5d0\uc11c", BoundingBox(20, 0, 100, 20), 0.9, 5, 9),
         ),
     )
 
     cleaned = _remove_tiny_contained_fragments(line)
 
-    assert cleaned.text == '\ud559\uad50 \ud559\uad50\uc5d0\uc11c'
+    assert cleaned.text == "\ud559\uad50 \ud559\uad50\uc5d0\uc11c"
     assert [(item.sentence_start, item.sentence_end) for item in cleaned.eojeols] == [
         (0, 2),
         (3, 7),
@@ -353,12 +400,12 @@ def test_tiny_contained_fragment_is_removed_and_spans_are_repaired() -> None:
 
 def test_contained_fragment_at_width_threshold_is_preserved() -> None:
     line = OcrLine(
-        '\uc544 \ud559\uad50\uc5d0\uc11c',
+        "\uc544 \ud559\uad50\uc5d0\uc11c",
         BoundingBox(0, 0, 100, 20),
         0.9,
         (
-            OcrEojeol('\uc544', BoundingBox(20, 0, 29, 20), 0.8, 0, 1),
-            OcrEojeol('\ud559\uad50\uc5d0\uc11c', BoundingBox(0, 0, 80, 20), 0.9, 2, 6),
+            OcrEojeol("\uc544", BoundingBox(20, 0, 29, 20), 0.8, 0, 1),
+            OcrEojeol("\ud559\uad50\uc5d0\uc11c", BoundingBox(0, 0, 80, 20), 0.9, 2, 6),
         ),
     )
 
@@ -367,227 +414,245 @@ def test_contained_fragment_at_width_threshold_is_preserved() -> None:
 
 class TripletRecognizer:
     def recognize(self, _image):
-        return RecognizedText('\ud559\uad50\uc5d0\uc11c\ub294', 0.999)
+        return RecognizedText("\ud559\uad50\uc5d0\uc11c\ub294", 0.999)
 
 
 def test_overlapping_word_triplet_discards_only_confirmed_leading_sliver() -> None:
     words = [
-        ('\uac00', BoundingBox(10, 0, 16, 20), 0.78),
-        ('\ud559\uad50\uc5d0\uc11c', BoundingBox(15, 0, 75, 20), 0.999),
-        ('\ub294', BoundingBox(74, 0, 94, 20), 0.93),
+        ("\uac00", BoundingBox(10, 0, 16, 20), 0.78),
+        ("\ud559\uad50\uc5d0\uc11c", BoundingBox(15, 0, 75, 20), 0.999),
+        ("\ub294", BoundingBox(74, 0, 94, 20), 0.93),
     ]
 
     recovered = _recover_overlapping_word_triplets(
         words,
-        Image.new('RGB', (100, 20)),
+        Image.new("RGB", (100, 20)),
         BoundingBox(0, 0, 100, 20),
         TripletRecognizer(),
     )
 
     assert recovered == [
-        ('\ud559\uad50\uc5d0\uc11c\ub294', BoundingBox(10, 0, 94, 20), 0.93),
+        ("\ud559\uad50\uc5d0\uc11c\ub294", BoundingBox(10, 0, 94, 20), 0.93),
     ]
 
 
 def test_overlapping_word_triplet_preserves_wider_leading_word() -> None:
     words = [
-        ('\uac00', BoundingBox(5, 0, 15, 20), 0.78),
-        ('\ud559\uad50\uc5d0\uc11c', BoundingBox(14, 0, 74, 20), 0.999),
-        ('\ub294', BoundingBox(73, 0, 93, 20), 0.93),
+        ("\uac00", BoundingBox(5, 0, 15, 20), 0.78),
+        ("\ud559\uad50\uc5d0\uc11c", BoundingBox(14, 0, 74, 20), 0.999),
+        ("\ub294", BoundingBox(73, 0, 93, 20), 0.93),
     ]
 
-    assert _recover_overlapping_word_triplets(
-        words,
-        Image.new('RGB', (100, 20)),
-        BoundingBox(0, 0, 100, 20),
-        TripletRecognizer(),
-    ) == words
+    assert (
+        _recover_overlapping_word_triplets(
+            words,
+            Image.new("RGB", (100, 20)),
+            BoundingBox(0, 0, 100, 20),
+            TripletRecognizer(),
+        )
+        == words
+    )
 
 
 class ClosePairRecognizer:
     def recognize(self, _image):
-        return RecognizedText('\ud559\uad50\uc5d0\uc11c\ub294', 0.9985)
+        return RecognizedText("\ud559\uad50\uc5d0\uc11c\ub294", 0.9985)
 
 
 class FinalSyllablePairRecognizer:
     def recognize(self, _image):
-        return RecognizedText('\uc0ac\uc6a9\ud558\ub294', 0.9998)
+        return RecognizedText("\uc0ac\uc6a9\ud558\ub294", 0.9998)
 
 
 def test_isolated_close_pair_merges_only_with_matching_pitch_and_wide_neighbors() -> None:
     words = [
-        ('\uc624\ub298', BoundingBox(0, 0, 50, 30), 0.999),
-        ('\ud559\uad50', BoundingBox(65, 0, 113, 30), 0.9998),
-        ('\uc5d0\uc11c\ub294', BoundingBox(119, 0, 191, 30), 0.9994),
-        ('\uac11\ub2c8\ub2e4', BoundingBox(206, 0, 278, 30), 0.999),
+        ("\uc624\ub298", BoundingBox(0, 0, 50, 30), 0.999),
+        ("\ud559\uad50", BoundingBox(65, 0, 113, 30), 0.9998),
+        ("\uc5d0\uc11c\ub294", BoundingBox(119, 0, 191, 30), 0.9994),
+        ("\uac11\ub2c8\ub2e4", BoundingBox(206, 0, 278, 30), 0.999),
     ]
 
     recovered = _recover_isolated_close_word_pairs(
         words,
-        Image.new('RGB', (300, 30)),
+        Image.new("RGB", (300, 30)),
         BoundingBox(0, 0, 300, 30),
         ClosePairRecognizer(),
     )
 
     assert recovered == [
         words[0],
-        ('\ud559\uad50\uc5d0\uc11c\ub294', BoundingBox(65, 0, 191, 30), 0.9985),
+        ("\ud559\uad50\uc5d0\uc11c\ub294", BoundingBox(65, 0, 191, 30), 0.9985),
         words[3],
     ]
 
 
 def test_isolated_close_pair_preserves_pair_without_wide_following_gap() -> None:
     words = [
-        ('\uc624\ub298', BoundingBox(0, 0, 50, 30), 0.999),
-        ('\ud559\uad50', BoundingBox(65, 0, 113, 30), 0.9998),
-        ('\uc5d0\uc11c\ub294', BoundingBox(119, 0, 191, 30), 0.9994),
-        ('\uac11\ub2c8\ub2e4', BoundingBox(200, 0, 272, 30), 0.999),
+        ("\uc624\ub298", BoundingBox(0, 0, 50, 30), 0.999),
+        ("\ud559\uad50", BoundingBox(65, 0, 113, 30), 0.9998),
+        ("\uc5d0\uc11c\ub294", BoundingBox(119, 0, 191, 30), 0.9994),
+        ("\uac11\ub2c8\ub2e4", BoundingBox(200, 0, 272, 30), 0.999),
     ]
 
-    assert _recover_isolated_close_word_pairs(
-        words,
-        Image.new('RGB', (300, 30)),
-        BoundingBox(0, 0, 300, 30),
-        ClosePairRecognizer(),
-    ) == words
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (300, 30)),
+            BoundingBox(0, 0, 300, 30),
+            ClosePairRecognizer(),
+        )
+        == words
+    )
 
 
 def test_isolated_close_pair_recovers_high_confidence_final_syllable() -> None:
     words = [
-        ('\uc774\uac83', BoundingBox(0, 0, 32, 20), 0.9999),
-        ('\uc0ac\uc6a9\ud558', BoundingBox(39, 0, 87, 20), 0.9999),
-        ('\ub294', BoundingBox(90.4, 0, 104.4, 20), 0.9998),
-        ('\ubc29\ubc95', BoundingBox(112.4, 0, 144.4, 20), 0.9999),
+        ("\uc774\uac83", BoundingBox(0, 0, 32, 20), 0.9999),
+        ("\uc0ac\uc6a9\ud558", BoundingBox(39, 0, 87, 20), 0.9999),
+        ("\ub294", BoundingBox(90.4, 0, 104.4, 20), 0.9998),
+        ("\ubc29\ubc95", BoundingBox(112.4, 0, 144.4, 20), 0.9999),
     ]
 
     recovered = _recover_isolated_close_word_pairs(
         words,
-        Image.new('RGB', (160, 20)),
+        Image.new("RGB", (160, 20)),
         BoundingBox(0, 0, 160, 20),
         FinalSyllablePairRecognizer(),
     )
 
     assert recovered == [
         words[0],
-        ('\uc0ac\uc6a9\ud558\ub294', BoundingBox(39, 0, 104.4, 20), 0.9998),
+        ("\uc0ac\uc6a9\ud558\ub294", BoundingBox(39, 0, 104.4, 20), 0.9998),
         words[3],
     ]
 
 
 def test_isolated_close_pair_preserves_final_syllable_near_following_word() -> None:
     words = [
-        ('\uc774\uac83', BoundingBox(0, 0, 32, 20), 0.9999),
-        ('\uc0ac\uc6a9\ud558', BoundingBox(39, 0, 87, 20), 0.9999),
-        ('\ub294', BoundingBox(90.4, 0, 104.4, 20), 0.9998),
-        ('\ubc29\ubc95', BoundingBox(110.4, 0, 142.4, 20), 0.9999),
+        ("\uc774\uac83", BoundingBox(0, 0, 32, 20), 0.9999),
+        ("\uc0ac\uc6a9\ud558", BoundingBox(39, 0, 87, 20), 0.9999),
+        ("\ub294", BoundingBox(90.4, 0, 104.4, 20), 0.9998),
+        ("\ubc29\ubc95", BoundingBox(110.4, 0, 142.4, 20), 0.9999),
     ]
 
-    assert _recover_isolated_close_word_pairs(
-        words,
-        Image.new('RGB', (160, 20)),
-        BoundingBox(0, 0, 160, 20),
-        FinalSyllablePairRecognizer(),
-    ) == words
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (160, 20)),
+            BoundingBox(0, 0, 160, 20),
+            FinalSyllablePairRecognizer(),
+        )
+        == words
+    )
 
 
 def test_isolated_close_pair_preserves_lower_confidence_final_syllable() -> None:
     words = [
-        ('\uc774\uac83', BoundingBox(0, 0, 32, 20), 0.9999),
-        ('\uc0ac\uc6a9\ud558', BoundingBox(39, 0, 87, 20), 0.9999),
-        ('\ub294', BoundingBox(90.4, 0, 104.4, 20), 0.9993),
-        ('\ubc29\ubc95', BoundingBox(112.4, 0, 144.4, 20), 0.9999),
+        ("\uc774\uac83", BoundingBox(0, 0, 32, 20), 0.9999),
+        ("\uc0ac\uc6a9\ud558", BoundingBox(39, 0, 87, 20), 0.9999),
+        ("\ub294", BoundingBox(90.4, 0, 104.4, 20), 0.9993),
+        ("\ubc29\ubc95", BoundingBox(112.4, 0, 144.4, 20), 0.9999),
     ]
 
-    assert _recover_isolated_close_word_pairs(
-        words,
-        Image.new('RGB', (160, 20)),
-        BoundingBox(0, 0, 160, 20),
-        FinalSyllablePairRecognizer(),
-    ) == words
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (160, 20)),
+            BoundingBox(0, 0, 160, 20),
+            FinalSyllablePairRecognizer(),
+        )
+        == words
+    )
 
 
 class TerminalOverlapRecognizer:
     def recognize(self, _image):
-        return RecognizedText('\uc9c0\uc6d0\ud55c\ub2e4', 0.99995)
+        return RecognizedText("\uc9c0\uc6d0\ud55c\ub2e4", 0.99995)
 
 
 def test_terminal_overlapping_pair_merges_with_exact_combined_recognition() -> None:
     words = [
-        ('\uc774\ub97c', BoundingBox(0, 0, 60, 30), 0.9998),
-        ('\uc9c0\uc6d0', BoundingBox(76, 0, 136, 30), 0.9997),
-        ('\ud55c\ub2e4', BoundingBox(135, 0, 191, 30), 0.99995),
+        ("\uc774\ub97c", BoundingBox(0, 0, 60, 30), 0.9998),
+        ("\uc9c0\uc6d0", BoundingBox(76, 0, 136, 30), 0.9997),
+        ("\ud55c\ub2e4", BoundingBox(135, 0, 191, 30), 0.99995),
     ]
 
     recovered = _recover_terminal_overlapping_word_pair(
         words,
-        Image.new('RGB', (200, 30)),
+        Image.new("RGB", (200, 30)),
         BoundingBox(0, 0, 200, 30),
         TerminalOverlapRecognizer(),
     )
 
     assert recovered == [
         words[0],
-        ('\uc9c0\uc6d0\ud55c\ub2e4', BoundingBox(76, 0, 191, 30), 0.9997),
+        ("\uc9c0\uc6d0\ud55c\ub2e4", BoundingBox(76, 0, 191, 30), 0.9997),
     ]
 
 
 def test_terminal_overlapping_pair_preserves_internal_pair() -> None:
     words = [
-        ('\uc774\ub97c', BoundingBox(0, 0, 60, 30), 0.9998),
-        ('\uc9c0\uc6d0', BoundingBox(76, 0, 136, 30), 0.9997),
-        ('\ud55c\ub2e4', BoundingBox(135, 0, 191, 30), 0.99995),
-        ('\uc624\ub298', BoundingBox(210, 0, 270, 30), 0.9999),
+        ("\uc774\ub97c", BoundingBox(0, 0, 60, 30), 0.9998),
+        ("\uc9c0\uc6d0", BoundingBox(76, 0, 136, 30), 0.9997),
+        ("\ud55c\ub2e4", BoundingBox(135, 0, 191, 30), 0.99995),
+        ("\uc624\ub298", BoundingBox(210, 0, 270, 30), 0.9999),
     ]
 
-    assert _recover_terminal_overlapping_word_pair(
-        words,
-        Image.new('RGB', (280, 30)),
-        BoundingBox(0, 0, 280, 30),
-        TerminalOverlapRecognizer(),
-    ) == words
+    assert (
+        _recover_terminal_overlapping_word_pair(
+            words,
+            Image.new("RGB", (280, 30)),
+            BoundingBox(0, 0, 280, 30),
+            TerminalOverlapRecognizer(),
+        )
+        == words
+    )
 
 
 class IsolatedOverlapRecognizer:
     def recognize(self, _image):
-        return RecognizedText('\uc9c0\uc6d0\ud558\ub294\ub2e4', 0.9958)
+        return RecognizedText("\uc9c0\uc6d0\ud558\ub294\ub2e4", 0.9958)
 
 
 def test_isolated_overlapping_pair_merges_exact_two_plus_three_surface() -> None:
     words = [
-        ('\uc774\ub97c', BoundingBox(0, 0, 30, 20), 0.999),
-        ('\uc9c0\uc6d0', BoundingBox(39, 0, 68, 20), 0.9989),
-        ('\ud558\ub294\ub2e4', BoundingBox(67, 0, 106, 20), 0.9994),
-        ('\uc624\ub298', BoundingBox(114, 0, 144, 20), 0.999),
+        ("\uc774\ub97c", BoundingBox(0, 0, 30, 20), 0.999),
+        ("\uc9c0\uc6d0", BoundingBox(39, 0, 68, 20), 0.9989),
+        ("\ud558\ub294\ub2e4", BoundingBox(67, 0, 106, 20), 0.9994),
+        ("\uc624\ub298", BoundingBox(114, 0, 144, 20), 0.999),
     ]
 
     recovered = _recover_isolated_overlapping_word_pairs(
         words,
-        Image.new('RGB', (150, 20)),
+        Image.new("RGB", (150, 20)),
         BoundingBox(0, 0, 150, 20),
         IsolatedOverlapRecognizer(),
     )
 
     assert recovered == [
         words[0],
-        ('\uc9c0\uc6d0\ud558\ub294\ub2e4', BoundingBox(39, 0, 106, 20), 0.9958),
+        ("\uc9c0\uc6d0\ud558\ub294\ub2e4", BoundingBox(39, 0, 106, 20), 0.9958),
         words[3],
     ]
 
 
 def test_isolated_overlapping_pair_preserves_pair_near_following_word() -> None:
     words = [
-        ('\uc774\ub97c', BoundingBox(0, 0, 30, 20), 0.999),
-        ('\uc9c0\uc6d0', BoundingBox(39, 0, 68, 20), 0.9989),
-        ('\ud558\ub294\ub2e4', BoundingBox(67, 0, 106, 20), 0.9994),
-        ('\uc624\ub298', BoundingBox(112, 0, 142, 20), 0.999),
+        ("\uc774\ub97c", BoundingBox(0, 0, 30, 20), 0.999),
+        ("\uc9c0\uc6d0", BoundingBox(39, 0, 68, 20), 0.9989),
+        ("\ud558\ub294\ub2e4", BoundingBox(67, 0, 106, 20), 0.9994),
+        ("\uc624\ub298", BoundingBox(112, 0, 142, 20), 0.999),
     ]
 
-    assert _recover_isolated_overlapping_word_pairs(
-        words,
-        Image.new('RGB', (150, 20)),
-        BoundingBox(0, 0, 150, 20),
-        IsolatedOverlapRecognizer(),
-    ) == words
+    assert (
+        _recover_isolated_overlapping_word_pairs(
+            words,
+            Image.new("RGB", (150, 20)),
+            BoundingBox(0, 0, 150, 20),
+            IsolatedOverlapRecognizer(),
+        )
+        == words
+    )
 
 
 def test_detector_normalization_converts_rgb_to_bgr() -> None:
@@ -611,7 +676,7 @@ class RecognitionSession:
 
 class SegmentingSession:
     def get_inputs(self):
-        return [type('Input', (), {'name': 'x'})()]
+        return [type("Input", (), {"name": "x"})()]
 
     def run(self, _outputs, _inputs):
         output = np.zeros((1, 10, 3), dtype=np.float32)
@@ -624,13 +689,11 @@ class SegmentingSession:
 
 
 def test_recognizer_uses_ctc_space_probabilities_for_word_boxes(tmp_path) -> None:
-    characters = tmp_path / 'characters.txt'
-    characters.write_text('\uac00\n', encoding='utf-8')
-    recognizer = PaddleRecognizer(
-        tmp_path / 'unused.onnx', characters, session=SegmentingSession()
-    )
+    characters = tmp_path / "characters.txt"
+    characters.write_text("\uac00\n", encoding="utf-8")
+    recognizer = PaddleRecognizer(tmp_path / "unused.onnx", characters, session=SegmentingSession())
 
-    boxes = recognizer.word_boxes(Image.new('RGB', (100, 20), (255, 0, 0)))
+    boxes = recognizer.word_boxes(Image.new("RGB", (100, 20), (255, 0, 0)))
 
     assert len(boxes) == 3
     assert boxes[0][0] == 0
@@ -639,12 +702,12 @@ def test_recognizer_uses_ctc_space_probabilities_for_word_boxes(tmp_path) -> Non
 
 
 def test_recognizer_splits_a_ctc_segment_at_a_wide_visual_gap(tmp_path) -> None:
-    characters = tmp_path / 'characters.txt'
-    characters.write_text('\uac00\n', encoding='utf-8')
+    characters = tmp_path / "characters.txt"
+    characters.write_text("\uac00\n", encoding="utf-8")
     recognizer = PaddleRecognizer(
-        tmp_path / 'unused.onnx', characters, session=RecognitionSession()
+        tmp_path / "unused.onnx", characters, session=RecognitionSession()
     )
-    image = Image.new('RGB', (100, 20), (255, 255, 255))
+    image = Image.new("RGB", (100, 20), (255, 255, 255))
     image.paste((0, 0, 0), (5, 4, 35, 16))
     image.paste((0, 0, 0), (50, 4, 95, 16))
 
@@ -672,11 +735,11 @@ def test_recognizer_uses_fixed_zero_padded_bgr_tensor(tmp_path) -> None:
 
 
 def test_recognizer_expands_tensor_for_wide_text_lines(tmp_path) -> None:
-    characters = tmp_path / 'characters.txt'
-    characters.write_text('\uac00\n', encoding='utf-8')
+    characters = tmp_path / "characters.txt"
+    characters.write_text("\uac00\n", encoding="utf-8")
     session = RecognitionSession()
-    recognizer = PaddleRecognizer(tmp_path / 'unused.onnx', characters, session=session)
+    recognizer = PaddleRecognizer(tmp_path / "unused.onnx", characters, session=session)
 
-    recognizer.recognize(Image.new('RGB', (1000, 20), (255, 0, 0)))
+    recognizer.recognize(Image.new("RGB", (1000, 20), (255, 0, 0)))
 
     assert session.tensor.shape == (1, 3, 48, 2400)
