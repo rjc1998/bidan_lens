@@ -73,6 +73,14 @@ source record across those versions. Existing v4.9 categorical review decisions 
 historical evidence but must not be transferred to v4.11 by ID without a fresh audit. The v4.11
 held-out language tier has not yet been evaluated because the complete run remains deferred.
 
+Fresh v4.11 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
+review covers all 21 analysis cases with eight Kiwi-analysis errors, five annotation-convention
+differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
+context review covers all 16 reconstruction cases with seven incorrect line/sentence
+reconstructions, four missed or merged word boundaries, and five punctuation or structured-text
+handling cases. Both audits have no missing, resolved, or stale IDs. These decisions are scoped
+only to the v4.11 corpus identity.
+
 ### Historical v4.9 reviewed evidence
 
 The 400-case v4.9 language tier records 90.50% fully correct first popups, 93.00% auxiliary

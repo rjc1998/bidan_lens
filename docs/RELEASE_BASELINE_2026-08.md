@@ -62,6 +62,16 @@ The complete run remains deferred, so the v4.11 held-out language tier and requi
 not been evaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to
 v4.11 by numeric ID without a fresh review audit.
 
+That fresh audit is now complete. The v4.11 popup review classifies all 21 analysis cases as
+eight Kiwi-analysis errors, five annotation-convention differences, seven equivalent learner
+interpretations, and one genuinely ambiguous case. The v4.11 context review classifies all 16
+cases as seven incorrect line/sentence reconstructions, four missed or merged OCR word
+boundaries, and five punctuation or structured-text handling cases. Neither report persists
+sentence text, recognized text, definitions, or pixels, and both audits have no missing or stale
+IDs. The popup-review and context-review SHA-256 values are
+`80c033bb9dd1ad6237387725c09f60beff246ea8ec0ab8db62806a4e9e5fddf3` and
+`acf5608d054e5390031e91ee163147fc5a4d640e43e7157d234dc644615e8009`.
+
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under
