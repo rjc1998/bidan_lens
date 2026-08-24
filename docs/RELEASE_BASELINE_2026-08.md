@@ -47,21 +47,52 @@ from rendering and expected geometry together. The intermediate v4.10 card-ancho
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
 The v4.12 quick tier records 98.92% whole-eojeol OCR, 99.00% target selection, 92.50%
-functional context, 73.50% exact sentence transcription, 92.00% component accuracy, 93.00%
-exact KRDict fidelity, 86.50% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. Automated latency is 216.56 ms median / 334.77 ms p95. There are 12 analysis,
+functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
+exact KRDict fidelity, 88.50% fully correct first popups, 96.50% alternative recovery, and zero
+false promotions. Automated latency is 206.88 ms median / 308.23 ms p95. There are eight analysis,
 13 context, and two target failures. Aggregate and every negative category are 0.00%, including
-all 200 near-miss probes, so the strict negative-activation gate passes.
+all 200 near-miss probes, so the quick popup floor and strict negative-activation gate pass.
 
 The v4.12 lock SHA-256 is
 `aedc17c448df9880dad52dedd149cbb6753d3aa81b23149a119527e8d8452372`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`4a6aebce2f370997ace0592dacce3a3102dea7695c6aca8fff106fa59e7d5559` and
-`684015b35a569e09b6cc2427f7146f4e2b8a0beb6b690aec17747a3b3b26425c`.
-The complete run remains deferred, so the v4.11 held-out language tier and required strata have
-not been evaluated. The v4.12 held-out language tier and required strata likewise remain
-unevaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.11
-by numeric ID without a fresh review audit.
+`cf28a75b9838fe0cdb3bd38d3885766d118f81147096b9974813c9bdf965295a` and
+`2d031529fb731904306625d8207bd1383ee1874ab27b5c940d4c0cc0f691b7c2`.
+Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.12 by numeric ID
+without a fresh review audit.
+
+The complete v4.12 development run records 97.91% whole-eojeol OCR, 97.10% target selection,
+85.80% functional context, 69.10% exact sentence transcription, 88.65% component accuracy,
+92.10% exact KRDict fidelity, 76.15% fully correct first popups, 92.55% alternative recovery, and
+zero false promotions across 2,000 main cases. Automated latency is 218.28 ms median / 322.34 ms
+p95. The privacy-safe stage totals are 58 target, 226 context, and 193 analysis failures. The
+analysis failures comprise 74 primary lemmas, 90 component roles, 12 component surfaces, nine
+component counts, and eight grammar roles.
+
+The nonblocking 250-case stress tier records 94.11% OCR, 96.00% target selection, 66.80%
+functional context, and 62.40% fully correct first popups. The 400-case held-out language tier is
+88.00% overall and 89.50% for auxiliary cases, but its 86.50% multi-lexical result is below the
+exceptional floor; direct KRDict conformance remains 100%. Aggregate main negative activation is
+0.14%. Blank, English, and near-miss remain at zero, whitespace is four of 1,931 (0.21%), and
+punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The correction,
+dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
+
+The full aggregate report and privacy-safe diagnostic SHA-256 values are
+`a1948ea73ad65870fb373657e96fa2ce2292416cb5e5114ed0df2e681d3d429b` and
+`e1e605ec2fb8bc85101d6b978067bb3341699c18834c2fa287ca68fc39cbc6fb`.
+
+The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
+supports repeated-ID batch inspection and single-ID categorical recording without scanning every
+main image. The initial stratified 29-case 12 px and 14 px review is 16 non-target OCR
+transcription errors, six punctuation or structured-text cases, four incorrect line/sentence
+reconstructions, and three missed or merged OCR word boundaries; 197 main context failures remain
+unreviewed. The additional transcription category distinguishes non-target character substitution
+or omission from sentence reconstruction and target-span defects. Three reconstruction cases share
+an overlapping one-character fragment whose combined recognition returns only the following word,
+but widening the discard rule would violate an existing narrow-real-character regression. No OCR
+change was accepted from this evidence. The decision report persists no corpus text, recognized
+text, definitions, or pixels. Its SHA-256 is
+`b7ba2d948c322b739becf48c566ac8e5119d93b7533b9e7565bec52dbdb42ab7`.
 
 The v4.12 change is limited to negative-probe construction. Geometry-only review showed that the
 two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects
@@ -78,7 +109,7 @@ boundaries, and five punctuation or structured-text cases. Its current audit has
 and three resolved reconstruction IDs. Neither report persists sentence text, recognized text,
 definitions, or pixels, and both audits have no missing or stale IDs.
 
-The current popup audit has 12 active cases and eight resolved IDs. Reported-speech
+The current quick popup audit has eight active cases and 12 resolved IDs. Reported-speech
 connectives are now passed into learner-role construction, preventing a following lexical verb
 from being relabeled as a helping verb solely because its headword also has an auxiliary sense.
 This improved component accuracy, KRDict fidelity, popup correctness, and alternative recovery
@@ -98,6 +129,12 @@ changing OCR, target selection, context, alternatives, promotions, or negative p
 The complete multi-component promotion margin is now 2 points, matching complete inflected-word
 recovery. It resolved one lexicalized-verb versus main-plus-helping-verb interpretation while
 retaining the requirements for multiple dictionary-backed components and particle preservation.
+
+A separately bounded rule for inflected targets now uses isolated analysis to corroborate a
+contextually more distant main-plus-helping-verb structure. It requires multiple fully
+dictionary-backed components, a helping verb, complete word-part representation, particle
+preservation, and a target that is not already an exact dictionary base form. It resolved four
+equivalent-interpretation cases with no quick-tier regression.
 
 An isolated fallback may now recover an equal-count dictionary-backed lemma when it exposes a
 particle or verb ending and its only unrepresented word part is the contractible copula. This

@@ -61,12 +61,45 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.12 200-case quick tier records 98.92% whole-eojeol OCR, 99.00% target
-selection, 92.50% functional context, 73.50% exact sentence transcription, 92.00% component
-accuracy, 93.00% exact KRDict fidelity, and 86.50% fully correct first popups, with 216.56 ms
-median / 334.77 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
-promotions remain zero. Its remaining failures are 12 analysis cases (eight primary lemmas and four
-component roles), 13 context cases, and two target cases. Aggregate and per-category negative
-activation are 0.00%, so that strict gate now passes.
+selection, 92.50% functional context, 73.50% exact sentence transcription, 94.00% component
+accuracy, 95.00% exact KRDict fidelity, and 88.50% fully correct first popups, with 206.88 ms
+median / 308.23 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
+four component roles), 13 context cases, and two target cases. Aggregate and per-category negative
+activation are 0.00%, so the quick popup floor and strict negative gate pass.
+
+The complete v4.12 development evaluation has now run. Its 2,000 main cases record 97.91%
+whole-eojeol OCR, 97.10% target selection, 85.80% functional context, 69.10% exact sentence
+transcription, 88.65% component accuracy, 92.10% exact KRDict fidelity, 76.15% fully correct first
+popups, and 92.55% alternative recovery. False promotions remain zero and automated latency is
+218.28 ms median / 322.34 ms p95. Privacy-safe diagnostics contain 58 target, 226 context, and
+193 analysis failures; the analysis stages are 74 primary lemmas, 90 component roles, 12 component
+surfaces, nine component counts, and eight grammar roles. Three additional records fail only a
+negative-pointer category.
+
+The nonblocking 250-case stress tier records 94.11% OCR, 96.00% target selection, 66.80%
+functional context, and 62.40% fully correct first popups. The 400-case held-out language tier
+records 88.00% overall, 89.50% auxiliary, 86.50% multi-lexical, and 100% direct KRDict
+conformance. Aggregate main negative activation is 0.14%; blank, English, and near-miss probes
+remain at zero, whitespace is four of 1,931 (0.21%), and punctuation is nine of 1,582 (0.57%).
+The correction, dictionary-conformance, and latency gates pass, but the primary, exceptional-floor,
+and per-category negative-activation gates fail.
+
+The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
+reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
+initialization and categorized one stable ID at a time, writing each categorical decision
+immediately. The initial stratified 29-case 12 px and 14 px review contains 16 non-target OCR
+transcription errors, six punctuation or structured-text cases, four incorrect line/sentence
+reconstructions, and three missed or merged OCR word boundaries. The added transcription category
+covers substitutions or omissions outside the correct target when line reconstruction and target
+geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
+IDs, categorical decisions, and counts; 197 of the 226 active main context failures remain
+unreviewed.
+
+Three reviewed reconstruction cases contain a narrow one-character segment overlapping the next
+word, and combined recognition returns only that next word. Broadening the existing discard rule
+would also remove a protected narrow real-character regression, so no OCR change was accepted.
+Additional classification or a stronger independent confirmation signal is required.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -78,15 +111,16 @@ The v4.11 rebuild incorporated accumulated corpus-oracle and candidate-selection
 after v4.9 was rendered. Consequently, a numeric sample ID can refer to a different independent
 source record across those versions. Existing v4.9 categorical review decisions remain valid
 historical evidence but must not be transferred to v4.11 by ID without a fresh audit. The v4.11
-held-out language tier was not evaluated. The v4.12 held-out language tier also remains deferred.
+held-out language tier was not evaluated. The v4.12 tier has now been evaluated only as part of
+the complete development run described above.
 
 Fresh v4.12 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
 review retains 20 decisions: seven Kiwi-analysis errors, five annotation-convention
 differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
 context review retains 16 decisions: seven incorrect line/sentence reconstructions, four missed
 or merged word boundaries, and five punctuation or structured-text handling cases. Its current
-audit has 13 active cases and three resolved reconstruction IDs. The popup audit has 12 active
-cases and eight resolved IDs; both audits have no missing or stale IDs. The review-supported analyzer
+audit has 13 active cases and three resolved reconstruction IDs. The quick popup audit has eight
+active cases and 12 resolved IDs; both audits have no missing or stale IDs. The review-supported analyzer
 now keeps a dictionary-defined
 whole noun that already leads by score instead of replacing it with a richer but fragmented noun
 analysis. This recovered one case without changing OCR, target selection, context, alternative
@@ -125,6 +159,13 @@ The existing dictionary-backed complete multi-component promotion now uses the s
 score limit as complete inflected-word recovery. This recovered one reviewed lexicalized-verb
 versus main-plus-helping-verb interpretation; candidates still require at least two fully defined
 components and cannot discard a particle feature.
+
+For inflected targets, a more distant contextual main-plus-helping-verb interpretation may now be
+promoted when an isolated analysis independently corroborates the exact component structure. The
+isolated and contextual score gaps are bounded separately; every component must be dictionary
+backed, a helping verb must be present, no word part may be left unrepresented, and an existing
+particle feature cannot be discarded. Exact dictionary base forms are not decomposed. This
+resolved four reviewed equivalent-interpretation cases without introducing a quick-tier failure.
 
 The isolated undefined-component fallback now accepts an equal-count dictionary-backed analysis
 when it changes the lemma, exposes a particle or verb ending, and its only otherwise unrepresented
@@ -251,12 +292,12 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The historical v4.9 multi-lexical, functional-context, and per-category negative-activation
-gates passed, but the current v4.11 quick popup and near-miss gates block release evidence.
-The complete 2,000-sample render evaluation remains deliberately deferred until the corrected
-v4.11 quick language/popup path materially improves. Thresholds are
-not frozen, and neither the untouched
-release split nor the 500-attempt foreground benchmark has been run. See
+The historical v4.9 multi-lexical result passed, but the complete v4.12 development run now shows
+that main popup, functional context, required render strata, held-out multi-lexical analysis, and
+punctuation activation still block release evidence. The next review target is the remaining 197
+privacy-safe main context failures, continuing through the 12 px, 14 px, serif-font, and single-line
+strata, followed by the nine punctuation activations. Thresholds are not frozen, and neither the
+untouched release split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
 ## Required before a public v1 release

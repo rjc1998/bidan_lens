@@ -528,6 +528,137 @@ def test_distant_multi_component_analysis_is_not_promoted() -> None:
     assert [component.lemma for component in candidate.lexical_components] == ['갔다오다']
 
 
+def test_isolated_analysis_can_corroborate_a_contextually_distant_decomposition() -> None:
+    sentence = '문맥 갔다오는'
+    surface = '갔다오는'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '갔다오다': (_entry('round-trip', '갔다오다', 'verb', 'make a round trip'),),
+    }
+    compound = [Token('갔다오', 'VV', 3, 3), Token('는', 'ETM', 6, 1)]
+    decomposed = [
+        Token('가', 'VV', 3, 1),
+        Token('었', 'EP', 3, 1),
+        Token('다', 'EC', 4, 1),
+        Token('오', 'VX', 5, 1),
+        Token('는', 'ETM', 6, 1),
+    ]
+    isolated_compound = [Token('갔다오', 'VV', 0, 3), Token('는', 'ETM', 3, 1)]
+    isolated_decomposed = [
+        Token('가', 'VV', 0, 1),
+        Token('었', 'EP', 0, 1),
+        Token('다', 'EC', 1, 1),
+        Token('오', 'VX', 2, 1),
+        Token('는', 'ETM', 3, 1),
+    ]
+    analyses = {
+        sentence: [(compound, -1.0), (decomposed, -6.0)],
+        surface: [(isolated_compound, -1.0), (isolated_decomposed, -4.5)],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 7)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '가다',
+        '오다',
+    ]
+
+
+def test_distant_isolated_decomposition_does_not_override_context() -> None:
+    sentence = '문맥 갔다오는'
+    surface = '갔다오는'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '갔다오다': (_entry('round-trip', '갔다오다', 'verb', 'make a round trip'),),
+    }
+    analyses = {
+        sentence: [
+            ([Token('갔다오', 'VV', 3, 3), Token('는', 'ETM', 6, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 3, 1),
+                    Token('었', 'EP', 3, 1),
+                    Token('다', 'EC', 4, 1),
+                    Token('오', 'VX', 5, 1),
+                    Token('는', 'ETM', 6, 1),
+                ],
+                -6.0,
+            ),
+        ],
+        surface: [
+            ([Token('갔다오', 'VV', 0, 3), Token('는', 'ETM', 3, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 0, 1),
+                    Token('었', 'EP', 0, 1),
+                    Token('다', 'EC', 1, 1),
+                    Token('오', 'VX', 2, 1),
+                    Token('는', 'ETM', 3, 1),
+                ],
+                -6.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 7)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '갔다오다'
+    ]
+
+
+def test_isolated_decomposition_does_not_override_a_dictionary_base_form() -> None:
+    sentence = '문맥 갔다오다'
+    surface = '갔다오다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '갔다오다': (_entry('round-trip', '갔다오다', 'verb', 'make a round trip'),),
+    }
+    analyses = {
+        sentence: [
+            ([Token('갔다오', 'VV', 3, 3), Token('다', 'EF', 6, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 3, 1),
+                    Token('었', 'EP', 3, 1),
+                    Token('다', 'EC', 4, 1),
+                    Token('오', 'VX', 5, 1),
+                    Token('다', 'EF', 6, 1),
+                ],
+                -6.0,
+            ),
+        ],
+        surface: [
+            ([Token('갔다오', 'VV', 0, 3), Token('다', 'EF', 3, 1)], -1.0),
+            (
+                [
+                    Token('가', 'VV', 0, 1),
+                    Token('었', 'EP', 0, 1),
+                    Token('다', 'EC', 1, 1),
+                    Token('오', 'VX', 2, 1),
+                    Token('다', 'EF', 3, 1),
+                ],
+                -4.5,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 7)
+    )[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '갔다오다'
+    ]
+
+
 def test_multi_component_promotion_does_not_discard_particle_feature() -> None:
     sentence = '\uc11c\uc6b8\ub3c4'
     dictionary = RoleDictionary()

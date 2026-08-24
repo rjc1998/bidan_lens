@@ -33,8 +33,11 @@ from bidan_lens.pipeline.hit_test import hit_test
 
 REVIEW_SCHEMA_VERSION = 1
 CONTEXT_REVIEW_KIND = 'functional_context'
+FULL_CONTEXT_REVIEW_KIND = 'functional_context_full'
+CONTEXT_REVIEW_KINDS = (CONTEXT_REVIEW_KIND, FULL_CONTEXT_REVIEW_KIND)
 CONTEXT_REVIEW_DECISIONS = (
     'missed_or_merged_ocr_word_boundary',
+    'non_target_ocr_transcription_error',
     'incorrect_line_sentence_reconstruction',
     'punctuation_or_structured_ascii_handling',
     'incorrect_target_span',
@@ -87,16 +90,19 @@ def write_context_review(
     path: Path,
     corpus_id: str,
     decisions: tuple[ContextReviewDecision, ...],
+    review_kind: str = CONTEXT_REVIEW_KIND,
 ) -> None:
     ordered = tuple(sorted(decisions, key=lambda item: item.sample_id))
     if len({item.sample_id for item in ordered}) != len(ordered):
         raise CorpusError('context review contains duplicate sample ids')
     if any(item.decision not in CONTEXT_REVIEW_DECISIONS for item in ordered):
         raise CorpusError('context review contains an unknown decision')
+    if review_kind not in CONTEXT_REVIEW_KINDS:
+        raise CorpusError('context review contains an unknown review kind')
     value = {
         'schema_version': REVIEW_SCHEMA_VERSION,
         'corpus_id': corpus_id,
-        'review_kind': CONTEXT_REVIEW_KIND,
+        'review_kind': review_kind,
         'decisions': [
             {'sample_id': item.sample_id, 'decision': item.decision}
             for item in ordered
@@ -116,6 +122,7 @@ def write_context_review(
 def load_context_review(
     path: Path,
     corpus_id: str | None,
+    review_kind: str | None = CONTEXT_REVIEW_KIND,
 ) -> tuple[ContextReviewDecision, ...]:
     if not path.is_file():
         return ()
@@ -130,7 +137,11 @@ def load_context_review(
         or value.get('schema_version') != REVIEW_SCHEMA_VERSION
         or not isinstance(value.get('corpus_id'), str)
         or (corpus_id is not None and value.get('corpus_id') != corpus_id)
-        or value.get('review_kind') != CONTEXT_REVIEW_KIND
+        or value.get('review_kind') not in CONTEXT_REVIEW_KINDS
+        or (
+            review_kind is not None
+            and value.get('review_kind') != review_kind
+        )
         or not isinstance(value.get('decisions'), list)
     ):
         raise CorpusError('context review decisions do not match this corpus')
@@ -187,14 +198,29 @@ def audit_context_review(
     }
 
 
+def record_context_decision(
+    cases: tuple[ContextReviewCase, ...],
+    decisions: tuple[ContextReviewDecision, ...],
+    sample_id: str,
+    decision: str,
+) -> tuple[ContextReviewDecision, ...]:
+    if decision not in CONTEXT_REVIEW_DECISIONS:
+        raise CorpusError('context review contains an unknown decision')
+    if not any(case.sample.sample_id == sample_id for case in cases):
+        raise CorpusError(f'context review sample is not an active failure: {sample_id}')
+    updated = {item.sample_id: item for item in decisions}
+    updated[sample_id] = ContextReviewDecision(sample_id, decision)
+    return tuple(updated[sample_id] for sample_id in sorted(updated))
+
+
 def inspection_context_cases(
     cases: tuple[ContextReviewCase, ...],
     decisions: tuple[ContextReviewDecision, ...],
     decision: str | None = None,
-    sample_id: str | None = None,
+    sample_ids: tuple[str, ...] | None = None,
 ) -> tuple[ContextReviewCase, ...]:
     reviewed = {item.sample_id: item.decision for item in decisions}
-    if decision is None and sample_id is None:
+    if decision is None and sample_ids is None:
         selected = tuple(
             case for case in cases if case.sample.sample_id not in reviewed
         )
@@ -205,9 +231,10 @@ def inspection_context_cases(
             if decision is None
             or reviewed.get(case.sample.sample_id) == decision
         )
-    if sample_id is not None:
+    if sample_ids is not None:
+        selected_ids = set(sample_ids)
         selected = tuple(
-            case for case in selected if case.sample.sample_id == sample_id
+            case for case in selected if case.sample.sample_id in selected_ids
         )
     return selected
 
@@ -763,17 +790,18 @@ def review_context_cases(
     valid_answers = {
         str(index) for index in range(1, len(CONTEXT_REVIEW_DECISIONS) + 1)
     }
+    last_choice = len(CONTEXT_REVIEW_DECISIONS)
     for case in cases:
         if case.sample.sample_id in decisions:
             continue
         _display_case(case, output)
         output(choices)
         while True:
-            answer = prompt('decision [1-5]: ').strip()
+            answer = prompt(f'decision [1-{last_choice}]: ').strip()
             if answer in valid_answers:
                 decision = CONTEXT_REVIEW_DECISIONS[int(answer) - 1]
                 break
-            output('Choose a category from 1 through 5.')
+            output(f'Choose a category from 1 through {last_choice}.')
         decisions[case.sample.sample_id] = ContextReviewDecision(
             case.sample.sample_id,
             decision,
@@ -801,6 +829,11 @@ def main() -> None:
         help='validate an existing decision report without prompting',
     )
     parser.add_argument(
+        '--full',
+        action='store_true',
+        help='review all 2,000 main cases using a separately scoped decision report',
+    )
+    parser.add_argument(
         '--carry-forward',
         type=Path,
         metavar='PRIOR_DECISIONS',
@@ -823,7 +856,13 @@ def main() -> None:
     )
     parser.add_argument(
         '--sample-id',
-        help='with --inspect, limit output to one stable sample ID',
+        action='append',
+        help='stable ID for --inspect or --record-decision',
+    )
+    parser.add_argument(
+        '--record-decision',
+        choices=CONTEXT_REVIEW_DECISIONS,
+        help='record one categorical decision without displaying corpus text',
     )
     parser.add_argument(
         '--segmentation-only',
@@ -849,13 +888,26 @@ def main() -> None:
         arguments.compact
         or arguments.decision
         or arguments.geometry_only
-        or arguments.sample_id
         or arguments.segmentation_only
     ) and not arguments.inspect:
         parser.error(
             '--compact, --decision, --geometry-only, --sample-id, and '
             '--segmentation-only require --inspect'
         )
+    if arguments.sample_id and not (
+        arguments.inspect or arguments.record_decision
+    ):
+        parser.error('--sample-id requires --inspect or --record-decision')
+    if bool(arguments.sample_id) != bool(arguments.record_decision) and (
+        arguments.record_decision or not arguments.inspect
+    ):
+        parser.error('--sample-id and --record-decision must be used together')
+    if arguments.record_decision and len(arguments.sample_id) != 1:
+        parser.error('--record-decision requires exactly one --sample-id')
+    if arguments.record_decision and (
+        arguments.inspect or arguments.audit or arguments.target_geometry
+    ):
+        parser.error('--record-decision cannot be combined with another review mode')
     if arguments.compact and arguments.geometry_only:
         parser.error('--compact and --geometry-only cannot be combined')
     if arguments.segmentation_only and not arguments.sample_id:
@@ -873,7 +925,10 @@ def main() -> None:
     if arguments.target_segmentation and not arguments.target_geometry:
         parser.error('--target-segmentation requires --target-geometry')
     if arguments.carry_forward and (
-        arguments.inspect or arguments.audit or arguments.target_geometry
+        arguments.inspect
+        or arguments.audit
+        or arguments.target_geometry
+        or arguments.record_decision
     ):
         parser.error('--carry-forward cannot be combined with another review mode')
     if arguments.carry_forward and arguments.decisions.is_file():
@@ -882,8 +937,11 @@ def main() -> None:
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
     sources = load_sources(arguments.corpus, locked)
-    selected = _quick_annotations(arguments.corpus, locked)
+    selected = None if arguments.full else _quick_annotations(arguments.corpus, locked)
     samples = load_plain_samples(arguments.corpus, 'plain', locked, sources, selected)
+    review_kind = (
+        FULL_CONTEXT_REVIEW_KIND if arguments.full else CONTEXT_REVIEW_KIND
+    )
     engine = PaddleOcrEngine(
         PaddleDetector(_asset(arguments.assets, 'korean_detection.onnx')),
         PaddleRecognizer(
@@ -895,7 +953,8 @@ def main() -> None:
         samples_by_id = {sample.sample_id: sample for sample in samples}
         missing = sorted(set(arguments.target_geometry) - set(samples_by_id))
         if missing:
-            parser.error(f'unknown quick-tier sample ID: {missing[0]}')
+            scope = 'full-tier' if arguments.full else 'quick-tier'
+            parser.error(f'unknown {scope} sample ID: {missing[0]}')
         for sample_id in arguments.target_geometry:
             sample = samples_by_id[sample_id]
             with Image.open(sample.image) as source:
@@ -910,14 +969,57 @@ def main() -> None:
                 )
             )
         return
-    cases = collect_context_review_cases(engine, samples)
+    case_samples = samples
+    partial_selection = bool(arguments.sample_id)
+    if partial_selection:
+        selected_ids = set(arguments.sample_id)
+        case_samples = tuple(
+            sample for sample in samples if sample.sample_id in selected_ids
+        )
+        missing = sorted(selected_ids - {sample.sample_id for sample in case_samples})
+        if missing:
+            scope = 'full-tier' if arguments.full else 'quick-tier'
+            parser.error(f'unknown {scope} sample ID: {missing[0]}')
+    cases = collect_context_review_cases(engine, case_samples)
     if arguments.carry_forward:
-        prior = load_context_review(arguments.carry_forward, None)
+        prior = load_context_review(arguments.carry_forward, corpus_id, None)
         decisions = carry_forward_context_decisions(cases, prior)
-        write_context_review(arguments.decisions, corpus_id, decisions)
+        write_context_review(
+            arguments.decisions,
+            corpus_id,
+            decisions,
+            review_kind,
+        )
         print(json.dumps(audit_context_review(cases, decisions), ensure_ascii=True, indent=2))
         return
-    existing = load_context_review(arguments.decisions, corpus_id)
+    existing = load_context_review(arguments.decisions, corpus_id, review_kind)
+    if arguments.record_decision:
+        sample_id = arguments.sample_id[0]
+        decisions = record_context_decision(
+            cases,
+            existing,
+            sample_id,
+            arguments.record_decision,
+        )
+        write_context_review(
+            arguments.decisions,
+            corpus_id,
+            decisions,
+            review_kind,
+        )
+        print(
+            json.dumps(
+                {
+                    'sample_id': sample_id,
+                    'decision': arguments.record_decision,
+                    'review_kind': review_kind,
+                    'decision_count': len(decisions),
+                },
+                ensure_ascii=True,
+                indent=2,
+            )
+        )
+        return
     audit = audit_context_review(cases, existing)
     if arguments.audit:
         print(json.dumps(audit, ensure_ascii=True, indent=2))
@@ -929,7 +1031,7 @@ def main() -> None:
             cases,
             existing,
             arguments.decision,
-            arguments.sample_id,
+            None if arguments.sample_id is None else tuple(arguments.sample_id),
         ):
             if arguments.segmentation_only:
                 print(
@@ -944,10 +1046,30 @@ def main() -> None:
                 _display_compact_case(case, print)
             else:
                 _display_case(case, print)
-        print(json.dumps(audit, ensure_ascii=True, indent=2))
+        if partial_selection:
+            print(
+                json.dumps(
+                    {
+                        'selection_only': True,
+                        'sample_ids': arguments.sample_id,
+                        'active_context_failure_ids': [
+                            case.sample.sample_id for case in cases
+                        ],
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                )
+            )
+        else:
+            print(json.dumps(audit, ensure_ascii=True, indent=2))
         return
     decisions = review_context_cases(cases, existing)
-    write_context_review(arguments.decisions, corpus_id, decisions)
+    write_context_review(
+        arguments.decisions,
+        corpus_id,
+        decisions,
+        review_kind,
+    )
     print(json.dumps(audit_context_review(cases, decisions), ensure_ascii=True, indent=2))
 
 

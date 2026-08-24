@@ -46,6 +46,8 @@ _MULTI_COMPONENT_SCORE_MARGIN = 2.0
 _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
+_ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
+_CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
@@ -212,6 +214,47 @@ class KoreanAnalyzer:
                 for current, alternative in differing_roles
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
+        if (
+            surface == first.lemma
+            or not first.lexical_components
+            or not all(
+                component.dictionary_entries for component in first.lexical_components
+            )
+        ):
+            return candidates
+        first_labels = {feature.label for feature in first.features}
+        first_labels.update(item.learner_label for item in first.morphemes)
+        for evidence in isolated:
+            components = evidence.lexical_components
+            if (
+                isolated[0].score - evidence.score
+                > _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN
+                or len(components) <= len(first.lexical_components)
+                or len(components) < 2
+                or not all(component.dictionary_entries for component in components)
+                or not any(
+                    component.learner_role == 'helping verb'
+                    for component in components
+                )
+                or self._has_unrepresented_word_part(evidence)
+            ):
+                continue
+            evidence_labels = {feature.label for feature in evidence.features}
+            evidence_labels.update(item.learner_label for item in evidence.morphemes)
+            if 'particle' in first_labels and 'particle' not in evidence_labels:
+                continue
+            signature = self._candidate_signature(evidence)
+            for index, candidate in enumerate(candidates[1:], start=1):
+                if (
+                    self._candidate_signature(candidate) == signature
+                    and first.score - candidate.score
+                    <= _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN
+                ):
+                    return (
+                        candidate,
+                        *candidates[:index],
+                        *candidates[index + 1 :],
+                    )
         return candidates
 
     def _isolated_defined_component_fallback(

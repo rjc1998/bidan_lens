@@ -8,11 +8,14 @@ import pytest
 from PIL import Image
 
 from benchmarks.context_review import (
+    FULL_CONTEXT_REVIEW_KIND,
     ContextReviewDecision,
     audit_context_review,
     carry_forward_context_decisions,
     inspection_context_cases,
     load_context_review,
+    record_context_decision,
+    review_context_cases,
     structural_context_view,
     structural_segmentation_view,
     structural_target_geometry_view,
@@ -51,6 +54,112 @@ def test_context_review_round_trip_contains_only_categorical_data(tmp_path: Path
             'decision': 'incorrect_line_sentence_reconstruction',
         }
     ]
+
+
+def test_full_context_review_is_separately_scoped(tmp_path: Path) -> None:
+    path = tmp_path / 'full-review.json'
+    decisions = (
+        ContextReviewDecision(
+            'dev-plain-0001',
+            'incorrect_line_sentence_reconstruction',
+        ),
+    )
+
+    write_context_review(
+        path,
+        'corpus-v4',
+        decisions,
+        FULL_CONTEXT_REVIEW_KIND,
+    )
+
+    assert load_context_review(
+        path,
+        'corpus-v4',
+        FULL_CONTEXT_REVIEW_KIND,
+    ) == decisions
+    with pytest.raises(CorpusError, match='do not match'):
+        load_context_review(path, 'corpus-v4')
+    value = json.loads(path.read_text(encoding='utf-8'))
+    assert value['review_kind'] == FULL_CONTEXT_REVIEW_KIND
+    assert set(value['decisions'][0]) == {'sample_id', 'decision'}
+
+
+def test_context_review_records_one_active_case() -> None:
+    cases = (
+        SimpleNamespace(sample=SimpleNamespace(sample_id='active')),
+    )
+    existing = (
+        ContextReviewDecision(
+            'prior',
+            'incorrect_line_sentence_reconstruction',
+        ),
+    )
+
+    decisions = record_context_decision(  # type: ignore[arg-type]
+        cases,
+        existing,
+        'active',
+        'missed_or_merged_ocr_word_boundary',
+    )
+
+    assert decisions == (
+        ContextReviewDecision(
+            'active',
+            'missed_or_merged_ocr_word_boundary',
+        ),
+        existing[0],
+    )
+    with pytest.raises(CorpusError, match='not an active failure'):
+        record_context_decision(  # type: ignore[arg-type]
+            cases,
+            existing,
+            'resolved',
+            'ambiguous_layout',
+        )
+
+
+def test_context_review_accepts_non_target_transcription_category() -> None:
+    cases = (
+        SimpleNamespace(
+            sample=SimpleNamespace(
+                sample_id='transcription',
+                render=SimpleNamespace(
+                    renderer='browser',
+                    layout='single-line',
+                    punctuation='natural',
+                    font='test-font',
+                    size_px=12,
+                ),
+                target=SimpleNamespace(
+                    sentence='',
+                    text='',
+                    sentence_span=(0, 0),
+                ),
+                lines=(),
+            ),
+            target=SimpleNamespace(
+                sentence='',
+                surface='',
+                sentence_start=0,
+                sentence_end=0,
+            ),
+            document=SimpleNamespace(lines=()),
+        ),
+    )
+
+    decisions = review_context_cases(  # type: ignore[arg-type]
+        cases,
+        (),
+        prompt=lambda _message: '2',
+        output=lambda _message: None,
+    )
+
+    assert decisions == (
+        ContextReviewDecision(
+            'transcription',
+            'non_target_ocr_transcription_error',
+        ),
+    )
 
 
 def test_context_review_carry_forward_requires_every_current_id() -> None:
@@ -178,10 +287,22 @@ def test_context_review_inspection_filters_current_reviewed_category() -> None:
         cases,  # type: ignore[arg-type]
         decisions,
         'incorrect_line_sentence_reconstruction',
-        'active-line',
+        ('active-line',),
     )
 
     assert [case.sample.sample_id for case in selected] == ['active-line']
+
+    selected = inspection_context_cases(
+        cases,  # type: ignore[arg-type]
+        decisions,
+        None,
+        ('active-punctuation', 'active-line'),
+    )
+
+    assert [case.sample.sample_id for case in selected] == [
+        'active-line',
+        'active-punctuation',
+    ]
 
 
 def test_context_review_structural_view_omits_sentence_and_target_text() -> None:

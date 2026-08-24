@@ -105,9 +105,9 @@ Review quick-tier functional-context disagreements locally with
 boundary: expected and recognized public-corpus text is displayed only during local review,
 while the decision file contains only the corpus ID, stable sample IDs, and categorical
 decisions. Use `--inspect` for unresolved cases and `--audit` to require complete coverage.
-The available decisions are missed or merged OCR word boundary, incorrect line/sentence
-reconstruction, punctuation or structured-ASCII handling, incorrect target span, and genuinely
-ambiguous layout.
+The available decisions are missed or merged OCR word boundary, non-target OCR transcription
+error, incorrect line/sentence reconstruction, punctuation or structured-ASCII handling,
+incorrect target span, and genuinely ambiguous layout.
 With `--inspect`, `--decision CATEGORY` limits local display to current cases in one reviewed
 category, and `--sample-id ID` selects one current stable ID. `--geometry-only` emits only IDs,
 render metadata, lengths, spans, Unicode-category counts, per-eojeol boxes and confidence, and
@@ -124,6 +124,14 @@ IDs, render categories, target/probe pointers, expected and recognized geometry,
 confidence, Hangul counts, and boolean target-match signals. It never writes decisions or
 emits recognized or oracle text. Add `--target-segmentation` to include the same privacy-safe
 detector and raw segment evidence used by the context inspector.
+Use `--full` with a separate decision path for the 2,000-case main tier; quick and full reports
+have distinct review kinds and cannot be mixed accidentally. A full-tier case can be handled
+incrementally with `--full --inspect --sample-id ID`, followed by
+`--full --sample-id ID --record-decision CATEGORY`. Single-ID full inspection runs OCR only for
+that case and labels its
+trailing summary as selection-only rather than presenting it as a complete audit.
+Repeat `--sample-id` during inspection to initialize the OCR models once for a selected batch;
+categorical recording continues to require exactly one ID per command.
 
 Review first-popup analysis and dictionary disagreements only after target and functional
 context are correct with
