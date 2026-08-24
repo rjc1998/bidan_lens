@@ -42,9 +42,10 @@ _LEXICAL_TAGS = _VERB_TAGS | {
     'MM',
 }
 _KIWI_ANALYSIS_DEPTH = 10
-_MULTI_COMPONENT_SCORE_MARGIN = 1.5
+_MULTI_COMPONENT_SCORE_MARGIN = 2.0
 _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
+_ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
@@ -95,6 +96,12 @@ class KoreanAnalyzer:
         candidates = self._promote_close_wrapper_context_candidate(
             sentence,
             target_span,
+            candidates,
+            max_candidates,
+        )
+        candidates = self._promote_isolated_verb_role_candidate(
+            sentence,
+            surface,
             candidates,
             max_candidates,
         )
@@ -151,6 +158,58 @@ class KoreanAnalyzer:
                 and candidate.dictionary_entries
                 and candidates[0].score - candidate.score
                 <= _WRAPPER_CONTEXT_SCORE_MARGIN
+            ):
+                return (candidate, *candidates[:index], *candidates[index + 1 :])
+        return candidates
+
+    def _promote_isolated_verb_role_candidate(
+        self,
+        sentence: str,
+        surface: str,
+        candidates: tuple[AnalysisCandidate, ...],
+        max_candidates: int,
+    ) -> tuple[AnalysisCandidate, ...]:
+        if sentence == surface or len(candidates) < 2:
+            return candidates
+        isolated = self._analyze_candidates(
+            surface,
+            (0, len(surface)),
+            max_candidates,
+        )
+        if not isolated or not isolated[0].dictionary_entries:
+            return candidates
+        signature = self._candidate_signature(isolated[0])
+        verb_roles = {'action verb', 'descriptive verb', 'helping verb'}
+        first = candidates[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                self._candidate_signature(candidate) != signature
+                or first.score - candidate.score
+                > _ISOLATED_VERB_ROLE_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components)
+                != len(first.lexical_components)
+            ):
+                continue
+            differing_roles = []
+            for current, alternative in zip(
+                first.lexical_components,
+                candidate.lexical_components,
+                strict=True,
+            ):
+                if (
+                    current.surface != alternative.surface
+                    or current.lemma != alternative.lemma
+                ):
+                    differing_roles = []
+                    break
+                if current.learner_role != alternative.learner_role:
+                    differing_roles.append(
+                        (current.learner_role, alternative.learner_role)
+                    )
+            if differing_roles and all(
+                current in verb_roles and alternative in verb_roles
+                for current, alternative in differing_roles
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
         return candidates
@@ -408,7 +467,12 @@ class KoreanAnalyzer:
         if not candidates or not candidates[0].lexical_components:
             return candidates
         first = candidates[0]
-        nominal_roles = {'noun', 'pronoun', 'determiner'}
+        nominal_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'determiner',
+        }
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
                 first.score - candidate.score

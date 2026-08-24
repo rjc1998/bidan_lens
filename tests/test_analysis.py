@@ -555,3 +555,17 @@ def test_dictionary_preferred_nominal_role_is_score_bounded(
     ).analyze('그 돈', (0, 1))[0]
 
     assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_dictionary_noun_entry_can_disambiguate_a_proper_noun_tag() -> None:
+    analyses = [
+        ([Token('그', 'NNP', 0, 1)], -1.0),
+        ([Token('그', 'NNG', 0, 1)], -2.5),
+    ]
+
+    candidate = KoreanAnalyzer(
+        NominalRoleDictionary('noun'),
+        FakeKiwi(analyses),
+    ).analyze('그', (0, 1))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'noun'

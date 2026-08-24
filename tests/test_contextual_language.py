@@ -21,7 +21,7 @@ class ContextKiwi:
         self.analyses = analyses
 
     def analyze(self, text: str, top_n: int = 1):  # type: ignore[no-untyped-def]
-        return self.analyses[text][:top_n]
+        return self.analyses.get(text, ())[:top_n]
 
     def space(self, text: str, reset_whitespace: bool = False) -> str:
         return text
@@ -377,6 +377,62 @@ def test_unwrapped_context_does_not_promote_distant_candidate() -> None:
     assert candidate.lexical_components[0].learner_role == 'action verb'
 
 
+def test_isolated_analysis_can_disambiguate_a_close_verb_role() -> None:
+    sentence = '“있는” 말'
+    surface = '있는'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '있다': (
+            _entry('remain', '있다', 'verb', 'to remain'),
+            _entry('exist', '있다', 'adjective', 'to exist'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            ([Token('있', 'VV', 1, 1), Token('는', 'ETM', 2, 1)], -1.0),
+            ([Token('있', 'VA', 1, 1), Token('는', 'ETM', 2, 1)], -1.5),
+        ],
+        surface: [
+            ([Token('있', 'VA', 0, 1), Token('는', 'ETM', 1, 1)], -1.0),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (1, 3)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'descriptive verb'
+
+
+def test_isolated_verb_role_support_does_not_override_a_distant_candidate() -> None:
+    sentence = '“있는” 말'
+    surface = '있는'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '있다': (
+            _entry('remain', '있다', 'verb', 'to remain'),
+            _entry('exist', '있다', 'adjective', 'to exist'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            ([Token('있', 'VV', 1, 1), Token('는', 'ETM', 2, 1)], -1.0),
+            ([Token('있', 'VA', 1, 1), Token('는', 'ETM', 2, 1)], -3.5),
+        ],
+        surface: [
+            ([Token('있', 'VA', 0, 1), Token('는', 'ETM', 1, 1)], -1.0),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (1, 3)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+
+
 def test_main_verb_leads_with_ordinary_dictionary_group() -> None:
     candidate = _analyzer().analyze('쓰레기를 버리다', (5, 8))[0]
 
@@ -430,7 +486,7 @@ def test_distant_multi_component_analysis_is_not_promoted() -> None:
                     Token('오', 'VV', 2, 1),
                     Token('다', 'EF', 3, 1),
                 ],
-                -3.0,
+                -3.5,
             ),
         ]
     }

@@ -61,10 +61,10 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.12 200-case quick tier records 98.92% whole-eojeol OCR, 99.00% target
-selection, 92.50% functional context, 73.50% exact sentence transcription, 90.00% component
-accuracy, 91.50% exact KRDict fidelity, and 84.00% fully correct first popups, with 205.39 ms
-median / 318.76 ms p95 automated latency. Alternative-candidate recovery is 96.00% and false
-promotions remain zero. Its remaining failures are 17 analysis cases (ten primary lemmas and seven
+selection, 92.50% functional context, 73.50% exact sentence transcription, 91.50% component
+accuracy, 92.50% exact KRDict fidelity, and 86.00% fully correct first popups, with 212.30 ms
+median / 309.85 ms p95 automated latency. Alternative-candidate recovery is 96.00% and false
+promotions remain zero. Its remaining failures are 13 analysis cases (nine primary lemmas and four
 component roles), 13 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so that strict gate now passes.
 
@@ -85,8 +85,8 @@ review retains 20 decisions: seven Kiwi-analysis errors, five annotation-convent
 differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
 context review retains 16 decisions: seven incorrect line/sentence reconstructions, four missed
 or merged word boundaries, and five punctuation or structured-text handling cases. Its current
-audit has 13 active cases and three resolved reconstruction IDs. The popup audit has 17 active
-cases and three resolved IDs; both audits have no missing or stale IDs. The review-supported analyzer
+audit has 13 active cases and three resolved reconstruction IDs. The popup audit has 13 active
+cases and seven resolved IDs; both audits have no missing or stale IDs. The review-supported analyzer
 now keeps a dictionary-defined
 whole noun that already leads by score instead of replacing it with a richer but fragmented noun
 analysis. This recovered one case without changing OCR, target selection, context, alternative
@@ -112,8 +112,19 @@ context, promotion, or negative-probe regression.
 
 For otherwise identical nominal interpretations, a lower-ranked candidate may now be promoted
 within a 2.5-point score margin only when KRDict's default homograph order prefers every differing
-learner role. This resolved two reviewed noun/pronoun/determiner disagreements without changing
-KRDict fidelity, OCR, target selection, context, promotions, or negative probes.
+learner role. This resolved two reviewed noun/pronoun/determiner disagreements and one
+proper/common-noun convention difference without changing KRDict fidelity, OCR, target selection,
+context, promotions, or negative probes.
+
+When surrounding punctuation or fragmentary context changes only a verb component's learner
+role, the isolated eojeol analysis may corroborate an otherwise identical alternative within a
+2-point score margin. This resolved two action/helping-versus-descriptive disagreements while
+preserving every upstream and safety metric; isolation does not override nominal or adverb roles.
+
+The existing dictionary-backed complete multi-component promotion now uses the same 2-point
+score limit as complete inflected-word recovery. This recovered one reviewed lexicalized-verb
+versus main-plus-helping-verb interpretation; candidates still require at least two fully defined
+components and cannot discard a particle feature.
 
 ### Historical v4.9 reviewed evidence
 
