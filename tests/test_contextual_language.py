@@ -433,6 +433,36 @@ def test_isolated_verb_role_support_does_not_override_a_distant_candidate() -> N
     assert candidate.lexical_components[0].learner_role == 'action verb'
 
 
+def test_isolated_fallback_recovers_a_contracted_dependent_noun_and_copula() -> None:
+    sentence = '[테야]'
+    surface = '테야'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '터': (_entry('intention', '터', 'noun', 'intention'),),
+    }
+    analyses = {
+        sentence: [([Token('테야', 'NNG', 1, 2)], -1.0)],
+        surface: [
+            (
+                [
+                    Token('터', 'NNB', 0, 1),
+                    Token('이', 'VCP', 0, 1),
+                    Token('야', 'EF', 1, 1),
+                ],
+                -1.0,
+            )
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (1, 3)
+    )[0]
+
+    assert candidate.lemma == '터'
+    assert candidate.lexical_components[0].learner_role == 'dependent noun'
+
+
 def test_main_verb_leads_with_ordinary_dictionary_group() -> None:
     candidate = _analyzer().analyze('쓰레기를 버리다', (5, 8))[0]
 

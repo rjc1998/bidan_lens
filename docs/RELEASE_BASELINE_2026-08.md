@@ -47,17 +47,17 @@ from rendering and expected geometry together. The intermediate v4.10 card-ancho
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
 The v4.12 quick tier records 98.92% whole-eojeol OCR, 99.00% target selection, 92.50%
-functional context, 73.50% exact sentence transcription, 91.50% component accuracy, 92.50%
-exact KRDict fidelity, 86.00% fully correct first popups, 96.00% alternative recovery, and zero
-false promotions. Automated latency is 212.30 ms median / 309.85 ms p95. There are 13 analysis,
+functional context, 73.50% exact sentence transcription, 92.00% component accuracy, 93.00%
+exact KRDict fidelity, 86.50% fully correct first popups, 96.50% alternative recovery, and zero
+false promotions. Automated latency is 216.56 ms median / 334.77 ms p95. There are 12 analysis,
 13 context, and two target failures. Aggregate and every negative category are 0.00%, including
 all 200 near-miss probes, so the strict negative-activation gate passes.
 
 The v4.12 lock SHA-256 is
 `aedc17c448df9880dad52dedd149cbb6753d3aa81b23149a119527e8d8452372`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`de7871bbd18be618550f49d089e81d26228d7bf606e74fb0c164df08b67a7f38` and
-`e8416e7c8ca1f5112340518ac36286969a1639358fc97cef12435c328e85bf45`.
+`4a6aebce2f370997ace0592dacce3a3102dea7695c6aca8fff106fa59e7d5559` and
+`684015b35a569e09b6cc2427f7146f4e2b8a0beb6b690aec17747a3b3b26425c`.
 The complete run remains deferred, so the v4.11 held-out language tier and required strata have
 not been evaluated. The v4.12 held-out language tier and required strata likewise remain
 unevaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.11
@@ -78,7 +78,7 @@ boundaries, and five punctuation or structured-text cases. Its current audit has
 and three resolved reconstruction IDs. Neither report persists sentence text, recognized text,
 definitions, or pixels, and both audits have no missing or stale IDs.
 
-The current popup audit has 13 active cases and seven resolved IDs. Reported-speech
+The current popup audit has 12 active cases and eight resolved IDs. Reported-speech
 connectives are now passed into learner-role construction, preventing a following lexical verb
 from being relabeled as a helping verb solely because its headword also has an auxiliary sense.
 This improved component accuracy, KRDict fidelity, popup correctness, and alternative recovery
@@ -98,6 +98,10 @@ changing OCR, target selection, context, alternatives, promotions, or negative p
 The complete multi-component promotion margin is now 2 points, matching complete inflected-word
 recovery. It resolved one lexicalized-verb versus main-plus-helping-verb interpretation while
 retaining the requirements for multiple dictionary-backed components and particle preservation.
+
+An isolated fallback may now recover an equal-count dictionary-backed lemma when it exposes a
+particle or verb ending and its only unrepresented word part is the contractible copula. This
+resolved one dependent-noun contraction while retaining the general derivational-word-part guard.
 
 A review-supported runtime rule removes a duplicate one-character eojeol only when it is fully
 contained in a longer eojeol, matches one of that eojeol's characters, and has normal

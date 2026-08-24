@@ -229,13 +229,25 @@ class KoreanAnalyzer:
             (
                 candidate
                 for candidate in isolated
-                if len(candidate.lexical_components) > len(first.lexical_components)
-                and len(candidate.lexical_components) >= 2
+                if candidate.lexical_components
+                and len(candidate.lexical_components) >= len(first.lexical_components)
+                and (
+                    len(candidate.lexical_components)
+                    > len(first.lexical_components)
+                    or candidate.lemma != first.lemma
+                )
                 and all(
                     component.dictionary_entries
                     for component in candidate.lexical_components
                 )
-                and not self._has_unrepresented_word_part(candidate)
+                and (
+                    not self._has_unrepresented_word_part(candidate)
+                    or self._has_only_unrepresented_copula(candidate)
+                )
+                and any(
+                    feature.label in {'verb ending', 'particle'}
+                    for feature in candidate.features
+                )
             ),
             None,
         )
@@ -262,6 +274,22 @@ class KoreanAnalyzer:
             morpheme.learner_label == 'word part'
             and morpheme.surface not in lexical_surface
             for morpheme in candidate.morphemes
+        )
+
+    @staticmethod
+    def _has_only_unrepresented_copula(candidate: AnalysisCandidate) -> bool:
+        lexical_surface = ''.join(
+            component.surface for component in candidate.lexical_components
+        )
+        unrepresented = tuple(
+            morpheme
+            for morpheme in candidate.morphemes
+            if morpheme.learner_label == 'word part'
+            and morpheme.surface not in lexical_surface
+        )
+        return bool(unrepresented) and all(
+            morpheme.surface == '이' and morpheme.lemma == '이'
+            for morpheme in unrepresented
         )
 
     @staticmethod
