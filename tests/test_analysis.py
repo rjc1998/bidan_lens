@@ -502,3 +502,56 @@ def test_complete_inflected_candidate_promotion_is_score_bounded(
     ).analyze('\uac00\ub2a5\ud574', (0, 3))[0]
 
     assert candidate.lemma == expected_lemma
+
+
+class NominalRoleDictionary(DictionaryStore):
+    def __init__(self, preferred_role: str) -> None:
+        self.preferred_role = preferred_role
+
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma != '그':
+            return ()
+        entries = (
+            DictionaryEntry(
+                self.preferred_role,
+                lemma,
+                self.preferred_role,
+                None,
+                None,
+                (DictionarySense('preferred'),),
+            ),
+            DictionaryEntry(
+                'other',
+                lemma,
+                'determiner' if self.preferred_role == 'pronoun' else 'pronoun',
+                None,
+                None,
+                (DictionarySense('other'),),
+            ),
+        )
+        if part_of_speech is not None:
+            entries = tuple(
+                entry for entry in entries if entry.part_of_speech == part_of_speech
+            )
+        return entries[:limit]
+
+
+@pytest.mark.parametrize(
+    ('preferred_role', 'expected_role'),
+    [('determiner', 'determiner'), ('pronoun', 'pronoun')],
+)
+def test_dictionary_preferred_nominal_role_is_score_bounded(
+    preferred_role: str,
+    expected_role: str,
+) -> None:
+    analyses = [
+        ([Token('그', 'NP', 0, 1), Token('돈', 'NNG', 2, 1)], -1.0),
+        ([Token('그', 'MM', 0, 1), Token('돈', 'NNG', 2, 1)], -1.4),
+    ]
+
+    candidate = KoreanAnalyzer(
+        NominalRoleDictionary(preferred_role),
+        FakeKiwi(analyses),
+    ).analyze('그 돈', (0, 1))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role

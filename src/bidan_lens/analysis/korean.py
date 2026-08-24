@@ -47,6 +47,7 @@ _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
+_DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -384,6 +385,7 @@ class KoreanAnalyzer:
             ):
                 post_particle_inflected_verb_ids.add(id(candidate))
         candidates.sort(key=lambda candidate: candidate.score, reverse=True)
+        candidates = self._promote_dictionary_preferred_nominal_role(candidates)
         candidates = self._promote_contextual_auxiliary(
             candidates, contextual_auxiliary_ids
         )
@@ -398,6 +400,50 @@ class KoreanAnalyzer:
         if len(limited) > 1:
             limited = [replace(candidate, uncertain=True) for candidate in limited]
         return tuple(limited)
+
+    def _promote_dictionary_preferred_nominal_role(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or not candidates[0].lexical_components:
+            return candidates
+        first = candidates[0]
+        nominal_roles = {'noun', 'pronoun', 'determiner'}
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score
+                > _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components)
+                != len(first.lexical_components)
+            ):
+                continue
+            differing = []
+            same_boundaries = True
+            for current, alternative in zip(
+                first.lexical_components,
+                candidate.lexical_components,
+                strict=True,
+            ):
+                if (
+                    current.surface != alternative.surface
+                    or current.lemma != alternative.lemma
+                ):
+                    same_boundaries = False
+                    break
+                if current.learner_role != alternative.learner_role:
+                    differing.append((current, alternative))
+            if not same_boundaries or not differing:
+                continue
+            if all(
+                current.learner_role in nominal_roles
+                and alternative.learner_role in nominal_roles
+                and (preferred := self.dictionary.lookup(alternative.lemma, None, 1))
+                and preferred[0].part_of_speech == alternative.learner_role
+                for current, alternative in differing
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
 
     @staticmethod
     def _promote_contextual_auxiliary(
