@@ -49,6 +49,16 @@ FONT_FAMILIES = (
     "nanum-myeongjo",
     "malgun-gothic",
 )
+IMAGE_WIDTH = 1280.0
+IMAGE_HEIGHT = 720.0
+CARD_TOP = 60.0
+CARD_BOTTOM = 660.0
+VIEWPORT_TOP = 0.0
+VIEWPORT_BOTTOM = IMAGE_HEIGHT
+TARGET_SAFE_TOP = 10.0
+TARGET_SAFE_BOTTOM = 710.0
+RENDER_POLICY_VERSION = 'viewport-v3'
+PLAYWRIGHT_PACKAGE = 'playwright'
 PLAIN_SOURCE_LOCK = Path(__file__).with_name("plain_sources.lock.json")
 PLAIN_ORACLE = "known-render-independent-analysis"
 
@@ -210,9 +220,7 @@ def _artifacts(path: Path) -> tuple[Artifact, ...]:
 
 def _valid_artifact(path: Path, artifact: Artifact) -> bool:
     return (
-        path.is_file()
-        and path.stat().st_size == artifact.size
-        and _sha256(path) == artifact.sha256
+        path.is_file() and path.stat().st_size == artifact.size and _sha256(path) == artifact.sha256
     )
 
 
@@ -439,25 +447,24 @@ def load_krdict_oracle(source: Path) -> dict[str, tuple[OracleEntry, ...]]:
     for entry in resolved.values():
         entries[entry.headword].append(entry)
     return {
-        key: tuple(sorted(value, key=lambda item: item.entry_id))
-        for key, value in entries.items()
+        key: tuple(sorted(value, key=lambda item: item.entry_id)) for key, value in entries.items()
     }
 
 
 def _expected_dictionary_pos(token: UdToken) -> str | None:
     tags = _morph_parts(token)[1]
-    if any(tag in {'px', 'vx'} for tag in tags):
-        return '보조 동사'
+    if any(tag in {"px", "vx"} for tag in tags):
+        return "보조 동사"
     if any(tag == "pvg" for tag in tags) or token.upos == "VERB":
         return "verb"
     if any(tag == "paa" for tag in tags) or token.upos == "ADJ":
         return "adjective"
     if any(tag.startswith("n") for tag in tags) or token.upos in {"NOUN", "PROPN"}:
         return "noun"
-    if any(tag in {'mag', 'maj', 'mad'} for tag in tags) or token.upos == 'ADV':
-        return 'adverb'
-    if any(tag.startswith('mm') for tag in tags) or token.upos == 'DET':
-        return 'determiner'
+    if any(tag in {"mag", "maj", "mad"} for tag in tags) or token.upos == "ADV":
+        return "adverb"
+    if any(tag.startswith("mm") for tag in tags) or token.upos == "DET":
+        return "determiner"
     return None
 
 
@@ -467,72 +474,68 @@ def _oracle_lookup(
     available = entries.get(lemma, ())
     if part_of_speech is None:
         return available[:10]
-    matching = tuple(
-        entry
-        for entry in available
-        if entry.part_of_speech in {part_of_speech, None}
-    )
+    matching = tuple(entry for entry in available if entry.part_of_speech in {part_of_speech, None})
     remaining = tuple(entry for entry in available if entry not in matching)
     return (*matching, *remaining)[:10]
 
 
 def _component_role(tag: str) -> str | None:
-    if tag in {'pvg', 'vv', 'xsv'}:
-        return 'action verb'
-    if tag in {'paa', 'va', 'xsa', 'xsm'}:
-        return 'descriptive verb'
-    if tag in {'px', 'vx'}:
-        return 'helping verb'
-    if tag == 'nnp' or tag.startswith('nq'):
-        return 'name or proper noun'
-    if tag == 'np' or tag.startswith('np'):
-        return 'pronoun'
-    if tag == 'nr' or tag.startswith(('nnc', 'nno')):
-        return 'number'
-    if tag == 'nnb' or tag.startswith('nb'):
-        return 'dependent noun'
-    if tag.startswith('n'):
-        return 'noun'
-    if tag in {'mag', 'maj', 'mad'}:
-        return 'adverb'
-    if tag.startswith('mm'):
-        return 'determiner'
+    if tag in {"pvg", "vv", "xsv"}:
+        return "action verb"
+    if tag in {"paa", "va", "xsa", "xsm"}:
+        return "descriptive verb"
+    if tag in {"px", "vx"}:
+        return "helping verb"
+    if tag == "nnp" or tag.startswith("nq"):
+        return "name or proper noun"
+    if tag == "np" or tag.startswith("np"):
+        return "pronoun"
+    if tag == "nr" or tag.startswith(("nnc", "nno")):
+        return "number"
+    if tag == "nnb" or tag.startswith("nb"):
+        return "dependent noun"
+    if tag.startswith("n"):
+        return "noun"
+    if tag in {"mag", "maj", "mad"}:
+        return "adverb"
+    if tag.startswith("mm"):
+        return "determiner"
     return None
 
 
 def _upos_component_role(upos: str) -> str:
     return {
-        'NOUN': 'noun',
-        'PROPN': 'name or proper noun',
-        'PRON': 'pronoun',
-        'NUM': 'number',
-        'VERB': 'action verb',
-        'ADJ': 'descriptive verb',
-        'AUX': 'helping verb',
-        'ADV': 'adverb',
-        'DET': 'determiner',
-    }.get(upos, 'word')
+        "NOUN": "noun",
+        "PROPN": "name or proper noun",
+        "PRON": "pronoun",
+        "NUM": "number",
+        "VERB": "action verb",
+        "ADJ": "descriptive verb",
+        "AUX": "helping verb",
+        "ADV": "adverb",
+        "DET": "determiner",
+    }.get(upos, "word")
 
 
 def _component_positions(tag: str, role: str | None = None) -> tuple[str, ...]:
-    if role == 'helping verb':
-        return ('보조 동사', '보조 형용사')
-    if role == 'descriptive verb':
-        return ('adjective',)
-    if role == 'action verb':
-        return ('verb',)
-    if tag in {'px', 'vx'}:
-        return ('보조 동사', '보조 형용사')
-    if tag in {'pvg', 'vv', 'xsv'}:
-        return ('verb',)
-    if tag in {'paa', 'va', 'xsa', 'xsm'}:
-        return ('adjective',)
-    if tag.startswith('n'):
-        return ('noun',)
-    if tag in {'mag', 'maj', 'mad'}:
-        return ('adverb',)
-    if tag.startswith('mm'):
-        return ('determiner',)
+    if role == "helping verb":
+        return ("보조 동사", "보조 형용사")
+    if role == "descriptive verb":
+        return ("adjective",)
+    if role == "action verb":
+        return ("verb",)
+    if tag in {"px", "vx"}:
+        return ("보조 동사", "보조 형용사")
+    if tag in {"pvg", "vv", "xsv"}:
+        return ("verb",)
+    if tag in {"paa", "va", "xsa", "xsm"}:
+        return ("adjective",)
+    if tag.startswith("n"):
+        return ("noun",)
+    if tag in {"mag", "maj", "mad"}:
+        return ("adverb",)
+    if tag.startswith("mm"):
+        return ("determiner",)
     return ()
 
 
@@ -566,38 +569,32 @@ def _expected_components(
         if role is None:
             index += 1
             continue
-        if token.upos == 'ADJ' and role == 'action verb':
-            role = 'descriptive verb'
-        elif token.upos == 'AUX' and role in {'action verb', 'descriptive verb'}:
-            role = 'helping verb'
+        if token.upos == "ADJ" and role == "action verb":
+            role = "descriptive verb"
+        elif token.upos == "AUX" and role in {"action verb", "descriptive verb"}:
+            role = "helping verb"
         surface = form
         lemma = form
         component_tag = tag
-        if tag.startswith('n') and index + 1 < min(len(forms), len(tags)):
+        if tag.startswith("n") and index + 1 < min(len(forms), len(tags)):
             following_tag = tags[index + 1]
-            if following_tag in {'xsv', 'xsa', 'xsm'}:
+            if following_tag in {"xsv", "xsa", "xsm"}:
                 surface += _normalized(forms[index + 1])
-                lemma = surface + '다'
+                lemma = surface + "다"
                 component_tag = following_tag
                 role = _component_role(component_tag) or role
                 index += 1
-            elif following_tag == 'xsn':
-                suffix_closes_noun = (
-                    index + 2 >= min(len(forms), len(tags))
-                    or (
-                        tags[index + 2].startswith('j')
-                        and tags[index + 2] != 'jp'
-                    )
+            elif following_tag == "xsn":
+                suffix_closes_noun = index + 2 >= min(len(forms), len(tags)) or (
+                    tags[index + 2].startswith("j") and tags[index + 2] != "jp"
                 )
-                if forms[index + 1] != '들' and suffix_closes_noun:
+                if forms[index + 1] != "들" and suffix_closes_noun:
                     surface += _normalized(forms[index + 1])
                     lemma = surface
                     index += 1
-        elif tag in {'pvg', 'paa', 'px', 'vv', 'va', 'vx', 'xsv', 'xsa'}:
-            lemma = form if form.endswith('다') else form + '다'
-        entries = _ordered_oracle_entries(
-            oracle, lemma, _component_positions(component_tag, role)
-        )
+        elif tag in {"pvg", "paa", "px", "vv", "va", "vx", "xsv", "xsa"}:
+            lemma = form if form.endswith("다") else form + "다"
+        entries = _ordered_oracle_entries(oracle, lemma, _component_positions(component_tag, role))
         components.append(OracleComponent(surface, lemma, role, entries))
         index += 1
     return tuple(components)
@@ -662,17 +659,22 @@ def _expected_lemma(token: UdToken) -> str | None:
         return None
     for index, tag in enumerate(tags):
         if (
-            tag.startswith('n')
+            tag.startswith("n")
             and index + 1 < min(len(forms), len(tags))
-            and tags[index + 1] == 'xsm'
+            and tags[index + 1] == "xsm"
         ):
-            return forms[index] + forms[index + 1] + '다'
+            return forms[index] + forms[index + 1] + "다"
     verb_roots = {"pvg", "paa", "px", "vv", "va", "vx", "xsv", "xsa"}
     for index, tag in enumerate(tags):
-        if tag.startswith("n") and index + 1 < min(len(forms), len(tags)) and tags[index + 1] in {
-            "xsv",
-            "xsa",
-        }:
+        if (
+            tag.startswith("n")
+            and index + 1 < min(len(forms), len(tags))
+            and tags[index + 1]
+            in {
+                "xsv",
+                "xsa",
+            }
+        ):
             return forms[index] + forms[index + 1] + "다"
         if tag in verb_roots:
             return forms[index] if forms[index].endswith("다") else forms[index] + "다"
@@ -688,7 +690,7 @@ def _expected_labels(token: UdToken) -> frozenset[str]:
     forms, tags = _morph_parts(token)
     labels: set[str] = set()
     for form, tag in zip(forms, tags, strict=False):
-        if tag == 'jp':
+        if tag == "jp":
             continue
         if tag.startswith("j"):
             labels.add("particle")
@@ -760,32 +762,32 @@ def _candidate_pool(
             if not lemma:
                 continue
             lemma = _normalized(lemma)
-            dictionary_entries = _oracle_lookup(
-                oracle, lemma, _expected_dictionary_pos(token)
-            )
+            dictionary_entries = _oracle_lookup(oracle, lemma, _expected_dictionary_pos(token))
             if not dictionary_entries:
                 continue
             labels = _expected_labels(token) if morphology else frozenset()
             components = _expected_components(token, oracle)
             if (
-                'particle' in labels
+                "particle" in labels
                 and len(components) == 1
                 and components[0].learner_role
                 in {
-                    'noun',
-                    'name or proper noun',
-                    'pronoun',
-                    'number',
-                    'dependent noun',
+                    "noun",
+                    "name or proper noun",
+                    "pronoun",
+                    "number",
+                    "dependent noun",
                 }
                 and components[0].surface == surface
             ):
-                labels -= {'particle'}
+                labels -= {"particle"}
             tags = _morph_parts(token)[1]
             if "particle" in labels:
                 target_class = "particle"
-            elif morphology and token.upos in {"VERB", "ADJ", "AUX"} and any(
-                tag.startswith("e") for tag in tags
+            elif (
+                morphology
+                and token.upos in {"VERB", "ADJ", "AUX"}
+                and any(tag.startswith("e") for tag in tags)
             ):
                 target_class = "conjugated"
             elif not labels and surface == lemma:
@@ -797,11 +799,7 @@ def _candidate_pool(
                     OracleComponent(
                         surface,
                         lemma,
-                        (
-                            target_class
-                            if morphology
-                            else _upos_component_role(token.upos)
-                        ),
+                        (target_class if morphology else _upos_component_role(token.upos)),
                         dictionary_entries,
                     ),
                 )
@@ -809,9 +807,9 @@ def _candidate_pool(
             if components[0].entries:
                 dictionary_entries = components[0].entries
             if len(components) >= 2:
-                language_class = 'multi-lexical'
-            elif any(component.learner_role == 'helping verb' for component in components):
-                language_class = 'auxiliary'
+                language_class = "multi-lexical"
+            elif any(component.learner_role == "helping verb" for component in components):
+                language_class = "auxiliary"
             else:
                 language_class = None
             sentence_candidates.append(
@@ -885,15 +883,13 @@ def _select_language_candidates(
     if count == 0:
         return ()
     if count % 2:
-        raise CorpusError('focused language count must be even')
+        raise CorpusError("focused language count must be even")
     per_class = count // 2
     selected: list[PlainCandidate] = []
     selected_identities = set(used_identities)
-    for offset, language_class in enumerate(('multi-lexical', 'auxiliary')):
+    for offset, language_class in enumerate(("multi-lexical", "auxiliary")):
         available = (
-            candidate
-            for candidate in candidates
-            if candidate.language_class == language_class
+            candidate for candidate in candidates if candidate.language_class == language_class
         )
         class_count = 0
         for candidate in _stable(available, seed + offset):
@@ -906,7 +902,7 @@ def _select_language_candidates(
             if class_count == per_class:
                 break
         if class_count != per_class:
-            raise CorpusError(f'not enough {language_class} focused language targets')
+            raise CorpusError(f"not enough {language_class} focused language targets")
     return tuple(_stable(selected, seed + 97))
 
 
@@ -946,8 +942,7 @@ def _render_spec(
     theme = "light" if (block // 2 + size_index) % 2 == 0 else "dark"
     layout = "single-line" if (block // 4 + size_index) % 2 == 0 else "multi-line"
     punctuation_class = PUNCTUATION_CLASSES[
-        (index % len(REQUIRED_SIZES) + index // len(REQUIRED_SIZES))
-        % len(PUNCTUATION_CLASSES)
+        (index % len(REQUIRED_SIZES) + index // len(REQUIRED_SIZES)) % len(PUNCTUATION_CLASSES)
     ]
     if font_id == "noto-sans-kr":
         font_path = acquired / "fonts/NotoSansKR-wght.ttf"
@@ -1005,11 +1000,11 @@ def _line_records(
                     max(box[3] for box in boxes),
                 ],
                 "eojeols": eojeols,
-                'regions': [
+                "regions": [
                     {
-                        'raw_box': [float(part) for part in item['box']],
-                        'core_box': [float(part) for part in item['core_box']],
-                        'contains_hangul': _contains_hangul(str(item['core'])),
+                        "raw_box": [float(part) for part in item["box"]],
+                        "core_box": [float(part) for part in item["core_box"]],
+                        "contains_hangul": _contains_hangul(str(item["core"])),
                     }
                     for item in words
                 ],
@@ -1018,11 +1013,57 @@ def _line_records(
     return lines, target_box
 
 
+def _position_visible_values(
+    values: list[dict[str, object]], target_index: int
+) -> tuple[list[dict[str, object]], float]:
+    """Move an off-screen target into the image and omit clipped words."""
+    target = next((value for value in values if int(value["index"]) == target_index), None)
+    if target is None:
+        raise CorpusError("renderer did not return the selected target")
+    target_raw_box = [float(item) for item in target["box"]]
+    target_height = target_raw_box[3] - target_raw_box[1]
+    if target_height <= 0.0 or target_height > TARGET_SAFE_BOTTOM - TARGET_SAFE_TOP:
+        raise CorpusError("selected target cannot fit inside the render viewport")
+    offset = 0.0
+    if target_raw_box[1] < TARGET_SAFE_TOP:
+        offset = TARGET_SAFE_TOP - target_raw_box[1]
+    elif target_raw_box[3] > TARGET_SAFE_BOTTOM:
+        offset = TARGET_SAFE_BOTTOM - target_raw_box[3]
+
+    positioned: list[dict[str, object]] = []
+    for value in values:
+        raw_box = [float(item) for item in value["box"]]
+        core_box = [float(item) for item in value["core_box"]]
+        raw_box[1] += offset
+        raw_box[3] += offset
+        core_box[1] += offset
+        core_box[3] += offset
+        if raw_box[1] < VIEWPORT_TOP or raw_box[3] > VIEWPORT_BOTTOM:
+            continue
+        positioned.append({**value, "box": raw_box, "core_box": core_box})
+
+    positioned_target = next(
+        (value for value in positioned if int(value["index"]) == target_index), None
+    )
+    if positioned_target is None:
+        raise CorpusError("renderer could not retain the selected target in the viewport")
+    target_box = [float(item) for item in positioned_target["core_box"]]
+    if not (
+        0.0 <= target_box[0] < target_box[2] <= IMAGE_WIDTH
+        and 0.0 <= target_box[1] < target_box[3] <= IMAGE_HEIGHT
+    ):
+        raise CorpusError("selected target lies outside the render viewport")
+    return positioned, offset
+
+
 class DesktopRenderer:
     def __init__(self) -> None:
         from PyQt6.QtCore import PYQT_VERSION_STR, QT_VERSION_STR
 
-        self.version = f"PyQt6-{PYQT_VERSION_STR}-Qt-{QT_VERSION_STR}-QPainter"
+        self.version = (
+            f'PyQt6-{PYQT_VERSION_STR}-Qt-{QT_VERSION_STR}-QPainter-'
+            f'{RENDER_POLICY_VERSION}'
+        )
         self._families: dict[Path, str] = {}
         self._app: Any | None = None
 
@@ -1053,18 +1094,6 @@ class DesktopRenderer:
             if spec.theme == "light"
             else ("#202124", "#f1f3f4", "#5f6368")
         )
-        image = QImage(1280, 720, QImage.Format.Format_RGB32)
-        image.fill(QColor(background))
-        painter = QPainter(image)
-        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        painter.setPen(QColor(border))
-        painter.drawRoundedRect(QRectF(70, 60, 1140, 600), 16, 16)
-        painter.setPen(QColor(foreground))
-        chrome_font = QFont('Segoe UI')
-        chrome_font.setPixelSize(14)
-        painter.setFont(chrome_font)
-        painter.drawText(QPointF(90, 100), 'Settings')
-        painter.setFont(font)
         left = 120.0
         top = 150.0
         max_width = 1040.0 if spec.layout == "single-line" else 650.0
@@ -1078,7 +1107,6 @@ class DesktopRenderer:
             if x > left and x + width > left + max_width:
                 x = left
                 y += line_height
-            painter.drawText(QPointF(x, y + metrics.ascent()), raw_word)
             core, start, end = _trim_word(raw_word)
             core_left = x + metrics.horizontalAdvance(raw_word[:start])
             core_right = core_left + metrics.horizontalAdvance(raw_word[start:end])
@@ -1092,6 +1120,28 @@ class DesktopRenderer:
                 }
             )
             x += width + space
+        values, _ = _position_visible_values(values, value.target_index)
+        image = QImage(round(IMAGE_WIDTH), round(IMAGE_HEIGHT), QImage.Format.Format_RGB32)
+        image.fill(QColor(background))
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setPen(QColor(border))
+        painter.drawRoundedRect(QRectF(70, CARD_TOP, 1140, 600), 16, 16)
+        painter.setPen(QColor(foreground))
+        chrome_font = QFont("Segoe UI")
+        chrome_font.setPixelSize(14)
+        painter.setFont(chrome_font)
+        painter.drawText(QPointF(90, 100), "Settings")
+        painter.setFont(font)
+        painter.save()
+        painter.setClipRect(QRectF(0, VIEWPORT_TOP, IMAGE_WIDTH, VIEWPORT_BOTTOM))
+        for rendered_value in values:
+            box = rendered_value["box"]
+            painter.drawText(
+                QPointF(float(box[0]), float(box[1]) + metrics.ascent()),
+                str(rendered_value["raw"]),
+            )
+        painter.restore()
         painter.end()
         if not image.save(str(destination), "PNG"):
             raise CorpusError("Qt could not save a rendered plain-text sample")
@@ -1111,15 +1161,14 @@ class BrowserRenderer:
         self._playwright = sync_playwright().start()
         try:
             self._browser = self._playwright.chromium.launch(headless=True)
-            self._context = self._browser.new_context(
-                viewport={"width": 1280, "height": 720}
-            )
+            self._context = self._browser.new_context(viewport={"width": 1280, "height": 720})
             self._page = self._context.new_page()
         except Exception as error:
             self.close()
             raise CorpusError("pinned Playwright Chromium is not installed") from error
         self.version = (
-            f"Playwright-{package_version('playwright')}-Chromium-{self._browser.version}"
+            f'Playwright-{package_version(PLAYWRIGHT_PACKAGE)}-Chromium-'
+            f'{self._browser.version}-{RENDER_POLICY_VERSION}'
         )
 
     def close(self) -> None:
@@ -1149,9 +1198,11 @@ class BrowserRenderer:
         for index, raw_word in enumerate(value.words):
             core, start, end = _trim_word(raw_word)
             spans.append(
-                f'<span class="word" data-index="{index}">' + html.escape(raw_word[:start])
+                f'<span class="word" data-index="{index}">'
+                + html.escape(raw_word[:start])
                 + f'<span class="core">{html.escape(core)}</span>'
-                + html.escape(raw_word[end:]) + "</span>"
+                + html.escape(raw_word[end:])
+                + "</span>"
             )
         background, foreground, border = (
             ("#ffffff", "#202124", "#c7cbd1")
@@ -1170,7 +1221,7 @@ height:600px; padding:90px 50px; border:1px solid {border}; border-radius:16px; 
 font-weight:{spec.weight}; line-height:1.45; }}
 .word {{ display:inline-block; white-space:nowrap; }}
 </style><div id="chrome">Settings</div>
-<div id="card"><div id="text">{' '.join(spans)}</div></div>"""
+<div id="card"><div id="text">{" ".join(spans)}</div></div>"""
         html_path = Path(self._temporary.name) / "fixture.html"
         html_path.write_text(document, encoding="utf-8")
         page.goto(html_path.as_uri())
@@ -1184,6 +1235,31 @@ font-weight:{spec.weight}; line-height:1.45; }}
                   core:core.textContent, box:[box.left,box.top,box.right,box.bottom],
                   core_box:[coreBox.left,coreBox.top,coreBox.right,coreBox.bottom]};
             })"""
+        )
+        _, offset = _position_visible_values(values, value.target_index)
+        if offset:
+            page.locator("#text").evaluate(
+                "(item, delta) => item.style.transform = `translateY(${delta}px)`",
+                offset,
+            )
+            values = page.locator(".word").evaluate_all(
+                """items => items.map(item => {
+                    const box = item.getBoundingClientRect();
+                    const core = item.querySelector(`.core`);
+                    const coreBox = core.getBoundingClientRect();
+                    return {index:Number(item.dataset.index), raw:item.textContent,
+                      core:core.textContent, box:[box.left,box.top,box.right,box.bottom],
+                      core_box:[coreBox.left,coreBox.top,coreBox.right,coreBox.bottom]};
+                })"""
+            )
+        values, _ = _position_visible_values(values, value.target_index)
+        visible_indices = [int(item["index"]) for item in values]
+        page.locator(".word").evaluate_all(
+            """(items, visible) => items.forEach(item => {
+                item.style.visibility = visible.includes(Number(item.dataset.index))
+                  ? `visible` : `hidden`;
+            })""",
+            visible_indices,
         )
         page.screenshot(path=str(destination))
         return _line_records(values, value.target_index)
@@ -1205,10 +1281,10 @@ def _oracle_json(entries: tuple[OracleEntry, ...]) -> list[dict[str, object]]:
 def _component_json(components: tuple[OracleComponent, ...]) -> list[dict[str, object]]:
     return [
         {
-            'surface': component.surface,
-            'lemma': component.lemma,
-            'learner_role': component.learner_role,
-            'expected_dictionary_entries': _oracle_json(component.entries),
+            "surface": component.surface,
+            "lemma": component.lemma,
+            "learner_role": component.learner_role,
+            "expected_dictionary_entries": _oracle_json(component.entries),
         }
         for component in components
     ]
@@ -1322,16 +1398,11 @@ def build_plain(
         _parse_ud(acquired / artifacts[f"ud-korean-gsd-{split}"].filename),
         _parse_ud(acquired / artifacts[f"ud-korean-gsd-{other_split}"].filename),
     )
-    candidates = _candidate_pool(
-        kaist, "ud-korean-kaist-2.18", split, krdict, morphology=True
-    )
-    candidates.extend(
-        _candidate_pool(gsd, "ud-korean-gsd-2.18", split, krdict, morphology=False)
-    )
+    candidates = _candidate_pool(kaist, "ud-korean-kaist-2.18", split, krdict, morphology=True)
+    candidates.extend(_candidate_pool(gsd, "ud-korean-gsd-2.18", split, krdict, morphology=False))
     selected = _select_candidates(candidates, count, seed)
     used_sentences = {
-        (item.source_id, item.source_sample_id.rsplit(':', 1)[0])
-        for item in selected
+        (item.source_id, item.source_sample_id.rsplit(":", 1)[0]) for item in selected
     }
     stress_candidates = (
         item
@@ -1340,8 +1411,7 @@ def build_plain(
     )
     stress_selected = _select_candidates(stress_candidates, stress_count, seed + 1_009)
     used_sentences.update(
-        (item.source_id, item.source_sample_id.rsplit(':', 1)[0])
-        for item in stress_selected
+        (item.source_id, item.source_sample_id.rsplit(":", 1)[0]) for item in stress_selected
     )
     used_identities = {
         (item.source_id, item.source_sample_id) for item in (*selected, *stress_selected)
@@ -1352,40 +1422,40 @@ def build_plain(
     _write_json(corpus / "sources.json", _sources_manifest(acquired, artifacts, acquisition))
     _copy_evidence(acquired, corpus, artifacts)
 
-    language_root = corpus / 'language'
+    language_root = corpus / "language"
     language_root.mkdir()
     for index, candidate in enumerate(language_selected, 1):
-        sentence = ' '.join(candidate.words)
+        sentence = " ".join(candidate.words)
         start = sentence.find(candidate.surface)
         if start < 0 or sentence.find(candidate.surface, start + 1) >= 0:
-            raise CorpusError('focused language target is not unique in its sentence')
+            raise CorpusError("focused language target is not unique in its sentence")
         _write_json(
-            language_root / f'{index:04d}.json',
+            language_root / f"{index:04d}.json",
             {
-                'schema_version': 4,
-                'sample_id': f'{profile}-language-{index:04d}',
-                'sentence': sentence,
-                'sentence_span': [start, start + len(candidate.surface)],
-                'target': {
-                    'text': candidate.surface,
-                    'box': [0.0, 0.0, 1.0, 1.0],
-                    'pointer': [0.5, 0.5],
-                    'sentence': sentence,
-                    'sentence_span': [start, start + len(candidate.surface)],
-                    'expected_lemma': candidate.lemma,
-                    'expected_labels': sorted(candidate.labels),
-                    'expected_dictionary_entries': _oracle_json(candidate.entries),
-                    'expected_components': _component_json(candidate.components),
-                    'expected_spacing': candidate.expected_spacing,
-                    'target_class': candidate.target_class,
-                    'language_class': candidate.language_class,
+                "schema_version": 4,
+                "sample_id": f"{profile}-language-{index:04d}",
+                "sentence": sentence,
+                "sentence_span": [start, start + len(candidate.surface)],
+                "target": {
+                    "text": candidate.surface,
+                    "box": [0.0, 0.0, 1.0, 1.0],
+                    "pointer": [0.5, 0.5],
+                    "sentence": sentence,
+                    "sentence_span": [start, start + len(candidate.surface)],
+                    "expected_lemma": candidate.lemma,
+                    "expected_labels": sorted(candidate.labels),
+                    "expected_dictionary_entries": _oracle_json(candidate.entries),
+                    "expected_components": _component_json(candidate.components),
+                    "expected_spacing": candidate.expected_spacing,
+                    "target_class": candidate.target_class,
+                    "language_class": candidate.language_class,
                 },
-                'provenance': {
-                    'source_id': candidate.source_id,
-                    'source_sample_id': candidate.source_sample_id,
-                    'source_split': candidate.source_split,
-                    'oracle': PLAIN_ORACLE,
-                    'supporting_source_ids': ['krdict-english-json'],
+                "provenance": {
+                    "source_id": candidate.source_id,
+                    "source_sample_id": candidate.source_sample_id,
+                    "source_split": candidate.source_split,
+                    "oracle": PLAIN_ORACLE,
+                    "supporting_source_ids": ["krdict-english-json"],
                 },
             },
         )
@@ -1476,14 +1546,12 @@ def build_plain(
                             "expected_lemma": candidate.lemma,
                             "expected_labels": sorted(candidate.labels),
                             "expected_dictionary_entries": _oracle_json(candidate.entries),
-                            'expected_components': _component_json(candidate.components),
-                            'expected_spacing': candidate.expected_spacing,
+                            "expected_components": _component_json(candidate.components),
+                            "expected_spacing": candidate.expected_spacing,
                             "target_class": candidate.target_class,
-                            'language_class': candidate.language_class,
+                            "language_class": candidate.language_class,
                         },
-                        'negative_probes': _negative_probes(
-                            lines, target_line, target_box
-                        ),
+                        "negative_probes": _negative_probes(lines, target_line, target_box),
                         "render": {
                             "renderer": spec.renderer,
                             "renderer_version": renderer_versions[spec.renderer],
@@ -1519,17 +1587,15 @@ def build_plain(
         "profile": profile,
         "plain": count,
         "plain_stress": stress_count,
-        'language': language_count,
+        "language": language_count,
         "quick": len(quick),
-        'language_classes': {
-            language_class: sum(
-                item.language_class == language_class for item in language_selected
-            )
-            for language_class in ('multi-lexical', 'auxiliary')
+        "language_classes": {
+            language_class: sum(item.language_class == language_class for item in language_selected)
+            for language_class in ("multi-lexical", "auxiliary")
         },
-        'main_language_coverage': {
+        "main_language_coverage": {
             language_class: sum(item.language_class == language_class for item in selected)
-            for language_class in ('multi-lexical', 'auxiliary')
+            for language_class in ("multi-lexical", "auxiliary")
         },
         "target_classes": {
             target_class: sum(item.target_class == target_class for item in selected[:count])
@@ -1552,16 +1618,16 @@ def _negative_probes(
     target_box: list[float],
 ) -> list[dict[str, object]]:
     probes: list[dict[str, object]] = [
-        {'kind': 'english', 'pointer': [110.0, 92.0]},
-        {'kind': 'blank', 'pointer': [1_100.0, 100.0]},
+        {"kind": "english", "pointer": [110.0, 92.0]},
+        {"kind": "blank", "pointer": [1_100.0, 100.0]},
     ]
-    regions = target_line.get('regions')
+    regions = target_line.get("regions")
     if isinstance(regions, list):
         raw_boxes = sorted(
             (
-                [float(part) for part in region['raw_box']]
+                [float(part) for part in region["raw_box"]]
                 for region in regions
-                if isinstance(region, dict) and isinstance(region.get('raw_box'), list)
+                if isinstance(region, dict) and isinstance(region.get("raw_box"), list)
             ),
             key=lambda box: box[0],
         )
@@ -1569,16 +1635,16 @@ def _negative_probes(
             if right[0] - left[2] >= 3:
                 probes.append(
                     {
-                        'kind': 'whitespace',
-                        'pointer': [(left[2] + right[0]) / 2, (left[1] + left[3]) / 2],
+                        "kind": "whitespace",
+                        "pointer": [(left[2] + right[0]) / 2, (left[1] + left[3]) / 2],
                     }
                 )
                 break
         for region in regions:
             if not isinstance(region, dict):
                 continue
-            raw = region.get('raw_box')
-            core = region.get('core_box')
+            raw = region.get("raw_box")
+            core = region.get("core_box")
             if not isinstance(raw, list) or not isinstance(core, list):
                 continue
             raw_box = [float(part) for part in raw]
@@ -1591,15 +1657,13 @@ def _negative_probes(
                 x = (core_box[2] + raw_box[2]) / 2
             else:
                 break
-            probes.append(
-                {'kind': 'punctuation', 'pointer': [x, (raw_box[1] + raw_box[3]) / 2]}
-            )
+            probes.append({"kind": "punctuation", "pointer": [x, (raw_box[1] + raw_box[3]) / 2]})
             break
     all_boxes = [
-        [float(part) for part in eojeol['box']]
+        [float(part) for part in eojeol["box"]]
         for line in lines
-        for eojeol in line.get('eojeols', [])  # type: ignore[union-attr]
-        if isinstance(eojeol, dict) and isinstance(eojeol.get('box'), list)
+        for eojeol in line.get("eojeols", [])  # type: ignore[union-attr]
+        if isinstance(eojeol, dict) and isinstance(eojeol.get("box"), list)
     ]
     height = target_box[3] - target_box[1]
     near = [
@@ -1608,5 +1672,5 @@ def _negative_probes(
     ]
     if any(_box_contains(box, near) for box in all_boxes):
         near[1] = max(5.0, target_box[1] - max(4.0, height * 0.25))
-    probes.append({'kind': 'near-miss', 'pointer': near})
+    probes.append({"kind": "near-miss", "pointer": near})
     return probes

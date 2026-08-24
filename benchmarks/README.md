@@ -48,6 +48,11 @@ datasets, fonts, licenses, and KRDict files remain in the external destination.
 
 Build development and release corpora into empty, separate directories. Browser and Qt
 renderers supply exact geometry; neither production OCR nor production Kiwi is consulted.
+Both renderers deterministically reposition an otherwise off-screen selected target into the
+captured viewport, remove clipped words from pixels and annotations together, and fail the build if
+the complete target still cannot fit inside the 1280 by 720 image. A renderer-policy revision
+is recorded in `renderer.json`, so this behavior change requires a new corpus directory and lock;
+never rebuild over an existing locked corpus.
 
 ```powershell
 python -m benchmarks.corpus_builder build-plain D:\bidan-eval\acquired `

@@ -51,10 +51,29 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.9\dev`; the untouched v4.2 release corpus remains under
+`F:\bidan-lens-eval-ud218-v4.11\dev`; the untouched v4.2 release corpus remains under
 `F:\bidan-lens-eval-ud218-v4.2\release` and has not been evaluated. Earlier roots remain
-preserved. The v4.9 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
-quick cases.
+preserved. The v4.11 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
+quick cases, is hash-locked, and passes corpus validation. It uses the current corpus builder and
+the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
+but rejected because it changed more already-visible geometry than the viewport defect required.
+
+The accepted v4.11 200-case quick tier records 98.83% whole-eojeol OCR, 99.00% target
+selection, 91.00% functional context, 72.50% exact sentence transcription, 88.00% component
+accuracy, 90.50% exact KRDict fidelity, and 80.50% fully correct first popups, with 219.73 ms
+median / 332.21 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
+promotions remain zero. Its remaining failures are 21 analysis cases (11 primary lemmas and ten
+component roles), 16 context cases, and two target cases. Aggregate negative activation is
+0.21%; blank, English, punctuation, and whitespace probes have zero activations, but two of 200
+near-miss probes activate (1.00%), so the strict per-category gate fails.
+
+The v4.11 rebuild also incorporates accumulated corpus-oracle and candidate-selection fixes made
+after v4.9 was rendered. Consequently, a numeric sample ID can refer to a different independent
+source record across those versions. Existing v4.9 categorical review decisions remain valid
+historical evidence but must not be transferred to v4.11 by ID without a fresh audit. The v4.11
+held-out language tier has not yet been evaluated because the complete run remains deferred.
+
+### Historical v4.9 reviewed evidence
 
 The 400-case v4.9 language tier records 90.50% fully correct first popups, 93.00% auxiliary
 correctness, 88.00% multi-lexical correctness, and 100% independent direct KRDict conformance
@@ -135,6 +154,12 @@ A separate rule splits only after terminal `:`, `?`, or `!` punctuation when Han
 both sides. These additions recovered four more targets without a context or negative-pointer
 regression. Target geometry also exposed two remaining samples whose expected targets are below
 the 720 px captured viewport; those are corpus-construction defects, not runtime OCR failures.
+The corpus renderers now correct that construction defect by shifting only an otherwise
+off-screen target into a 10 px safe band within the captured viewport. Words clipped by the
+viewport are omitted from both image and expected geometry, the complete target is checked
+against the 1280 by 720 image, and renderer provenance carries a `viewport-v3` policy suffix.
+Long target-last text is covered in both Qt and Chromium. This correction is exercised by the
+locked v4.11 corpus above; the locked v4.9 corpus and its historical measurements are unchanged.
 
 The first-popup reviewer has 48 stable-ID decisions and no persisted corpus text. Against
 v4.9, 12 cases remain active and 36 reviewed IDs are resolved. The complete decision history is
@@ -168,10 +193,11 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The multi-lexical, functional-context, and per-category negative-activation gates now pass, but
-rendered popup and required-stratum gates still block release and foreground evidence.
-The complete 2,000-sample v4.9 render evaluation remains deliberately deferred until the quick
-language/popup path materially improves. Thresholds are not frozen, and neither the untouched
+The historical v4.9 multi-lexical, functional-context, and per-category negative-activation
+gates passed, but the current v4.11 quick popup and near-miss gates block release evidence.
+The complete 2,000-sample render evaluation remains deliberately deferred until the corrected
+v4.11 quick language/popup path materially improves. Thresholds are
+not frozen, and neither the untouched
 release split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 

@@ -37,9 +37,34 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
-## Plain-v1 schema-v4.9 development follow-up
+## Plain-v1 schema-v4.11 development follow-up
 
 The current development-only corpus is locked under
+`F:\bidan-lens-eval-ud218-v4.11\dev`. It contains 2,000 main, 250 stress, 400 held-out
+language, and 200 quick cases and records the `viewport-v3` policy for both renderers. The policy
+shifts only targets outside the 1280 by 720 image into a 10 px safe band and removes clipped words
+from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
+preserved as rejected evidence because its correction was broader than the viewport defect.
+
+The v4.11 quick tier records 98.83% whole-eojeol OCR, 99.00% target selection, 91.00%
+functional context, 72.50% exact sentence transcription, 88.00% component accuracy, 90.50%
+exact KRDict fidelity, 80.50% fully correct first popups, 95.50% alternative recovery, and zero
+false promotions. Automated latency is 219.73 ms median / 332.21 ms p95. There are 21 analysis,
+16 context, and two target failures. Two near-miss probes activate, for 1.00% in that category;
+all other negative categories are zero.
+
+The v4.11 lock SHA-256 is
+`b9cd0e46fcad9e3c3692c5fa2eb9de31cd693e7b9c4e8022e13476408d9c9da9`.
+The aggregate quick report and privacy-safe diagnostic SHA-256 values are
+`830637a9489b7e585e2ababef9edf711759fa22f533ecf2051cc47d3cea982a6` and
+`f5d94680450559bb1626954cdfa32c4c7e6be50344fe3b55c02e33d3eaded68a`.
+The complete run remains deferred, so the v4.11 held-out language tier and required strata have
+not been evaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to
+v4.11 by numeric ID without a fresh review audit.
+
+## Historical plain-v1 schema-v4.9 development follow-up
+
+The historical development-only corpus is locked under
 `F:\bidan-lens-eval-ud218-v4.9\dev`. It contains 2,000 main, 250 nonblocking stress,
 400 held-out language, and 200 locked quick cases. Its language tier is 90.50% overall,
 93.00% auxiliary, and 88.00% multi-lexical, with 100% direct KRDict conformance across
@@ -130,7 +155,11 @@ directly attached one-syllable particle remains intact. Terminal `:`, `?`, or `!
 can recover a following Hangul word only when both sides contain Hangul. These rules recovered
 four more target cases without changing the context-failure set or negative-pointer results.
 Two of the eight remaining target failures have expected boxes below the 720 px captured
-viewport and are corpus-construction defects requiring a future versioned corpus rebuild.
+viewport and are corpus-construction defects. The builder now uses the same target-visibility
+policy in Qt and Chromium: it shifts an off-screen target into the captured card, removes clipped
+words from both rendering and expected geometry, fails closed if the target cannot fit, and
+records the later viewport policy in renderer provenance. The locked v4.9 files and accepted
+measurements remain unchanged; the correction is validated in v4.11 above.
 
 The v4.9 development lock SHA-256 is
 `f23f2388e580a889bd0ef363052ec72ab51c76ad57eacc68d3eca094242be5ab`.
@@ -140,9 +169,8 @@ The context-review, first-popup-review, and accepted quick diagnostic SHA-256 va
 `c6ffcf80053e7ca4ddb8330c8442e9d35fd7f8b57c5eb6c07a5eabc1c18a3f31`.
 The accepted aggregate quick report SHA-256 is
 `219814acb5946e7c2061135c4c2f52f862589bd696387d0c236471be9b31554c`.
-The complete 2,000-sample v4.9 render run is deferred because quick popup remains below its
-floor and two off-screen development samples require a versioned corpus correction. Thresholds
-are not frozen; the
+The historical v4.9 complete render run remains unperformed. Current full-run work is governed by
+the v4.11 quick blockers above. Thresholds are not frozen; the
 untouched v4.2 release split and foreground benchmark remain unevaluated.
 
 ## Superseded plain-v1 schema-v4.5 development follow-up
