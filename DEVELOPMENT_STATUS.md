@@ -38,7 +38,8 @@
   exact role-grouped KRDict entry/sense order, with 400 held-out language cases;
 - local stable-ID language, functional-context, and first-popup disagreement review workflows
   whose persisted output contains categorical decisions but no sentence, expected, recognized
-  text, definitions, or pixels;
+  text, definitions, or pixels, including fail-closed cross-lock carry-forward only for matching
+  active IDs and popup failure stages;
 - an aggregate-only `plain-v1` evaluator covering OCR, pointer selection, functional context,
   exact-transcription diagnostics, complete components, dictionary conformance, first-popup
   correctness, negative-pointer classes, corrections, latency, and render strata;
@@ -59,12 +60,12 @@ quick cases, is hash-locked, and passes corpus validation. It uses the current c
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.12 200-case quick tier records 98.83% whole-eojeol OCR, 99.00% target
-selection, 91.00% functional context, 72.50% exact sentence transcription, 88.50% component
-accuracy, 91.00% exact KRDict fidelity, and 81.00% fully correct first popups, with 208.79 ms
-median / 318.13 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
-promotions remain zero. Its remaining failures are 20 analysis cases (ten primary lemmas and ten
-component roles), 16 context cases, and two target cases. Aggregate and per-category negative
+The accepted v4.12 200-case quick tier records 98.92% whole-eojeol OCR, 99.00% target
+selection, 92.50% functional context, 73.50% exact sentence transcription, 89.00% component
+accuracy, 91.50% exact KRDict fidelity, and 83.00% fully correct first popups, with 204.29 ms
+median / 317.35 ms p95 automated latency. Alternative-candidate recovery is 96.00% and false
+promotions remain zero. Its remaining failures are 19 analysis cases (ten primary lemmas and nine
+component roles), 13 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so that strict gate now passes.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
@@ -79,19 +80,35 @@ source record across those versions. Existing v4.9 categorical review decisions 
 historical evidence but must not be transferred to v4.11 by ID without a fresh audit. The v4.11
 held-out language tier was not evaluated. The v4.12 held-out language tier also remains deferred.
 
-Fresh v4.11 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
-review covers all 21 reviewed analysis cases with eight Kiwi-analysis errors, five annotation-convention
+Fresh v4.12 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
+review retains 20 decisions: seven Kiwi-analysis errors, five annotation-convention
 differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
-context review covers all 16 reconstruction cases with seven incorrect line/sentence
-reconstructions, four missed or merged word boundaries, and five punctuation or structured-text
-handling cases. The current popup audit has 20 active cases, one resolved ID, and no missing or
-stale IDs; the context audit has no missing, resolved, or stale IDs. These decisions are scoped
-to the v4.11 corpus identity. The v4.12 quick comparison has the exact same substantive failure
-IDs and stages, but its decision reports have not yet been reissued under the new corpus lock.
-The review-supported analyzer now keeps a dictionary-defined
+context review retains 16 decisions: seven incorrect line/sentence reconstructions, four missed
+or merged word boundaries, and five punctuation or structured-text handling cases. Its current
+audit has 13 active cases and three resolved reconstruction IDs. The popup audit has 19 active
+cases and one resolved ID; both audits have no missing or stale IDs. The review-supported analyzer
+now keeps a dictionary-defined
 whole noun that already leads by score instead of replacing it with a richer but fragmented noun
 analysis. This recovered one case without changing OCR, target selection, context, alternative
 recovery, false promotions, or negative activation.
+
+The reconstruction review also supported removing a duplicate one-character eojeol when it is
+fully contained in a longer eojeol, matches one of that eojeol's characters, and has normal
+single-character pitch. This recovered two cases and improved OCR, functional context, exact
+transcription, and popup correctness without a target, alternative, promotion, or negative-probe
+regression.
+
+A second review-supported rule handles a partially overlapping one-character sliver only when
+its width is close to half the following word's character pitch and recognizing their union with
+very high confidence exactly reproduces the following word. A narrower real character is covered
+by a regression test. This recovered one further context and popup case while preserving OCR,
+target selection, alternative recovery, false promotions, and every negative-pointer category.
+
+Reported-speech connectives are now passed into learner-role construction. A following lexical
+verb is no longer relabeled as a helping verb merely because the same headword also has an
+auxiliary dictionary sense. This resolved one reviewed component-role case and improved component
+accuracy, KRDict fidelity, popup correctness, and alternative recovery without an OCR, target,
+context, promotion, or negative-probe regression.
 
 ### Historical v4.9 reviewed evidence
 

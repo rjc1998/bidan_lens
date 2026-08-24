@@ -115,7 +115,7 @@ def write_context_review(
 
 def load_context_review(
     path: Path,
-    corpus_id: str,
+    corpus_id: str | None,
 ) -> tuple[ContextReviewDecision, ...]:
     if not path.is_file():
         return ()
@@ -128,7 +128,8 @@ def load_context_review(
         or set(value)
         != {'schema_version', 'corpus_id', 'review_kind', 'decisions', 'summary'}
         or value.get('schema_version') != REVIEW_SCHEMA_VERSION
-        or value.get('corpus_id') != corpus_id
+        or not isinstance(value.get('corpus_id'), str)
+        or (corpus_id is not None and value.get('corpus_id') != corpus_id)
         or value.get('review_kind') != CONTEXT_REVIEW_KIND
         or not isinstance(value.get('decisions'), list)
     ):
@@ -150,6 +151,20 @@ def load_context_review(
     if value.get('summary') != expected_summary:
         raise CorpusError('context review contains an invalid summary')
     return tuple(decisions)
+
+
+def carry_forward_context_decisions(
+    cases: tuple[ContextReviewCase, ...],
+    prior: tuple[ContextReviewDecision, ...],
+) -> tuple[ContextReviewDecision, ...]:
+    current = {item.sample.sample_id for item in cases}
+    reviewed = {item.sample_id: item for item in prior}
+    missing = sorted(current - set(reviewed))
+    if missing:
+        raise CorpusError(
+            'context review cannot be carried forward because current cases changed'
+        )
+    return tuple(reviewed[sample_id] for sample_id in sorted(current))
 
 
 def audit_context_review(
@@ -573,6 +588,10 @@ def structural_segmentation_view(
                     ),
                     'combined_length': len(combined_text),
                     'combined_confidence': round(float(combined.confidence), 6),
+                    'equals_first': combined_text
+                    == recognized_texts[segment_index],
+                    'equals_last': combined_text
+                    == recognized_texts[segment_index + 1],
                     'equals_concatenation': combined_text
                     == recognized_texts[segment_index]
                     + recognized_texts[segment_index + 1],
@@ -596,6 +615,10 @@ def structural_segmentation_view(
                     'gap_ratio': round(float(gap / region.box.height), 4),
                     'combined_length': len(combined_text),
                     'combined_confidence': round(float(combined.confidence), 6),
+                    'equals_first': combined_text
+                    == recognized_texts[segment_index],
+                    'equals_last': combined_text
+                    == recognized_texts[segment_index + 1],
                     'equals_concatenation': combined_text
                     == recognized_texts[segment_index]
                     + recognized_texts[segment_index + 1],
@@ -778,6 +801,12 @@ def main() -> None:
         help='validate an existing decision report without prompting',
     )
     parser.add_argument(
+        '--carry-forward',
+        type=Path,
+        metavar='PRIOR_DECISIONS',
+        help='copy only matching categorical decisions from a prior corpus',
+    )
+    parser.add_argument(
         '--compact',
         action='store_true',
         help='show a compact local-only case view with --inspect',
@@ -843,6 +872,12 @@ def main() -> None:
         parser.error('--target-geometry cannot be combined with another review mode')
     if arguments.target_segmentation and not arguments.target_geometry:
         parser.error('--target-segmentation requires --target-geometry')
+    if arguments.carry_forward and (
+        arguments.inspect or arguments.audit or arguments.target_geometry
+    ):
+        parser.error('--carry-forward cannot be combined with another review mode')
+    if arguments.carry_forward and arguments.decisions.is_file():
+        parser.error('--carry-forward refuses to replace an existing decision report')
 
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
@@ -876,6 +911,12 @@ def main() -> None:
             )
         return
     cases = collect_context_review_cases(engine, samples)
+    if arguments.carry_forward:
+        prior = load_context_review(arguments.carry_forward, None)
+        decisions = carry_forward_context_decisions(cases, prior)
+        write_context_review(arguments.decisions, corpus_id, decisions)
+        print(json.dumps(audit_context_review(cases, decisions), ensure_ascii=True, indent=2))
+        return
     existing = load_context_review(arguments.decisions, corpus_id)
     audit = audit_context_review(cases, existing)
     if arguments.audit:

@@ -50,6 +50,7 @@ _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
+_REPORTED_SPEECH_CONNECTIVES = frozenset({'다고', '라고', '냐고', '자고'})
 
 
 def _base_tag(tag: str) -> str:
@@ -325,15 +326,29 @@ class KoreanAnalyzer:
                 continue
             seen.add(key)
             first_target_index = target_pairs[0][0]
-            preceding_context_tag = next(
+            preceding_context_token = next(
                 (
-                    tag
+                    token
                     for token in reversed(tokens[:first_target_index])
-                    if not (tag := _base_tag(token.tag)).startswith('S')
+                    if not _base_tag(token.tag).startswith('S')
                 ),
                 None,
             )
-            components = self._lexical_components(target_tokens, preceding_context_tag)
+            preceding_context_tag = (
+                _base_tag(preceding_context_token.tag)
+                if preceding_context_token is not None
+                else None
+            )
+            preceding_context_form = (
+                preceding_context_token.form
+                if preceding_context_token is not None
+                else None
+            )
+            components = self._lexical_components(
+                target_tokens,
+                preceding_context_tag,
+                preceding_context_form,
+            )
             if components:
                 lemma = components[0].lemma
             entries = components[0].dictionary_entries if components else ()
@@ -516,11 +531,15 @@ class KoreanAnalyzer:
         return token.form
 
     def _lexical_components(
-        self, tokens: list[_Token], preceding_tag: str | None = None
+        self,
+        tokens: list[_Token],
+        preceding_tag: str | None = None,
+        preceding_form: str | None = None,
     ) -> tuple[LexicalComponent, ...]:
         components: list[LexicalComponent] = []
         index = 0
         previous_tag = preceding_tag
+        previous_form = preceding_form
         while index < len(tokens):
             component_index = index
             token = tokens[index]
@@ -541,10 +560,12 @@ class KoreanAnalyzer:
                             )
                         )
                         previous_tag = 'XSA'
+                        previous_form = suffix.form
                         index += 2
                         continue
             if tag not in _LEXICAL_TAGS:
                 previous_tag = tag
+                previous_form = token.form
                 index += 1
                 continue
             surface = token.form
@@ -585,6 +606,7 @@ class KoreanAnalyzer:
             if (
                 lookup_tag in {'VV', 'VA'}
                 and previous_tag == 'EC'
+                and previous_form not in _REPORTED_SPEECH_CONNECTIVES
                 and self._has_auxiliary_entry(lemma)
             ):
                 lookup_tag = 'VX'
@@ -600,6 +622,7 @@ class KoreanAnalyzer:
                 LexicalComponent(surface, lemma, role, entries, explanation)
             )
             previous_tag = tag
+            previous_form = token.form
             index += 1
         return tuple(components)
 

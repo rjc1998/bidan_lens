@@ -7,6 +7,7 @@ from bidan_lens.ocr.base import DetectedRegion, RecognizedText
 from bidan_lens.ocr.paddle import (
     PaddleOcrEngine,
     PaddleRecognizer,
+    _discard_confirmed_overlapping_character_duplicates,
     _normalize,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -398,6 +399,28 @@ def test_tiny_contained_fragment_is_removed_and_spans_are_repaired() -> None:
     ]
 
 
+def test_matching_character_fragment_with_normal_pitch_is_removed() -> None:
+    line = OcrLine(
+        '학교 학 학교에서',
+        BoundingBox(0, 0, 120, 20),
+        0.9,
+        (
+            OcrEojeol('학교', BoundingBox(0, 0, 30, 20), 0.9, 0, 2),
+            OcrEojeol('학', BoundingBox(35, 0, 55, 20), 0.99, 3, 4),
+            OcrEojeol('학교에서', BoundingBox(35, 0, 115, 20), 0.99, 5, 9),
+        ),
+    )
+
+    cleaned = _remove_tiny_contained_fragments(line)
+
+    assert cleaned.text == '학교 학교에서'
+    assert [item.text for item in cleaned.eojeols] == ['학교', '학교에서']
+    assert [(item.sentence_start, item.sentence_end) for item in cleaned.eojeols] == [
+        (0, 2),
+        (3, 7),
+    ]
+
+
 def test_contained_fragment_at_width_threshold_is_preserved() -> None:
     line = OcrLine(
         "\uc544 \ud559\uad50\uc5d0\uc11c",
@@ -410,6 +433,66 @@ def test_contained_fragment_at_width_threshold_is_preserved() -> None:
     )
 
     assert _remove_tiny_contained_fragments(line) == line
+
+
+class DuplicateCharacterRecognizer:
+    def __init__(self, text: str = '학교에서') -> None:
+        self.text = text
+
+    def recognize(self, _image):
+        return RecognizedText(self.text, 0.9997)
+
+
+def test_confirmed_overlapping_character_duplicate_is_discarded() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 37, 20), 0.776),
+        ('학교에서', BoundingBox(36, 0, 91, 20), 0.986),
+    ]
+
+    recovered = _discard_confirmed_overlapping_character_duplicates(
+        words,
+        Image.new('RGB', (100, 20)),
+        BoundingBox(0, 0, 100, 20),
+        DuplicateCharacterRecognizer(),
+    )
+
+    assert recovered == [
+        ('학교에서', BoundingBox(30, 0, 91, 20), 0.986),
+    ]
+
+
+def test_overlapping_character_is_preserved_without_exact_confirmation() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 37, 20), 0.776),
+        ('학교에서', BoundingBox(36, 0, 91, 20), 0.986),
+    ]
+
+    assert (
+        _discard_confirmed_overlapping_character_duplicates(
+            words,
+            Image.new('RGB', (100, 20)),
+            BoundingBox(0, 0, 100, 20),
+            DuplicateCharacterRecognizer('학생학교에서'),
+        )
+        == words
+    )
+
+
+def test_narrow_overlapping_character_is_preserved_despite_exact_confirmation() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 36, 20), 0.782),
+        ('학교에서', BoundingBox(35, 0, 93, 20), 0.999),
+    ]
+
+    assert (
+        _discard_confirmed_overlapping_character_duplicates(
+            words,
+            Image.new('RGB', (100, 20)),
+            BoundingBox(0, 0, 100, 20),
+            DuplicateCharacterRecognizer(),
+        )
+        == words
+    )
 
 
 class TripletRecognizer:

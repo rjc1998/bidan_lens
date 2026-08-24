@@ -547,6 +547,55 @@ def _recover_overlapping_word_triplets(
     return recovered
 
 
+def _discard_confirmed_overlapping_character_duplicates(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index + 1 < len(words):
+            first, last = words[index : index + 2]
+            overlap_ratio = (first[1].right - last[1].left) / line_box.height
+            last_pitch = last[1].width / len(last[0])
+            matches_geometry = (
+                len(first[0]) == 1
+                and len(last[0]) >= 3
+                and contains_hangul(first[0])
+                and contains_hangul(last[0])
+                and 0.72 <= first[2] < 0.92
+                and last[2] >= 0.985
+                and last_pitch * 0.45 <= first[1].width <= last_pitch * 0.55
+                and 0.04 <= overlap_ratio <= 0.06
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(' ', '')
+                if combined.confidence >= 0.995 and combined_text == last[0]:
+                    recovered.append(
+                        (
+                            last[0],
+                            BoundingBox.union((first[1], last[1])),
+                            min(last[2], combined.confidence),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
 def _recover_isolated_close_word_pairs(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -770,10 +819,20 @@ def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
                 item.sentence_start == other.sentence_start
                 and item.sentence_end == other.sentence_end
             )
+            character_pitch = other.box.width / len(other.text)
+            matched_character_fragment = (
+                item.text in other.text
+                and other.box.left <= item.box.left
+                and item.box.right <= other.box.right
+                and item.box.width <= character_pitch * 1.25
+            )
             if (
                 vertical_overlap >= 0.8
                 and other.box.left <= center <= other.box.right
-                and item.box.width <= other.box.width * 0.1
+                and (
+                    item.box.width <= other.box.width * 0.1
+                    or matched_character_fragment
+                )
                 and not same_span
             ):
                 fragments.append(item)
@@ -1067,6 +1126,12 @@ class PaddleOcrEngine(OcrEngine):
             for text, box, confidence in words
             for part in _split_mandatory_auxiliary_spacing(text, box, confidence)
         ]
+        words = _discard_confirmed_overlapping_character_duplicates(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_overlapping_word_triplets(
             words,
             crop,

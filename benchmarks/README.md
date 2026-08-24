@@ -136,6 +136,10 @@ missing, resolved, or stage-changed decisions without storing corpus text.
 After structure-only review, record one decision without redisplaying corpus text with
 `--sample-id ID --record-decision CATEGORY`; the reviewer derives and persists the current
 categorical failure stage itself.
+When a new development corpus intentionally preserves the reviewed quick cases, use
+`--carry-forward PRIOR_DECISIONS` with either reviewer. It writes a new report only when every
+current stable ID is present in the prior report; the popup reviewer additionally requires an
+exact failure-stage match. It refuses to overwrite an existing report and carries no corpus text.
 
 Run the complete development corpus until its provisional gates pass and the thresholds are
 explicitly frozen. Build and lock the release corpus beforehand, but do not evaluate it until

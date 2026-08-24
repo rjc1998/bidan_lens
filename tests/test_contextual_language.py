@@ -171,6 +171,39 @@ def test_context_recovers_auxiliary_role_when_kiwi_returns_action_verb() -> None
     assert candidate.lexical_components[0].dictionary_entries[0].entry_id == 'finish'
 
 
+def test_reported_speech_verb_is_not_relabelled_as_an_auxiliary() -> None:
+    sentence = '말한다고 하다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '하다': (
+            _entry('do', '하다', 'verb', 'to do'),
+            _entry('aux', '하다', '보조 동사', 'auxiliary use'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('말하', 'VV', 0, 2),
+                    Token('다고', 'EC', 2, 2),
+                    Token('하', 'VV', 5, 1),
+                    Token('다', 'EF', 6, 1),
+                ],
+                -1.0,
+            )
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (5, 7)
+    )[0]
+
+    component = candidate.lexical_components[0]
+    assert component.learner_role == 'action verb'
+    assert component.dictionary_entries[0].entry_id == 'do'
+
+
 def test_context_reranks_kiwi_helping_alternative_after_connective() -> None:
     dictionary = RoleDictionary()
     dictionary.values = {

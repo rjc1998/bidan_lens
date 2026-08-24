@@ -46,18 +46,18 @@ shifts only targets outside the 1280 by 720 image into a 10 px safe band and rem
 from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
-The v4.12 quick tier records 98.83% whole-eojeol OCR, 99.00% target selection, 91.00%
-functional context, 72.50% exact sentence transcription, 88.50% component accuracy, 91.00%
-exact KRDict fidelity, 81.00% fully correct first popups, 95.50% alternative recovery, and zero
-false promotions. Automated latency is 208.79 ms median / 318.13 ms p95. There are 20 analysis,
-16 context, and two target failures. Aggregate and every negative category are 0.00%, including
+The v4.12 quick tier records 98.92% whole-eojeol OCR, 99.00% target selection, 92.50%
+functional context, 73.50% exact sentence transcription, 89.00% component accuracy, 91.50%
+exact KRDict fidelity, 83.00% fully correct first popups, 96.00% alternative recovery, and zero
+false promotions. Automated latency is 204.29 ms median / 317.35 ms p95. There are 19 analysis,
+13 context, and two target failures. Aggregate and every negative category are 0.00%, including
 all 200 near-miss probes, so the strict negative-activation gate passes.
 
 The v4.12 lock SHA-256 is
 `aedc17c448df9880dad52dedd149cbb6753d3aa81b23149a119527e8d8452372`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`0e5f97fe2c54e8b9cd9e47140cd223c79e6e2385ab058022ce21f2573da02128` and
-`57719436e5f7e6a00702108ac4d93e1486af88a4a36211f1591526b82ba7ff28`.
+`0e7a486601847f4f4a2bb1c5abbcbb01f76cda3a35268206b86adebb3ddeb8e2` and
+`316872eca6662057eeaf6ad2b51c199e353db23c20208915b200ad540ab79c86`.
 The complete run remains deferred, so the v4.11 held-out language tier and required strata have
 not been evaluated. The v4.12 held-out language tier and required strata likewise remain
 unevaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.11
@@ -66,22 +66,36 @@ by numeric ID without a fresh review audit.
 The v4.12 change is limited to negative-probe construction. Geometry-only review showed that the
 two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects
 the first lower, upper, right, or left adjacent point that is inside the viewport and outside
-every oracle eojeol. All substantive quick failure IDs and stages are unchanged from v4.11.
+every oracle eojeol. The remaining substantive failures preserve their v4.11 IDs and stages.
 
-The v4.11 fresh audit is complete. Its popup review classifies all 21 analysis cases as
-eight Kiwi-analysis errors, five annotation-convention differences, seven equivalent learner
-interpretations, and one genuinely ambiguous case. The v4.11 context review classifies all 16
-cases as seven incorrect line/sentence reconstructions, four missed or merged OCR word
-boundaries, and five punctuation or structured-text handling cases. Neither report persists
-sentence text, recognized text, definitions, or pixels, and both audits have no missing or stale
-IDs. The current popup audit has 20 active cases and one resolved reviewed ID; the context audit
-has all 16 cases active. The review-supported whole-noun ranking guard recovered that popup case
-without changing OCR, target selection, context, alternative recovery, false promotions, or
-negative activation. The popup-review and context-review SHA-256 values are
-`80c033bb9dd1ad6237387725c09f60beff246ea8ec0ab8db62806a4e9e5fddf3` and
-`acf5608d054e5390031e91ee163147fc5a4d640e43e7157d234dc644615e8009`.
-These reports remain v4.11 evidence; equivalent reports have not yet been reissued under the
-v4.12 corpus lock, although the stable substantive ID/stage sets are unchanged.
+The v4.12 audits are complete. Their fail-closed carry-forward workflow copies only current
+stable IDs from a prior categorical report, requires every current ID, additionally requires
+exact popup failure stages, and refuses to overwrite an existing report. The popup audit has
+20 decisions: seven Kiwi-analysis errors, five annotation-convention differences, seven
+equivalent learner interpretations, and one genuinely ambiguous case. The context report retains
+16 decisions: seven incorrect line/sentence reconstructions, four missed or merged OCR word
+boundaries, and five punctuation or structured-text cases. Its current audit has 13 active cases
+and three resolved reconstruction IDs. Neither report persists sentence text, recognized text,
+definitions, or pixels, and both audits have no missing or stale IDs.
+
+The current popup audit has 19 active cases and one resolved component-role ID. Reported-speech
+connectives are now passed into learner-role construction, preventing a following lexical verb
+from being relabeled as a helping verb solely because its headword also has an auxiliary sense.
+This improved component accuracy, KRDict fidelity, popup correctness, and alternative recovery
+without changing OCR, target selection, context, promotions, or negative probes.
+
+A review-supported runtime rule removes a duplicate one-character eojeol only when it is fully
+contained in a longer eojeol, matches one of that eojeol's characters, and has normal
+single-character pitch. It resolved two context cases without introducing a failure and accounts
+for the accepted metric changes above. The popup-review and context-review SHA-256 values are
+`97176c303e1fd53671f2ce24cd5cf939066287c7744c4cbbcde7656384abb1be` and
+`d82596f8f014bcbbb740db3b531632cfa0707da5ccff91a52c0e775ee4ae5d41`.
+
+An additional exact-confirmation rule removes a partially overlapping one-character sliver only
+when its width is close to half the following word's character pitch and a very-high-confidence
+recognition of their union exactly reproduces the following word. A narrower real character is
+preserved by a regression test. This resolved one more context case and raised popup correctness
+without changing OCR, target selection, alternative recovery, promotions, or negative probes.
 
 ## Historical plain-v1 schema-v4.9 development follow-up
 

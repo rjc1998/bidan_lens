@@ -10,6 +10,7 @@ from PIL import Image
 from benchmarks.context_review import (
     ContextReviewDecision,
     audit_context_review,
+    carry_forward_context_decisions,
     inspection_context_cases,
     load_context_review,
     structural_context_view,
@@ -50,6 +51,29 @@ def test_context_review_round_trip_contains_only_categorical_data(tmp_path: Path
             'decision': 'incorrect_line_sentence_reconstruction',
         }
     ]
+
+
+def test_context_review_carry_forward_requires_every_current_id() -> None:
+    cases = (
+        SimpleNamespace(sample=SimpleNamespace(sample_id='active')),
+    )
+    prior = (
+        ContextReviewDecision(
+            'active',
+            'incorrect_line_sentence_reconstruction',
+        ),
+        ContextReviewDecision(
+            'resolved',
+            'missed_or_merged_ocr_word_boundary',
+        ),
+    )
+
+    assert carry_forward_context_decisions(  # type: ignore[arg-type]
+        cases, prior
+    ) == (prior[0],)
+
+    with pytest.raises(CorpusError, match='current cases changed'):
+        carry_forward_context_decisions(cases, ())  # type: ignore[arg-type]
 
 
 def test_context_review_rejects_unknown_decision(tmp_path: Path) -> None:

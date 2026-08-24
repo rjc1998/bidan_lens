@@ -10,6 +10,7 @@ from benchmarks.locked_corpus import CorpusError
 from benchmarks.popup_review import (
     PopupReviewDecision,
     audit_popup_review,
+    carry_forward_popup_decisions,
     inspection_popup_cases,
     load_popup_review,
     record_popup_decision,
@@ -76,6 +77,37 @@ def test_record_popup_decision_uses_current_failure_stage() -> None:
             'corpus_oracle_defect',
         ),
     )
+
+
+def test_popup_review_carry_forward_requires_matching_stage() -> None:
+    cases = (
+        SimpleNamespace(
+            sample=SimpleNamespace(sample_id='active'),
+            failure_stage='component_role',
+        ),
+    )
+    prior = (
+        PopupReviewDecision('active', 'component_role', 'kiwi_analysis_error'),
+        PopupReviewDecision('resolved', 'primary_lemma', 'ambiguous_korean'),
+    )
+
+    assert carry_forward_popup_decisions(  # type: ignore[arg-type]
+        cases, prior
+    ) == (prior[0],)
+
+    with pytest.raises(CorpusError, match='current cases changed'):
+        carry_forward_popup_decisions(  # type: ignore[arg-type]
+            cases,
+            (
+                PopupReviewDecision(
+                    'active',
+                    'primary_lemma',
+                    'kiwi_analysis_error',
+                ),
+            ),
+        )
+
+
 def test_popup_review_rejects_unknown_decision(tmp_path: Path) -> None:
     with pytest.raises(CorpusError, match='unknown decision'):
         write_popup_review(

@@ -143,7 +143,7 @@ def write_popup_review(
 
 def load_popup_review(
     path: Path,
-    corpus_id: str,
+    corpus_id: str | None,
 ) -> tuple[PopupReviewDecision, ...]:
     if not path.is_file():
         return ()
@@ -156,7 +156,8 @@ def load_popup_review(
         or set(value)
         != {'schema_version', 'corpus_id', 'review_kind', 'decisions', 'summary'}
         or value.get('schema_version') != REVIEW_SCHEMA_VERSION
-        or value.get('corpus_id') != corpus_id
+        or not isinstance(value.get('corpus_id'), str)
+        or (corpus_id is not None and value.get('corpus_id') != corpus_id)
         or value.get('review_kind') != POPUP_REVIEW_KIND
         or not isinstance(value.get('decisions'), list)
     ):
@@ -187,6 +188,25 @@ def load_popup_review(
     if value.get('summary') != expected_summary:
         raise CorpusError('popup review contains an invalid summary')
     return tuple(decisions)
+
+
+def carry_forward_popup_decisions(
+    cases: tuple[PopupReviewCase, ...],
+    prior: tuple[PopupReviewDecision, ...],
+) -> tuple[PopupReviewDecision, ...]:
+    current = {item.sample.sample_id: item.failure_stage for item in cases}
+    reviewed = {item.sample_id: item for item in prior}
+    missing = sorted(set(current) - set(reviewed))
+    stale = sorted(
+        sample_id
+        for sample_id, stage in current.items()
+        if sample_id in reviewed and reviewed[sample_id].failure_stage != stage
+    )
+    if missing or stale:
+        raise CorpusError(
+            'popup review cannot be carried forward because current cases changed'
+        )
+    return tuple(reviewed[sample_id] for sample_id in sorted(current))
 
 
 def audit_popup_review(
@@ -483,6 +503,12 @@ def main() -> None:
         help='validate an existing decision report without prompting',
     )
     parser.add_argument(
+        '--carry-forward',
+        type=Path,
+        metavar='PRIOR_DECISIONS',
+        help='copy only exactly matching categorical decisions from a prior corpus',
+    )
+    parser.add_argument(
         '--compact',
         action='store_true',
         help='show a compact local-only case view with --inspect',
@@ -525,6 +551,12 @@ def main() -> None:
         parser.error('--sample-id and --record-decision must be used together')
     if arguments.record_decision and arguments.inspect:
         parser.error('--record-decision cannot be combined with --inspect')
+    if arguments.carry_forward and (
+        arguments.inspect or arguments.audit or arguments.record_decision
+    ):
+        parser.error('--carry-forward cannot be combined with another review mode')
+    if arguments.carry_forward and arguments.decisions.is_file():
+        parser.error('--carry-forward refuses to replace an existing decision report')
 
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
@@ -541,6 +573,12 @@ def main() -> None:
         ),
     )
     cases = collect_popup_review_cases(engine, analyzer, samples)
+    if arguments.carry_forward:
+        prior = load_popup_review(arguments.carry_forward, None)
+        decisions = carry_forward_popup_decisions(cases, prior)
+        write_popup_review(arguments.decisions, corpus_id, decisions)
+        print(json.dumps(audit_popup_review(cases, decisions), ensure_ascii=True, indent=2))
+        return
     existing = load_popup_review(arguments.decisions, corpus_id)
     audit = audit_popup_review(cases, existing)
     if arguments.record_decision:
