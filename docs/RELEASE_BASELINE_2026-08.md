@@ -56,11 +56,11 @@ already-supported particle feature. The 400-case language cross-check preserved 
 overall, 93.00% auxiliary, and the required 88.00% multi-lexical result. Dictionary-confirmed
 bound roots and adjective-forming suffixes are presented as one descriptive-verb component.
 
-The accepted 200-case v4.9 quick result is 96.35% whole-eojeol OCR, 91.00% target selection,
-84.50% functional context, 67.00% exact sentence transcription, 92.00% complete components,
-94.50% exact KRDict fidelity, and 78.50% fully correct first popup. Alternative-candidate
-recovery is 88.00%, false promotions remain zero, and automated latency is 222.04 ms median /
-334.04 ms p95. The remaining categorical failures are 18 target, 13 context, and 12 analysis;
+The accepted 200-case v4.9 quick result is 97.10% whole-eojeol OCR, 94.00% target selection,
+87.50% functional context, 69.00% exact sentence transcription, 92.00% complete components,
+94.50% exact KRDict fidelity, and 81.50% fully correct first popup. Alternative-candidate
+recovery is 91.00%, false promotions remain zero, and automated latency is 217.80 ms median /
+323.07 ms p95. The remaining categorical failures are 12 target, 13 context, and 12 analysis;
 the analysis details are four primary lemmas and eight component roles.
 
 The context review contains 39 decisions: 18 incorrect line/sentence reconstructions, six
@@ -68,8 +68,8 @@ missed or merged OCR word boundaries, and 15 punctuation or structured-ASCII cas
 audit has 13 active cases, 26 resolved IDs, and no missing decisions. The first-popup review
 contains 48 decisions and persists only stable IDs, categorical stages, decisions, and a
 categorical summary. Its v4.9 state has 12 active cases and 36 resolved reviewed IDs; after the
-newly exposed grammar-role case was classified, the decision history is 21 Kiwi-analysis errors,
-12 corpus-oracle defects, seven equivalent learner interpretations, four genuinely ambiguous
+newly exposed grammar-role case was classified, the decision history is 20 Kiwi-analysis errors,
+12 corpus-oracle defects, eight equivalent learner interpretations, four genuinely ambiguous
 cases, and four annotation-convention differences.
 The reviewed grammar-role oracle defect is resolved by removing a particle label only when a
 single noun-like component accounts for the target's complete punctuation-trimmed surface.
@@ -85,6 +85,8 @@ the displayed OCR and sentence context are not altered.
 An audit of all eight active role cases against pinned KAIST UPOS, XPOS, and dependency evidence
 corrected two review categories without changing an oracle or score. A wider wrapped-adverb
 promotion was rejected because it produced byte-identical quick diagnostics and no metric change.
+The four remaining primary-lemma cases have one annotation-convention decision and three
+equivalent-learner decisions; none supports a general runtime correction.
 
 The context reviewer's geometry-only inspection can select a single stable ID and reports
 Unicode-category counts, per-eojeol geometry, confidence, spans, detector/segment provenance, and
@@ -114,22 +116,26 @@ recognition confirmation. A narrow low-confidence 1+2 merge experiment was rejec
 produced byte-identical quick diagnostics and no metric change; global splitting remains
 unchanged.
 
-Aggregate negative activation remains 0.21%. Blank, English, near-miss, and punctuation probes
-have zero activations; whitespace remains 2/191, or 1.05%, and fails the strict per-category
-below-0.5% gate. A zero-ink hover-exclusion experiment removed only one activation while
-reducing target selection to 85.50%, context to 76.00%, and popup correctness to 64.00%; it was
-rejected and removed.
+Privacy-safe target geometry review supported two narrow boundary recoveries without changing
+the global OCR split threshold. Identical paired slash or dash wrappers can delimit a Hangul word
+when every resulting part contains Hangul, while missing mandatory spacing before auxiliary
+`했다` is restored only after a multi-syllable `-야` ending. Both retain proportional geometry
+and cover single-segment recognition. Aggregate negative activation is now 0.00%; blank, English,
+near-miss, punctuation, and all 191 whitespace probes have zero activations. The strict
+per-category below-0.5% gate therefore passes. The earlier zero-ink hover-exclusion experiment
+remains rejected because it reduced target selection to 85.50%, context to 76.00%, and popup
+correctness to 64.00%.
 
 The v4.9 development lock SHA-256 is
 `f23f2388e580a889bd0ef363052ec72ab51c76ad57eacc68d3eca094242be5ab`.
 The context-review, first-popup-review, and accepted quick diagnostic SHA-256 values are
 `66b6cc918598dcad6d5517cc2db721396533d06fef8153ae52d144f31ff97720`,
-`835c61529dc5a1181c09921f333ba133c618c761b7a08f27e7cf8cf2edf85859`, and
-`0f244818f10644f71a0956469372f872d39c6df929311f285f0a523294d77f39`.
+`b397d3f1e0bf5eae15c2e438606320fb0ceed98c9f4e3cb7efaa9b07f4874a37`, and
+`0b2db6b9474054b2ec5d9c5426030b1ef80104367625d1f4b6d5ca191edabb4e`.
 The accepted aggregate quick report SHA-256 is
-`3994d7ad437415c7620ff3bb17bd6c7ff314de59f2fdfa191f1917d0d7cbf603`.
-The complete 2,000-sample v4.9 render run is deferred because quick popup, functional-context,
-and per-category negative-activation gates remain weak. Thresholds are not frozen; the
+`82e21fc8219c435f4e7a218482f0895d49b80f8938914a2fe0957031cf816c68`.
+The complete 2,000-sample v4.9 render run is deferred because quick popup and
+functional-context gates remain weak. Thresholds are not frozen; the
 untouched v4.2 release split and foreground benchmark remain unevaluated.
 
 ## Superseded plain-v1 schema-v4.5 development follow-up

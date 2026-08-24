@@ -13,12 +13,70 @@ from bidan_lens.ocr.paddle import (
     _recover_overlapping_word_triplets,
     _recover_terminal_overlapping_word_pair,
     _remove_tiny_contained_fragments,
+    _split_mandatory_auxiliary_spacing,
+    _split_punctuation_wrapped_word,
 )
 
 
 class Detector:
     def detect(self, _image):
         return (DetectedRegion(BoundingBox(10, 5, 110, 35), 0.9),)
+
+
+@pytest.mark.parametrize(
+    ('text', 'expected'),
+    [
+        ('/\uc2e0\uc784/\uace0', ['/\uc2e0\uc784/', '\uace0']),
+        (
+            '\uc5f0\u2014\uc74c\uc2dd\uc810\u2014\uc788\uc5b4',
+            ['\uc5f0', '\u2014\uc74c\uc2dd\uc810\u2014', '\uc788\uc5b4'],
+        ),
+        (
+            '\ubbfc\uc8fc\ub2f9\uc5d0\uc120\u2014\ub610\u2014\uc720\ud544\uc6b0',
+            ['\ubbfc\uc8fc\ub2f9\uc5d0\uc120', '\u2014\ub610\u2014', '\uc720\ud544\uc6b0'],
+        ),
+    ],
+)
+def test_paired_punctuation_recovers_wrapped_word_boundaries(
+    text: str,
+    expected: list[str],
+) -> None:
+    box = BoundingBox(10, 5, 10 + len(text) * 20, 35)
+
+    parts = _split_punctuation_wrapped_word(text, box, 0.91)
+
+    assert [part[0] for part in parts] == expected
+    assert parts[0][1].left == box.left
+    assert parts[-1][1].right == box.right
+    assert all(part[2] == 0.91 for part in parts)
+
+
+def test_unpaired_punctuation_does_not_split_word() -> None:
+    box = BoundingBox(10, 5, 110, 35)
+
+    assert _split_punctuation_wrapped_word('\ud55c-\uad6d', box, 0.91) == [
+        ('\ud55c-\uad6d', box, 0.91)
+    ]
+
+
+def test_mandatory_auxiliary_spacing_is_recovered_with_terminal_punctuation() -> None:
+    text = '\ub450\uc5b4\uc57c\ud588\ub2e4!'
+    box = BoundingBox(10, 5, 130, 35)
+
+    parts = _split_mandatory_auxiliary_spacing(text, box, 0.91)
+
+    assert [part[0] for part in parts] == ['\ub450\uc5b4\uc57c', '\ud588\ub2e4!']
+    assert parts[0][1] == BoundingBox(10, 5, 70, 35)
+    assert parts[1][1] == BoundingBox(70, 5, 130, 35)
+
+
+@pytest.mark.parametrize('text', ['\uc57c\ud588\ub2e4', '\uc774\uc57c\uae30\ud588\ub2e4'])
+def test_auxiliary_spacing_does_not_split_unrelated_words(text: str) -> None:
+    box = BoundingBox(10, 5, 110, 35)
+
+    assert _split_mandatory_auxiliary_spacing(text, box, 0.91) == [
+        (text, box, 0.91)
+    ]
 
 
 class RetryingRecognizer:
@@ -32,6 +90,14 @@ class RetryingRecognizer:
         return RecognizedText("어디에서", 0.96)
 
 
+class SingleSegmentAuxiliaryRecognizer:
+    def word_boxes(self, _image):
+        return ((0, 100),)
+
+    def recognize(self, _image):
+        return RecognizedText('\ub450\uc5b4\uc57c\ud588\ub2e4!', 0.99)
+
+
 def test_engine_retries_once_and_returns_hangul_document() -> None:
     recognizer = RetryingRecognizer()
     engine = PaddleOcrEngine(Detector(), recognizer)
@@ -40,6 +106,18 @@ def test_engine_retries_once_and_returns_hangul_document() -> None:
     assert document.origin_x == 200 and document.origin_y == 300
     assert document.lines[0].eojeols[0].text == "어디에서"
     assert document.lines[0].confidence == 0.96
+
+
+def test_engine_recovers_auxiliary_spacing_on_single_segment_line() -> None:
+    engine = PaddleOcrEngine(Detector(), SingleSegmentAuxiliaryRecognizer())
+
+    document = engine.recognize(Image.new('RGB', (160, 60)))
+
+    assert document.lines[0].text == '\ub450\uc5b4\uc57c \ud588\ub2e4!'
+    assert [word.text for word in document.lines[0].eojeols] == [
+        '\ub450\uc5b4\uc57c',
+        '\ud588\ub2e4',
+    ]
 
 
 class LatinRecognizer:

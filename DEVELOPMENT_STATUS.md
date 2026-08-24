@@ -6,8 +6,8 @@
 - automatic scanning and hold-key activation modes;
 - Paddle-compatible ONNX CPU detector/recognizer with CTC-guided eojeol crops, conservative
   visual-gap refinement, adaptive recognition width, conservative edge-punctuation recovery,
-  structured ASCII sentence context, exact reconstructed word geometry, and one
-  low-confidence retry;
+  paired punctuation-wrapper and mandatory auxiliary-boundary recovery, structured ASCII
+  sentence context, exact reconstructed word geometry, and one low-confidence retry;
 - immutable OCR lines, glyphs, eojeols and conservative whole-eojeol pointer hit testing
   that requires an interior Hangul-glyph hit;
 - sentence-aware Kiwi adapter with lemma recovery, ordered lexical components, contextual
@@ -111,26 +111,28 @@ has the same visual gap as ordinary spaces and an unrecognized terminal mark, an
 last case was rejected because it produced byte-identical quick diagnostics and no metric change.
 No global OCR splitting threshold was changed.
 
-The accepted v4.9 200-case quick tier records 96.35% whole-eojeol OCR, 91.00% target
-selection, 84.50% functional context, 92.00% component accuracy, 94.50% exact KRDict
-fidelity, and 78.50% fully correct first popups, with 222.04 ms median / 334.04 ms p95
-automated latency. This is a 32-point popup gain over v4.2 and a 20.5-point gain over the
-accepted v4.5 result while preserving OCR, target selection, and context. The remaining quick
-failures are 12 analysis cases (four primary lemmas and eight component roles),
-13 context cases,
-and 18 target cases. Aggregate negative activation remains 0.21%; blank, English, near-miss, and
-punctuation probes have zero
-activations. Two of 191 whitespace probes still activate (1.05%), so the required per-category
-below-0.5% gate does not pass. A zero-ink hover-exclusion experiment removed only one activation
-while reducing target selection to 85.50%, context to 76.00%, and popup correctness to 64.00%;
-it was rejected and removed. Target/probe geometry review found that both remaining whitespace
-activations come from adjacent Korean words already merged into one raw OCR segment. One retains
-internal punctuation, but the other has no model-space or segment boundary, so there is no shared
-safe hover-only correction; global OCR splitting remains unchanged.
+The accepted v4.9 200-case quick tier records 97.10% whole-eojeol OCR, 94.00% target
+selection, 87.50% functional context, 69.00% exact sentence transcription, 92.00% component
+accuracy, 94.50% exact KRDict fidelity, and 81.50% fully correct first popups, with 217.80 ms
+median / 323.07 ms p95 automated latency. Alternative-candidate recovery is 91.00% and false
+promotions remain zero. This is a 35-point popup gain over v4.2 and a 23.5-point gain over the
+accepted v4.5 result. The remaining quick failures are 12 analysis cases (four primary lemmas
+and eight component roles), 13 context cases, and 12 target cases.
+
+Privacy-safe target geometry review supported two narrowly bounded OCR corrections. Identical
+paired slash or dash characters can recover the word they wrap when every resulting part
+contains Hangul, and a missing mandatory boundary before auxiliary `했다` can be restored only
+after a multi-syllable `-야` ending. Both rules preserve proportional word geometry and also run
+when recognition exposes only one segment. They recovered six target failures without changing
+the global OCR splitting threshold. Aggregate negative activation is now 0.00%; all blank,
+English, near-miss, punctuation, and 191 whitespace probes have zero activations, so the strict
+per-category below-0.5% gate passes. The earlier zero-ink hover-exclusion experiment remains
+rejected because it reduced target selection to 85.50%, context to 76.00%, and popup correctness
+to 64.00%.
 
 The first-popup reviewer has 48 stable-ID decisions and no persisted corpus text. Against
 v4.9, 12 cases remain active and 36 reviewed IDs are resolved. The complete decision history is
-21 Kiwi-analysis errors, 12 corpus-oracle defects, seven equivalent learner interpretations,
+20 Kiwi-analysis errors, 12 corpus-oracle defects, eight equivalent learner interpretations,
 four genuinely ambiguous cases, and four annotation-convention differences. Review-supported
 runtime changes reject isolated component promotion when it leaves an unrepresented word part
 and allow close, dictionary-backed inflected-verb interpretations when they completely represent
@@ -156,9 +158,12 @@ An eight-case pinned-source audit corrected two categorical decisions without ch
 text or scores: one broad KAIST noun subtype is an annotation-convention difference, while one
 explicit `ADV/mag/advmod` record is a Kiwi role-ranking error. A wider wrapped-adverb promotion
 was rejected because it produced byte-identical quick diagnostics and no metric change.
+The four remaining primary-lemma cases were rechecked against the pinned annotation evidence and
+local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
+learner interpretations, and no review-supported general runtime correction.
 
-The multi-lexical gate now passes, but rendered popup, functional-context, per-category
-negative-activation, and required-stratum gates still block release and foreground evidence.
+The multi-lexical and per-category negative-activation gates now pass, but rendered popup,
+functional-context, and required-stratum gates still block release and foreground evidence.
 The complete 2,000-sample v4.9 render evaluation remains deliberately deferred until the quick
 language/popup path materially improves. Thresholds are not frozen, and neither the untouched
 release split nor the 500-attempt foreground benchmark has been run. See
@@ -173,8 +178,8 @@ release split nor the 500-attempt foreground benchmark has been run. See
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- preserve the now-passing 88.00% held-out multi-lexical tier while improving rendered
-  functional context, first-popup correctness, and per-category negative activation;
+- preserve the now-passing 88.00% held-out multi-lexical and per-category negative-activation
+  gates while improving rendered functional context and first-popup correctness;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;

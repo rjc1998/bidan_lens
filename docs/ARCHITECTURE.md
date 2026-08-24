@@ -63,6 +63,11 @@ numeric tokens and uppercase abbreviations remain in sentence context, as do com
 `-YYYY/vN` fragments may be rejoined. Collinear detector fragments are reconstructed in
 left-to-right reading order, and physically overlapping duplicate text is removed only after
 edge-punctuation normalization. These context tokens never become hover targets.
+Identical paired slash or dash wrappers can restore adjacent boundaries only when every
+resulting part contains Hangul. A missing mandatory space before auxiliary `했다` is restored
+only after a multi-syllable `-야` ending. Both recoveries retain proportional per-character
+geometry and apply to the line fallback as well as segmented recognition; neither changes the
+global visual-gap threshold.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

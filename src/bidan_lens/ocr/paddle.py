@@ -17,6 +17,8 @@ from bidan_lens.models import BoundingBox, OcrDocument, OcrLine
 from bidan_lens.ocr.base import DetectedRegion, OcrEngine, RecognizedText
 from bidan_lens.ocr.hangul import contains_hangul, make_line
 
+_PAIRED_BOUNDARY_PUNCTUATION = frozenset('/-\u2013\u2014')
+
 
 def _session(model: Path) -> Any:
     import onnxruntime as ort
@@ -312,6 +314,92 @@ def _structured_ascii_context(text: str) -> bool:
 
 def _context_confidence_threshold(text: str) -> float:
     return 0.75 if re.fullmatch(r'K-\d{4}/v\d+', text) else 0.8
+
+
+def _split_punctuation_wrapped_word(
+    text: str,
+    box: BoundingBox,
+    confidence: float,
+) -> list[tuple[str, BoundingBox, float]]:
+    '''Recover missing word boundaries around paired slash or dash wrappers.'''
+    for opening, punctuation in enumerate(text):
+        if punctuation not in _PAIRED_BOUNDARY_PUNCTUATION:
+            continue
+        closing = text.find(punctuation, opening + 1)
+        while closing >= 0:
+            inner = text[opening + 1 : closing]
+            spans = tuple(
+                (start, end)
+                for start, end in (
+                    (0, opening),
+                    (opening, closing + 1),
+                    (closing + 1, len(text)),
+                )
+                if end > start
+            )
+            parts = tuple(text[start:end] for start, end in spans)
+            if (
+                contains_hangul(inner)
+                and len(parts) >= 2
+                and all(contains_hangul(part) for part in parts)
+            ):
+                width = box.width / len(text)
+                return [
+                    (
+                        text[start:end],
+                        BoundingBox(
+                            box.left + start * width,
+                            box.top,
+                            box.left + end * width,
+                            box.bottom,
+                        ),
+                        confidence,
+                    )
+                    for start, end in spans
+                ]
+            closing = text.find(punctuation, closing + 1)
+    return [(text, box, confidence)]
+
+
+def _split_mandatory_auxiliary_spacing(
+    text: str,
+    box: BoundingBox,
+    confidence: float,
+) -> list[tuple[str, BoundingBox, float]]:
+    '''Recover the required space before auxiliary 했다 after a -야 ending.'''
+    core_end = len(text)
+    while core_end and unicodedata.category(text[core_end - 1]).startswith('P'):
+        core_end -= 1
+    core = text[:core_end]
+    if not core.endswith('\ud588\ub2e4'):
+        return [(text, box, confidence)]
+    split = len(core) - 2
+    prefix = core[:split]
+    if len(prefix) < 2 or not prefix.endswith('\uc57c') or not contains_hangul(prefix):
+        return [(text, box, confidence)]
+    width = box.width / len(text)
+    return [
+        (
+            text[:split],
+            BoundingBox(
+                box.left,
+                box.top,
+                box.left + split * width,
+                box.bottom,
+            ),
+            confidence,
+        ),
+        (
+            text[split:],
+            BoundingBox(
+                box.left + split * width,
+                box.top,
+                box.right,
+                box.bottom,
+            ),
+            confidence,
+        ),
+    ]
 
 
 def _merge_structured_fragments(
@@ -766,6 +854,41 @@ def _merge_collinear_lines(lines: list[OcrLine]) -> tuple[OcrLine, ...]:
     return tuple(sorted(merged, key=lambda item: (item.box.top, item.box.left)))
 
 
+def _line_from_words(words: list[tuple[str, BoundingBox, float]]) -> OcrLine:
+    character_boxes: list[BoundingBox] = []
+    character_confidences: list[float] = []
+    for index, (text, box, confidence) in enumerate(words):
+        if index:
+            previous_box = words[index - 1][1]
+            character_boxes.append(
+                BoundingBox(
+                    min(previous_box.right, box.left),
+                    min(previous_box.top, box.top),
+                    max(previous_box.right, box.left),
+                    max(previous_box.bottom, box.bottom),
+                )
+            )
+            character_confidences.append(min(words[index - 1][2], confidence))
+        character_width = box.width / len(text)
+        character_boxes.extend(
+            BoundingBox(
+                box.left + offset * character_width,
+                box.top,
+                box.left + (offset + 1) * character_width,
+                box.bottom,
+            )
+            for offset in range(len(text))
+        )
+        character_confidences.extend([confidence] * len(text))
+    return make_line(
+        ' '.join(word[0] for word in words),
+        BoundingBox.union([word[1] for word in words]),
+        min(word[2] for word in words),
+        character_boxes,
+        character_confidences,
+    )
+
+
 def _recover_ctc_edge_punctuation(
     text: str,
     probabilities: np.ndarray,
@@ -868,6 +991,16 @@ class PaddleOcrEngine(OcrEngine):
                         recognized.confidence,
                     )
                 )
+        words = [
+            part
+            for text, box, confidence in words
+            for part in _split_punctuation_wrapped_word(text, box, confidence)
+        ]
+        words = [
+            part
+            for text, box, confidence in words
+            for part in _split_mandatory_auxiliary_spacing(text, box, confidence)
+        ]
         words = _recover_overlapping_word_triplets(
             words,
             crop,
@@ -896,38 +1029,7 @@ class PaddleOcrEngine(OcrEngine):
         if not words:
             return None
 
-        character_boxes: list[BoundingBox] = []
-        character_confidences: list[float] = []
-        for index, (text, box, confidence) in enumerate(words):
-            if index:
-                previous_box = words[index - 1][1]
-                character_boxes.append(
-                    BoundingBox(
-                        min(previous_box.right, box.left),
-                        min(previous_box.top, box.top),
-                        max(previous_box.right, box.left),
-                        max(previous_box.bottom, box.bottom),
-                    )
-                )
-                character_confidences.append(min(words[index - 1][2], confidence))
-            character_width = box.width / len(text)
-            character_boxes.extend(
-                BoundingBox(
-                    box.left + offset * character_width,
-                    box.top,
-                    box.left + (offset + 1) * character_width,
-                    box.bottom,
-                )
-                for offset in range(len(text))
-            )
-            character_confidences.extend([confidence] * len(text))
-        line = make_line(
-            ' '.join(word[0] for word in words),
-            BoundingBox.union([word[1] for word in words]),
-            min(word[2] for word in words),
-            character_boxes,
-            character_confidences,
-        )
+        line = _line_from_words(words)
         return line if line.eojeols else None
 
     @classmethod
@@ -974,7 +1076,31 @@ class PaddleOcrEngine(OcrEngine):
             if recognized.text and (
                 contains_hangul(recognized.text) or keep_context
             ):
-                lines.append(make_line(recognized.text, region.box, recognized.confidence))
+                words = [(recognized.text, region.box, recognized.confidence)]
+                if ' ' not in recognized.text:
+                    words = [
+                        part
+                        for text, box, confidence in words
+                        for part in _split_punctuation_wrapped_word(
+                            text, box, confidence
+                        )
+                    ]
+                    words = [
+                        part
+                        for text, box, confidence in words
+                        for part in _split_mandatory_auxiliary_spacing(
+                            text, box, confidence
+                        )
+                    ]
+                lines.append(
+                    _line_from_words(words)
+                    if len(words) > 1
+                    else make_line(
+                        recognized.text,
+                        region.box,
+                        recognized.confidence,
+                    )
+                )
         return OcrDocument(
             _merge_collinear_lines(lines),
             time.monotonic(),
