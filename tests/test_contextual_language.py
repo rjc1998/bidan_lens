@@ -474,6 +474,40 @@ def test_defined_pronoun_is_not_replaced_by_fragmented_analysis() -> None:
     ]
 
 
+def test_defined_noun_is_not_replaced_by_fragmented_analysis() -> None:
+    sentence = '고전에'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '고': (_entry('old', '고', 'noun', 'old'),),
+        '전': (_entry('former', '전', 'noun', 'former'),),
+        '고전': (_entry('classic', '고전', 'noun', 'classic'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [Token('고전', 'NNG', 0, 2), Token('에', 'JKB', 2, 1)],
+                -1.0,
+            ),
+            (
+                [
+                    Token('고', 'NNG', 0, 1),
+                    Token('전', 'NNG', 1, 1),
+                    Token('에', 'JKB', 2, 1),
+                ],
+                -1.3,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (0, 3)
+    )[0]
+
+    assert candidate.lemma == '고전'
+    assert [component.lemma for component in candidate.lexical_components] == ['고전']
+
+
 def test_close_inflected_verb_after_particle_leads_noun_homograph() -> None:
     dictionary = RoleDictionary()
     dictionary.values = {

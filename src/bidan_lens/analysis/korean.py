@@ -461,9 +461,16 @@ class KoreanAnalyzer:
         if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
             return candidates
         first = candidates[0]
+        noun_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+        }
         if (
             len(first.lexical_components) == 1
-            and first.lexical_components[0].learner_role == 'pronoun'
+            and first.lexical_components[0].learner_role in noun_roles
             and first.lexical_components[0].dictionary_entries
         ):
             return candidates

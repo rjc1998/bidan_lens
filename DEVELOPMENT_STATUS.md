@@ -59,10 +59,10 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.11 200-case quick tier records 98.83% whole-eojeol OCR, 99.00% target
-selection, 91.00% functional context, 72.50% exact sentence transcription, 88.00% component
-accuracy, 90.50% exact KRDict fidelity, and 80.50% fully correct first popups, with 219.73 ms
-median / 332.21 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
-promotions remain zero. Its remaining failures are 21 analysis cases (11 primary lemmas and ten
+selection, 91.00% functional context, 72.50% exact sentence transcription, 88.50% component
+accuracy, 91.00% exact KRDict fidelity, and 81.00% fully correct first popups, with 208.64 ms
+median / 310.03 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
+promotions remain zero. Its remaining failures are 20 analysis cases (ten primary lemmas and ten
 component roles), 16 context cases, and two target cases. Aggregate negative activation is
 0.21%; blank, English, punctuation, and whitespace probes have zero activations, but two of 200
 near-miss probes activate (1.00%), so the strict per-category gate fails.
@@ -74,12 +74,16 @@ historical evidence but must not be transferred to v4.11 by ID without a fresh a
 held-out language tier has not yet been evaluated because the complete run remains deferred.
 
 Fresh v4.11 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
-review covers all 21 analysis cases with eight Kiwi-analysis errors, five annotation-convention
+review covers all 21 reviewed analysis cases with eight Kiwi-analysis errors, five annotation-convention
 differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
 context review covers all 16 reconstruction cases with seven incorrect line/sentence
 reconstructions, four missed or merged word boundaries, and five punctuation or structured-text
-handling cases. Both audits have no missing, resolved, or stale IDs. These decisions are scoped
-only to the v4.11 corpus identity.
+handling cases. The current popup audit has 20 active cases, one resolved ID, and no missing or
+stale IDs; the context audit has no missing, resolved, or stale IDs. These decisions are scoped
+only to the v4.11 corpus identity. The review-supported analyzer now keeps a dictionary-defined
+whole noun that already leads by score instead of replacing it with a richer but fragmented noun
+analysis. This recovered one case without changing OCR, target selection, context, alternative
+recovery, false promotions, or negative activation.
 
 ### Historical v4.9 reviewed evidence
 

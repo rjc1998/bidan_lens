@@ -47,17 +47,17 @@ from rendering and expected geometry together. The intermediate v4.10 card-ancho
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
 The v4.11 quick tier records 98.83% whole-eojeol OCR, 99.00% target selection, 91.00%
-functional context, 72.50% exact sentence transcription, 88.00% component accuracy, 90.50%
-exact KRDict fidelity, 80.50% fully correct first popups, 95.50% alternative recovery, and zero
-false promotions. Automated latency is 219.73 ms median / 332.21 ms p95. There are 21 analysis,
+functional context, 72.50% exact sentence transcription, 88.50% component accuracy, 91.00%
+exact KRDict fidelity, 81.00% fully correct first popups, 95.50% alternative recovery, and zero
+false promotions. Automated latency is 208.64 ms median / 310.03 ms p95. There are 20 analysis,
 16 context, and two target failures. Two near-miss probes activate, for 1.00% in that category;
 all other negative categories are zero.
 
 The v4.11 lock SHA-256 is
 `b9cd0e46fcad9e3c3692c5fa2eb9de31cd693e7b9c4e8022e13476408d9c9da9`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`830637a9489b7e585e2ababef9edf711759fa22f533ecf2051cc47d3cea982a6` and
-`f5d94680450559bb1626954cdfa32c4c7e6be50344fe3b55c02e33d3eaded68a`.
+`e5d400733eb155fc3166af2a266574579187fbfb6a62a3ffe8a6394be5408286` and
+`ecdf113f9007daae94c21084cb2a953ce6852d5f6c9e7f73a19bd9eda3928a15`.
 The complete run remains deferred, so the v4.11 held-out language tier and required strata have
 not been evaluated. Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to
 v4.11 by numeric ID without a fresh review audit.
@@ -68,7 +68,10 @@ interpretations, and one genuinely ambiguous case. The v4.11 context review clas
 cases as seven incorrect line/sentence reconstructions, four missed or merged OCR word
 boundaries, and five punctuation or structured-text handling cases. Neither report persists
 sentence text, recognized text, definitions, or pixels, and both audits have no missing or stale
-IDs. The popup-review and context-review SHA-256 values are
+IDs. The current popup audit has 20 active cases and one resolved reviewed ID; the context audit
+has all 16 cases active. The review-supported whole-noun ranking guard recovered that popup case
+without changing OCR, target selection, context, alternative recovery, false promotions, or
+negative activation. The popup-review and context-review SHA-256 values are
 `80c033bb9dd1ad6237387725c09f60beff246ea8ec0ab8db62806a4e9e5fddf3` and
 `acf5608d054e5390031e91ee163147fc5a4d640e43e7157d234dc644615e8009`.
 
