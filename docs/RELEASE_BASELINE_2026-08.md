@@ -83,16 +83,16 @@ The full aggregate report and privacy-safe diagnostic SHA-256 values are
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
-main image. The initial stratified 29-case 12 px and 14 px review is 16 non-target OCR
-transcription errors, six punctuation or structured-text cases, four incorrect line/sentence
-reconstructions, and three missed or merged OCR word boundaries; 197 main context failures remain
+main image. The initial stratified 53-case 12 px through 18 px review is 25 non-target OCR
+transcription errors, 14 punctuation or structured-text cases, nine missed or merged OCR word
+boundaries, and five incorrect line/sentence reconstructions; 173 main context failures remain
 unreviewed. The additional transcription category distinguishes non-target character substitution
-or omission from sentence reconstruction and target-span defects. Three reconstruction cases share
+or omission from sentence reconstruction and target-span defects. Four reconstruction cases share
 an overlapping one-character fragment whose combined recognition returns only the following word,
 but widening the discard rule would violate an existing narrow-real-character regression. No OCR
 change was accepted from this evidence. The decision report persists no corpus text, recognized
 text, definitions, or pixels. Its SHA-256 is
-`b7ba2d948c322b739becf48c566ac8e5119d93b7533b9e7565bec52dbdb42ab7`.
+`13f6cb11eb71feecc8dd8404cd006ebd259b241b4440a1c8a99c0b6fe3c11300`.
 
 The v4.12 change is limited to negative-probe construction. Geometry-only review showed that the
 two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

@@ -88,15 +88,15 @@ and per-category negative-activation gates fail.
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
 initialization and categorized one stable ID at a time, writing each categorical decision
-immediately. The initial stratified 29-case 12 px and 14 px review contains 16 non-target OCR
-transcription errors, six punctuation or structured-text cases, four incorrect line/sentence
-reconstructions, and three missed or merged OCR word boundaries. The added transcription category
+immediately. The initial stratified 53-case 12 px through 18 px review contains 25 non-target OCR
+transcription errors, 14 punctuation or structured-text cases, nine missed or merged OCR word
+boundaries, and five incorrect line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts; 197 of the 226 active main context failures remain
+IDs, categorical decisions, and counts; 173 of the 226 active main context failures remain
 unreviewed.
 
-Three reviewed reconstruction cases contain a narrow one-character segment overlapping the next
+Four reviewed reconstruction cases contain a narrow one-character segment overlapping the next
 word, and combined recognition returns only that next word. Broadening the existing discard rule
 would also remove a protected narrow real-character regression, so no OCR change was accepted.
 Additional classification or a stronger independent confirmation signal is required.
@@ -294,7 +294,7 @@ learner interpretations, and no review-supported general runtime correction.
 
 The historical v4.9 multi-lexical result passed, but the complete v4.12 development run now shows
 that main popup, functional context, required render strata, held-out multi-lexical analysis, and
-punctuation activation still block release evidence. The next review target is the remaining 197
+punctuation activation still block release evidence. The next review target is the remaining 173
 privacy-safe main context failures, continuing through the 12 px, 14 px, serif-font, and single-line
 strata, followed by the nine punctuation activations. Thresholds are not frozen, and neither the
 untouched release split nor the 500-attempt foreground benchmark has been run. See
