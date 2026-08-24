@@ -77,7 +77,9 @@ separate same-row region. Extremely narrow single-character fragments contained 
 wider eojeol are removed with sentence-span repair. A geometry-only inspection mode exposes IDs
 and, optionally for one stable ID, Unicode-category counts, per-eojeol boxes, confidence, spans,
 adjacency signals, detector regions, raw segmentation, and recognition equality flags, but no
-corpus text. A broad recognition-confirmed close-fragment merge resolved three reviewed context
+corpus text. A separate read-only target/probe geometry mode covers stable IDs that fail target
+selection and can optionally include the same privacy-safe raw segmentation evidence. A broad
+recognition-confirmed close-fragment merge resolved three reviewed context
 cases but created nine new failures, so it was rejected and removed. Two much narrower recoveries
 handle only a low-confidence one-character sliver overlapping a high-confidence word fragment and
 trailing character when combined recognition exactly confirms the latter two fragments, or an
@@ -121,7 +123,10 @@ punctuation probes have zero
 activations. Two of 191 whitespace probes still activate (1.05%), so the required per-category
 below-0.5% gate does not pass. A zero-ink hover-exclusion experiment removed only one activation
 while reducing target selection to 85.50%, context to 76.00%, and popup correctness to 64.00%;
-it was rejected and removed.
+it was rejected and removed. Target/probe geometry review found that both remaining whitespace
+activations come from adjacent Korean words already merged into one raw OCR segment. One retains
+internal punctuation, but the other has no model-space or segment boundary, so there is no shared
+safe hover-only correction; global OCR splitting remains unchanged.
 
 The first-popup reviewer has 48 stable-ID decisions and no persisted corpus text. Against
 v4.9, 12 cases remain active and 36 reviewed IDs are resolved. The complete decision history is

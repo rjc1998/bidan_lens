@@ -113,6 +113,12 @@ segments, recognition lengths/confidence/category counts, and equality flags for
 triplets, overlapping pairs, and unusually close pairs. Close-pair diagnostics also expose only
 prefix/suffix equality and an added-terminal-punctuation flag, never the characters themselves.
 The view never emits recognized or oracle text.
+Target-selection failures and negative activations can be inspected without entering the
+context-review set by repeating `--target-geometry ID`. This read-only view emits only stable
+IDs, render categories, target/probe pointers, expected and recognized geometry, text lengths,
+confidence, Hangul counts, and boolean target-match signals. It never writes decisions or
+emits recognized or oracle text. Add `--target-segmentation` to include the same privacy-safe
+detector and raw segment evidence used by the context inspector.
 
 Review first-popup analysis and dictionary disagreements only after target and functional
 context are correct with

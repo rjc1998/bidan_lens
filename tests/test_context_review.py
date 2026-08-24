@@ -14,11 +14,13 @@ from benchmarks.context_review import (
     load_context_review,
     structural_context_view,
     structural_segmentation_view,
+    structural_target_geometry_view,
     write_context_review,
 )
 from benchmarks.locked_corpus import CorpusError
-from bidan_lens.models import BoundingBox
+from bidan_lens.models import BoundingBox, OcrDocument
 from bidan_lens.ocr.base import DetectedRegion, RecognizedText
+from bidan_lens.ocr.hangul import make_line
 
 
 def test_context_review_round_trip_contains_only_categorical_data(tmp_path: Path) -> None:
@@ -258,6 +260,50 @@ def test_context_review_structural_view_omits_sentence_and_target_text() -> None
         'confidence': 0.9877,
         'span': [0, 3],
     }
+
+
+def test_target_geometry_view_contains_hits_but_no_text() -> None:
+    sentence = '\ud55c\uad6d\uc5b4 \uacf5\ubd80'
+    line = make_line(sentence, BoundingBox(0, 0, 100, 20), 0.91)
+    target_box = line.eojeols[0].box
+    target_pointer = target_box.center
+    sample = SimpleNamespace(
+        sample_id='dev-plain-0092',
+        lines=(line,),
+        target=SimpleNamespace(
+            text='\ud55c\uad6d\uc5b4',
+            sentence=sentence,
+            box=target_box,
+            pointer=target_pointer,
+        ),
+        render=SimpleNamespace(
+            renderer='browser',
+            layout='single-line',
+            punctuation='plain',
+            font='test-font',
+            size_px=24,
+        ),
+        negative_probes=(
+            SimpleNamespace(kind='whitespace', pointer=target_pointer),
+            SimpleNamespace(kind='blank', pointer=(-10.0, -10.0)),
+        ),
+    )
+    document = OcrDocument((line,), 1.0)
+
+    value = structural_target_geometry_view(sample, document)  # type: ignore[arg-type]
+    serialized = json.dumps(value, ensure_ascii=False)
+
+    assert sentence not in serialized
+    assert '\ud55c\uad6d\uc5b4' not in serialized
+    assert '\uacf5\ubd80' not in serialized
+    assert value['sample_id'] == 'dev-plain-0092'
+    assert value['target_match'] == {'surface': True, 'geometry': True}
+    assert value['target_pointer_hit'] is not None
+    assert value['negative_probes'][0]['hit'] is not None  # type: ignore[index]
+    assert value['negative_probes'][1]['hit'] is None  # type: ignore[index]
+    glyphs = value['document']['lines'][0]['eojeols'][0]['glyphs']  # type: ignore[index]
+    assert glyphs
+    assert all(set(glyph) == {'length', 'box', 'confidence', 'hangul_count'} for glyph in glyphs)
 
 
 def test_segmentation_view_contains_geometry_but_no_text(tmp_path: Path) -> None:

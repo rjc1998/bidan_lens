@@ -390,6 +390,99 @@ def structural_context_view(case: ContextReviewCase) -> dict[str, object]:
     }
 
 
+def _hover_target_structure(target: HoverTarget | None) -> dict[str, object] | None:
+    if target is None:
+        return None
+    return {
+        'surface_length': len(target.surface),
+        'sentence_length': len(target.sentence),
+        'span': [target.sentence_start, target.sentence_end],
+        'box': _box_view(target.box),
+        'confidence': round(float(target.confidence), 4),
+    }
+
+
+def structural_target_geometry_view(
+    sample: PlainSample,
+    document: OcrDocument,
+) -> dict[str, object]:
+    '''Return target and negative-probe geometry without OCR or oracle text.'''
+    target = hit_test(document, *sample.target.pointer)
+    expected_lines, _ = _line_structure(sample.lines, sample.target.sentence)
+    actual_lines = []
+    for index, line in enumerate(document.lines):
+        actual_lines.append(
+            {
+                'index': index,
+                'length': len(line.text),
+                'box': _box_view(line.box),
+                'confidence': round(float(line.confidence), 4),
+                'eojeols': [
+                    {
+                        'length': len(eojeol.text),
+                        'box': _box_view(eojeol.box),
+                        'confidence': round(float(eojeol.confidence), 4),
+                        'span': [eojeol.sentence_start, eojeol.sentence_end],
+                        'glyphs': [
+                            {
+                                'length': len(glyph.text),
+                                'box': _box_view(glyph.box),
+                                'confidence': round(float(glyph.confidence), 4),
+                                'hangul_count': sum(
+                                    '\uac00' <= character <= '\ud7a3'
+                                    for character in glyph.text
+                                ),
+                            }
+                            for glyph in eojeol.glyphs
+                        ],
+                    }
+                    for eojeol in line.eojeols
+                ],
+            }
+        )
+    return {
+        'sample_id': sample.sample_id,
+        'render': {
+            'renderer': sample.render.renderer,
+            'layout': sample.render.layout,
+            'punctuation': sample.render.punctuation,
+            'font': sample.render.font,
+            'size_px': sample.render.size_px,
+        },
+        'expected': {
+            'target_length': len(sample.target.text),
+            'target_box': _box_view(sample.target.box),
+            'target_pointer': [round(value, 2) for value in sample.target.pointer],
+            'lines': expected_lines,
+        },
+        'target_pointer_hit': _hover_target_structure(target),
+        'target_match': {
+            'surface': bool(
+                target and _normal(target.surface) == sample.target.text
+            ),
+            'geometry': bool(
+                target
+                and _match(sample.target.box, [(target.surface, target.box)])
+                is not None
+            ),
+        },
+        'negative_probes': [
+            {
+                'kind': probe.kind,
+                'pointer': [round(value, 2) for value in probe.pointer],
+                'hit': _hover_target_structure(
+                    hit_test(document, *probe.pointer)
+                ),
+            }
+            for probe in sample.negative_probes
+        ],
+        'document': {
+            'origin': [document.origin_x, document.origin_y],
+            'lines': actual_lines,
+        },
+    }
+
+
 def structural_segmentation_view(
     engine: PaddleOcrEngine,
     sample: PlainSample,
@@ -708,6 +801,20 @@ def main() -> None:
         action='store_true',
         help='with --inspect and --sample-id, show only detector/segment geometry',
     )
+    parser.add_argument(
+        '--target-geometry',
+        action='append',
+        metavar='SAMPLE_ID',
+        help=(
+            'inspect target and negative-probe geometry for one stable ID; '
+            'repeat to inspect multiple IDs'
+        ),
+    )
+    parser.add_argument(
+        '--target-segmentation',
+        action='store_true',
+        help='with --target-geometry, include detector and segment geometry',
+    )
     arguments = parser.parse_args()
     if (
         arguments.compact
@@ -724,6 +831,18 @@ def main() -> None:
         parser.error('--compact and --geometry-only cannot be combined')
     if arguments.segmentation_only and not arguments.sample_id:
         parser.error('--segmentation-only requires --sample-id')
+    if arguments.target_geometry and (
+        arguments.inspect
+        or arguments.audit
+        or arguments.compact
+        or arguments.decision
+        or arguments.geometry_only
+        or arguments.sample_id
+        or arguments.segmentation_only
+    ):
+        parser.error('--target-geometry cannot be combined with another review mode')
+    if arguments.target_segmentation and not arguments.target_geometry:
+        parser.error('--target-segmentation requires --target-geometry')
 
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
@@ -737,6 +856,25 @@ def main() -> None:
             _asset(arguments.assets, 'korean_characters.txt'),
         ),
     )
+    if arguments.target_geometry:
+        samples_by_id = {sample.sample_id: sample for sample in samples}
+        missing = sorted(set(arguments.target_geometry) - set(samples_by_id))
+        if missing:
+            parser.error(f'unknown quick-tier sample ID: {missing[0]}')
+        for sample_id in arguments.target_geometry:
+            sample = samples_by_id[sample_id]
+            with Image.open(sample.image) as source:
+                document = engine.recognize(source.convert('RGB'))
+            value = structural_target_geometry_view(sample, document)
+            if arguments.target_segmentation:
+                value['segmentation'] = structural_segmentation_view(engine, sample)
+            print(
+                json.dumps(
+                    value,
+                    ensure_ascii=True,
+                )
+            )
+        return
     cases = collect_context_review_cases(engine, samples)
     existing = load_context_review(arguments.decisions, corpus_id)
     audit = audit_context_review(cases, existing)
