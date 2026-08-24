@@ -25,6 +25,7 @@ from benchmarks.plain_corpus import (
     _expected_labels,
     _expected_lemma,
     _line_records,
+    _negative_probes,
     _oracle_lookup,
     _ordered_oracle_entries,
     _position_visible_values,
@@ -36,6 +37,26 @@ from benchmarks.plain_corpus import (
     acquire_plain,
     load_krdict_oracle,
 )
+
+
+def test_negative_probe_avoids_words_on_both_adjacent_lines() -> None:
+    target_box = [100.0, 300.0, 300.0, 400.0]
+    target_line = {'regions': []}
+    lines = [
+        {'eojeols': [{'box': [100.0, 175.0, 300.0, 275.0]}]},
+        {'eojeols': [{'box': target_box}]},
+        {'eojeols': [{'box': [100.0, 425.0, 300.0, 525.0]}]},
+    ]
+
+    probes = _negative_probes(lines, target_line, target_box)
+    near = next(probe['pointer'] for probe in probes if probe['kind'] == 'near-miss')
+
+    assert near == [325.0, 350.0]
+    assert not any(
+        box[0] <= near[0] <= box[2] and box[1] <= near[1] <= box[3]
+        for line in lines
+        for box in (eojeol['box'] for eojeol in line['eojeols'])
+    )
 
 
 def test_line_records_omit_rows_without_korean_eojeols() -> None:

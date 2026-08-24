@@ -32,7 +32,8 @@
   four open Korean font families, local Malgun Gothic evidence, and KRDict;
 - deterministic 2,000-sample development/release corpus rendering split equally across
   Chromium and offscreen Qt, with exact line/eojeol/target/pointer geometry, a locked
-  200-sample quick subset, and a separate 250-sample 10 px stress tier;
+  200-sample quick subset, validated non-overlapping negative probes, and a separate
+  250-sample 10 px stress tier;
 - an independent v4 oracle for ordered components, contextual roles, verified spacing, and
   exact role-grouped KRDict entry/sense order, with 400 held-out language cases;
 - local stable-ID language, functional-context, and first-popup disagreement review workflows
@@ -51,27 +52,32 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.11\dev`; the untouched v4.2 release corpus remains under
+`F:\bidan-lens-eval-ud218-v4.12\dev`; the untouched v4.2 release corpus remains under
 `F:\bidan-lens-eval-ud218-v4.2\release` and has not been evaluated. Earlier roots remain
-preserved. The v4.11 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
+preserved. The v4.12 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
 quick cases, is hash-locked, and passes corpus validation. It uses the current corpus builder and
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.11 200-case quick tier records 98.83% whole-eojeol OCR, 99.00% target
+The accepted v4.12 200-case quick tier records 98.83% whole-eojeol OCR, 99.00% target
 selection, 91.00% functional context, 72.50% exact sentence transcription, 88.50% component
-accuracy, 91.00% exact KRDict fidelity, and 81.00% fully correct first popups, with 208.64 ms
-median / 310.03 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
+accuracy, 91.00% exact KRDict fidelity, and 81.00% fully correct first popups, with 208.79 ms
+median / 318.13 ms p95 automated latency. Alternative-candidate recovery is 95.50% and false
 promotions remain zero. Its remaining failures are 20 analysis cases (ten primary lemmas and ten
-component roles), 16 context cases, and two target cases. Aggregate negative activation is
-0.21%; blank, English, punctuation, and whitespace probes have zero activations, but two of 200
-near-miss probes activate (1.00%), so the strict per-category gate fails.
+component roles), 16 context cases, and two target cases. Aggregate and per-category negative
+activation are 0.00%, so that strict gate now passes.
 
-The v4.11 rebuild also incorporates accumulated corpus-oracle and candidate-selection fixes made
+Geometry-only review showed that the two former near-miss points were inside real words on the
+line adjacent to their targets. Probe construction now tests lower, upper, right, and left
+adjacent points in order and emits only a point inside the viewport and outside every oracle
+eojeol. The v4.12 rebuild retains 200 near-miss probes and removes both false activations without
+changing any substantive quick failure ID or stage.
+
+The v4.11 rebuild incorporated accumulated corpus-oracle and candidate-selection fixes made
 after v4.9 was rendered. Consequently, a numeric sample ID can refer to a different independent
 source record across those versions. Existing v4.9 categorical review decisions remain valid
 historical evidence but must not be transferred to v4.11 by ID without a fresh audit. The v4.11
-held-out language tier has not yet been evaluated because the complete run remains deferred.
+held-out language tier was not evaluated. The v4.12 held-out language tier also remains deferred.
 
 Fresh v4.11 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
 review covers all 21 reviewed analysis cases with eight Kiwi-analysis errors, five annotation-convention
@@ -80,7 +86,9 @@ context review covers all 16 reconstruction cases with seven incorrect line/sent
 reconstructions, four missed or merged word boundaries, and five punctuation or structured-text
 handling cases. The current popup audit has 20 active cases, one resolved ID, and no missing or
 stale IDs; the context audit has no missing, resolved, or stale IDs. These decisions are scoped
-only to the v4.11 corpus identity. The review-supported analyzer now keeps a dictionary-defined
+to the v4.11 corpus identity. The v4.12 quick comparison has the exact same substantive failure
+IDs and stages, but its decision reports have not yet been reissued under the new corpus lock.
+The review-supported analyzer now keeps a dictionary-defined
 whole noun that already leads by score instead of replacing it with a richer but fragmented noun
 analysis. This recovered one case without changing OCR, target selection, context, alternative
 recovery, false promotions, or negative activation.

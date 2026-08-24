@@ -1666,11 +1666,25 @@ def _negative_probes(
         if isinstance(eojeol, dict) and isinstance(eojeol.get("box"), list)
     ]
     height = target_box[3] - target_box[1]
-    near = [
-        (target_box[0] + target_box[2]) / 2,
-        min(710.0, target_box[3] + max(4.0, height * 0.25)),
-    ]
-    if any(_box_contains(box, near) for box in all_boxes):
-        near[1] = max(5.0, target_box[1] - max(4.0, height * 0.25))
-    probes.append({"kind": "near-miss", "pointer": near})
+    offset = max(4.0, height * 0.25)
+    center_x = (target_box[0] + target_box[2]) / 2
+    center_y = (target_box[1] + target_box[3]) / 2
+    near_candidates = (
+        [center_x, target_box[3] + offset],
+        [center_x, target_box[1] - offset],
+        [target_box[2] + offset, center_y],
+        [target_box[0] - offset, center_y],
+    )
+    near = next(
+        (
+            point
+            for point in near_candidates
+            if 5.0 <= point[0] <= 1_275.0
+            and 5.0 <= point[1] <= 715.0
+            and not any(_box_contains(box, point) for box in all_boxes)
+        ),
+        None,
+    )
+    if near is not None:
+        probes.append({'kind': 'near-miss', 'pointer': near})
     return probes
