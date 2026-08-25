@@ -49,37 +49,37 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.12 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
 functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 89.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. Automated latency is 224.85 ms median / 338.38 ms p95. There are eight analysis,
+false promotions. Automated latency is 211.21 ms median / 319.99 ms p95. There are eight analysis,
 12 context, and two target failures. Aggregate and every negative category are 0.00%, including
 all 200 near-miss probes, so the quick popup floor and strict negative-activation gate pass.
 
 The v4.12 lock SHA-256 is
 `aedc17c448df9880dad52dedd149cbb6753d3aa81b23149a119527e8d8452372`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`40343ca956fd3cf31397e95af30bf7216e788a8babc44cd40fa25e081d85690a` and
+`2a4c029e01ff035705eb8054921a02f01e4485f8fe18d1a6468864b4f6816e31` and
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.12 by numeric ID
 without a fresh review audit.
 
 The complete v4.12 development run against the current analyzer cleanup records 97.98%
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
-transcription, 89.35% component accuracy, 92.85% exact KRDict fidelity, 77.80% fully correct first
-popups, 92.90% alternative recovery, and zero false promotions across 2,000 main cases. Automated
-latency is 224.09 ms median / 336.66 ms p95. The privacy-safe stage totals are 58 target, 205
-context, and 181 analysis failures. The analysis failures comprise 64 primary lemmas, 89 component
+transcription, 89.95% component accuracy, 93.35% exact KRDict fidelity, 78.40% fully correct first
+popups, 93.10% alternative recovery, and zero false promotions across 2,000 main cases. Automated
+latency is 205.23 ms median / 308.87 ms p95. The privacy-safe stage totals are 58 target, 205
+context, and 169 analysis failures. The analysis failures comprise 63 primary lemmas, 78 component
 roles, 12 component surfaces, seven component counts, and nine grammar roles.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
 functional context, and 63.20% fully correct first popups. The 400-case held-out language tier is
-88.75% overall and 91.00% for auxiliary cases, but its 86.50% multi-lexical result is below the
+90.25% overall and 94.00% for auxiliary cases, but its 86.50% multi-lexical result is below the
 exceptional floor; direct KRDict conformance remains 100%. Aggregate main negative activation is
 0.14%. Blank, English, and near-miss remain at zero, whitespace is four of 1,931 (0.21%), and
 punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The correction,
 dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`1b9bdd63279bcb8e68c593fd39cc036756c155d91fc994865c509ffd91fd6cc9` and
-`9eb90d94a4fa6b860c6731c04694641a64eee036806f9b135be1fbdebd57d70b`.
+`34aa7711443fbe35476b83dabdca559d7691300b98843f714f724d6e8fa337f2` and
+`e1576180d181a2fd85d1ec659164a29b22d41abecfe3031877f720d9a9e611c5`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -104,12 +104,12 @@ full-tier cases without a new failure and leaves the quick diagnostics byte-iden
 
 The popup reviewer now supports a separately scoped `first_popup_analysis_full` report, repeated
 stable-ID batch inspection, structure-only output, and single-ID categorical recording. Its
-first 60 decisions are 19 Kiwi-analysis errors, 21 equivalent learner interpretations, 13
-annotation-convention differences, four corpus-oracle defects, and three genuinely ambiguous
-cases. Reconciliation finds 53 active reviewed IDs, seven resolved reviewed IDs, 128 active
-analysis IDs still unreviewed, and no stale stages. The report stores no corpus or analysis text;
+first 80 decisions are 28 Kiwi-analysis errors, 21 equivalent learner interpretations, 20
+annotation-convention differences, five corpus-oracle defects, and six genuinely ambiguous cases.
+Reconciliation finds 66 active reviewed IDs, 14 resolved reviewed IDs, 103 active analysis IDs
+still unreviewed, and no stale stages. The report stores no corpus or analysis text;
 its SHA-256 is
-`1fc91165ca6a1c5870d56951207b673853896d0e03294c5758a698c1f2f0dd83`.
+`5e2153c3371605fd8653e07be691133f264d29a79149b968e7eb7bd5c3be2143`.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
@@ -128,9 +128,22 @@ seven net main popups, improve component accuracy by 0.40 points and KRDict fide
 and recover two held-out auxiliary cases. Quick diagnostics remain byte-identical, multi-lexical
 accuracy remains 86.50%, and no upstream or negative-pointer metric changes. Broader internal-
 suffix attachment and unconditional zero-length suppression were rejected after held-out or
-failure-stage regressions. The next privacy-safe review target is the 128 unreviewed analysis
-cases: 78 component roles, 24 primary lemmas, 12 component surfaces, seven component counts, and
-seven grammar-role cases.
+failure-stage regressions.
+
+The fourth full-tier batch classifies 20 component-role cases as nine Kiwi-analysis errors, seven
+annotation-convention differences, one corpus-oracle defect, and three genuinely ambiguous
+fragments. Accepted changes recognize suffixed reported-speech connectives and nominal `-라도` as
+non-auxiliary context, preserve exact `-기도 하다` helping-verb evidence after isolated-eojeol
+reranking, and recognize contracted `-게 되다` forms through the already-matched `되다` lemma. A
+paired wrapper may supply a missing role-only candidate only when unwrapped context preserves the
+complete lemma and boundaries and the wrapped analysis has no alternative. Dictionary order may
+promote an adverb within the existing score margin but cannot demote an existing adverb. The final
+full rerun removes 12 main failure IDs, adds none, and changes no stage. Quick diagnostics remain
+byte-identical, stress is unchanged, held-out auxiliary accuracy gains six cases, and held-out
+multi-lexical accuracy remains 86.50%. A symmetric adverb/noun experiment was rejected after it
+introduced two main role regressions. The next privacy-safe review target is 103 cases: 53
+component roles, 24 primary lemmas, 12 component surfaces, seven component counts, and seven
+grammar-role cases.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

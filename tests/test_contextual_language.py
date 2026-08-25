@@ -204,6 +204,123 @@ def test_reported_speech_verb_is_not_relabelled_as_an_auxiliary() -> None:
     assert component.dictionary_entries[0].entry_id == 'do'
 
 
+def test_prefixed_reported_speech_verb_is_not_relabelled_as_an_auxiliary() -> None:
+    sentence = '찍으라고 하다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '하다': (
+            _entry('do', '하다', 'verb', 'to do'),
+            _entry('aux', '하다', '보조 동사', 'auxiliary use'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('찍', 'VV', 0, 1),
+                    Token('으라고', 'EC', 1, 3),
+                    Token('하', 'VV', 5, 1),
+                    Token('다', 'EF', 6, 1),
+                ],
+                -1.0,
+            )
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (5, 7)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+    assert candidate.dictionary_entries[0].entry_id == 'do'
+
+
+def test_nominal_rado_context_does_not_relabel_a_verb_as_auxiliary() -> None:
+    sentence = '올이라도 가지다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '가지다': (
+            _entry('have', '가지다', 'verb', 'to have'),
+            _entry('aux-have', '가지다', '보조 동사', 'auxiliary use'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('올', 'NNG', 0, 1),
+                    Token('이', 'VCP', 1, 1),
+                    Token('라도', 'EC', 2, 2),
+                    Token('가지', 'VV', 5, 2),
+                    Token('다', 'EF', 7, 1),
+                ],
+                -1.0,
+            )
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (5, 8)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+    assert candidate.dictionary_entries[0].entry_id == 'have'
+
+
+def test_gido_context_promotes_a_close_helping_verb_alternative() -> None:
+    sentence = '먹기도 하다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '하다': (
+            _entry('do', '하다', 'verb', 'to do'),
+            _entry('aux', '하다', '보조 동사', 'auxiliary use'),
+        ),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('먹', 'VV', 0, 1),
+                    Token('기', 'ETN', 1, 1),
+                    Token('도', 'JX', 2, 1),
+                    Token('하', 'VV', 4, 1),
+                    Token('다', 'EF', 5, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('먹', 'VV', 0, 1),
+                    Token('기', 'ETN', 1, 1),
+                    Token('도', 'JX', 2, 1),
+                    Token('하', 'VX', 4, 1),
+                    Token('다', 'EF', 5, 1),
+                ],
+                -1.7,
+            ),
+        ],
+        '하다': [
+            (
+                [
+                    Token('하', 'VV', 0, 1),
+                    Token('다', 'EF', 1, 1),
+                ],
+                -1.0,
+            )
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (4, 6)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+    assert candidate.dictionary_entries[0].entry_id == 'aux'
+
+
 def test_context_reranks_kiwi_helping_alternative_after_connective() -> None:
     dictionary = RoleDictionary()
     dictionary.values = {
@@ -290,6 +407,43 @@ def test_ge_doeda_promotes_distant_same_lemma_helping_alternative() -> None:
                     Token('\ub294', 'ETM', 1, 1),
                 ],
                 -1.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 5)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_ge_doeda_promotes_a_contracted_helping_alternative() -> None:
+    sentence = '보게 된다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '되다': (_entry('become', '되다', 'verb', 'to become'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('보', 'VV', 0, 1),
+                    Token('게', 'EC', 1, 1),
+                    Token('되', 'VV', 3, 1),
+                    Token('ᆫ다', 'EF', 3, 2),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('보', 'VV', 0, 1),
+                    Token('게', 'EC', 1, 1),
+                    Token('되', 'VX', 3, 1),
+                    Token('ᆫ다', 'EF', 3, 2),
+                ],
+                -10.5,
             ),
         ],
     }
@@ -393,6 +547,54 @@ def test_close_candidate_supported_by_unwrapped_context_is_promoted() -> None:
     )[0]
 
     assert candidate.lexical_components[0].learner_role == 'descriptive verb'
+
+
+def test_unwrapped_context_can_supply_a_missing_role_only_candidate() -> None:
+    sentence = '“안” 먹다'
+    unwrapped = '안 먹다'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '안': (
+            _entry('not', '안', 'adverb', 'not'),
+            _entry('inside', '안', 'noun', 'inside'),
+        ),
+    }
+    analyses = {
+        sentence: [([Token('안', 'NNP', 1, 1)], -1.0)],
+        unwrapped: [([Token('안', 'MAG', 0, 1)], -1.0)],
+    }
+
+    candidates = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (1, 2)
+    )
+
+    assert candidates[0].lexical_components[0].learner_role == 'adverb'
+    assert candidates[1].lexical_components[0].learner_role == 'name or proper noun'
+
+
+def test_unwrapped_context_does_not_supply_a_different_lemma() -> None:
+    sentence = '“한”'
+    unwrapped = '한'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '한': (_entry('han', '한', 'noun', 'a name'),),
+        '하다': (_entry('do', '하다', 'verb', 'to do'),),
+    }
+    analyses = {
+        sentence: [([Token('한', 'NNP', 1, 1)], -1.0)],
+        unwrapped: [
+            ([Token('하', 'VV', 0, 1), Token('ᆫ', 'ETM', 0, 1)], -1.0)
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (1, 2)
+    )[0]
+
+    assert candidate.lemma == '한'
+    assert candidate.lexical_components[0].learner_role == 'name or proper noun'
 
 
 def test_unwrapped_context_does_not_promote_distant_candidate() -> None:

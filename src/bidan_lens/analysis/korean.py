@@ -56,11 +56,25 @@ _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
 _REPORTED_SPEECH_CONNECTIVES = frozenset({'다고', '라고', '냐고', '자고'})
+_NON_AUXILIARY_CONNECTIVES = frozenset({'라도'})
 _STANDALONE_OBJECT_PARTICLES = frozenset({'을', '를'})
 
 
 def _base_tag(tag: str) -> str:
     return tag.split("-", 1)[0]
+
+
+def _is_non_auxiliary_connective(form: str | None) -> bool:
+    return bool(
+        form
+        and any(
+            form.endswith(ending)
+            for ending in (
+                *_REPORTED_SPEECH_CONNECTIVES,
+                *_NON_AUXILIARY_CONNECTIVES,
+            )
+        )
+    )
 
 
 def _to_token(value: Any) -> _Token:
@@ -109,6 +123,11 @@ class KoreanAnalyzer:
             candidates,
             max_candidates,
         )
+        candidates = self._promote_gido_auxiliary_candidate(
+            sentence,
+            target_span,
+            candidates,
+        )
         candidates = self._promote_ge_doeda_auxiliary_candidate(
             sentence,
             target_span,
@@ -134,17 +153,55 @@ class KoreanAnalyzer:
         )
 
     @staticmethod
+    def _promote_gido_auxiliary_candidate(
+        sentence: str,
+        target_span: tuple[int, int],
+        candidates: tuple[AnalysisCandidate, ...],
+    ) -> tuple[AnalysisCandidate, ...]:
+        start, _ = target_span
+        prefix = sentence[:start].rstrip()
+        while prefix and unicodedata.category(prefix[-1]).startswith('P'):
+            prefix = prefix[:-1].rstrip()
+        if len(candidates) < 2 or not prefix.endswith('기도'):
+            return candidates
+        first = candidates[0]
+        if len(first.lexical_components) != 1:
+            return candidates
+        current = first.lexical_components[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score
+                > _SAME_LEMMA_AUXILIARY_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or candidate.lemma != '하다'
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                current.surface == alternative.surface
+                and current.lemma == alternative.lemma
+                and current.learner_role != 'helping verb'
+                and alternative.learner_role == 'helping verb'
+                and alternative.dictionary_entries
+            ):
+                return (
+                    candidate,
+                    *candidates[:index],
+                    *candidates[index + 1 :],
+                )
+        return candidates
+
+    @staticmethod
     def _promote_ge_doeda_auxiliary_candidate(
         sentence: str,
         target_span: tuple[int, int],
         candidates: tuple[AnalysisCandidate, ...],
     ) -> tuple[AnalysisCandidate, ...]:
-        start, end = target_span
-        surface = sentence[start:end]
+        start, _ = target_span
         if (
             len(candidates) < 2
             or not sentence[:start].rstrip().endswith('\uac8c')
-            or not surface.startswith('\ub418')
         ):
             return candidates
         first = candidates[0]
@@ -181,7 +238,7 @@ class KoreanAnalyzer:
         candidates: tuple[AnalysisCandidate, ...],
         max_candidates: int,
     ) -> tuple[AnalysisCandidate, ...]:
-        if len(candidates) < 2:
+        if not candidates:
             return candidates
         start, end = target_span
         left = start
@@ -203,14 +260,61 @@ class KoreanAnalyzer:
             return candidates
         signature = self._candidate_signature(contextual[0])
         for index, candidate in enumerate(candidates[1:], start=1):
+            if self._candidate_signature(candidate) != signature:
+                continue
             if (
-                self._candidate_signature(candidate) == signature
-                and candidate.dictionary_entries
+                candidate.dictionary_entries
                 and candidates[0].score - candidate.score
                 <= _WRAPPER_CONTEXT_SCORE_MARGIN
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
-        return candidates
+            return candidates
+        if len(candidates) != 1:
+            return candidates
+        first = candidates[0]
+        alternative = contextual[0]
+        if (
+            alternative.surface != first.surface
+            or alternative.lemma != first.lemma
+            or len(alternative.lexical_components)
+            != len(first.lexical_components)
+            or not all(
+                component.dictionary_entries
+                for component in alternative.lexical_components
+            )
+        ):
+            return candidates
+        role_pairs: list[tuple[str, str]] = []
+        for current, contextual_component in zip(
+            first.lexical_components,
+            alternative.lexical_components,
+            strict=True,
+        ):
+            if (
+                current.surface != contextual_component.surface
+                or current.lemma != contextual_component.lemma
+            ):
+                return candidates
+            if current.learner_role != contextual_component.learner_role:
+                role_pairs.append(
+                    (current.learner_role, contextual_component.learner_role)
+                )
+        contextual_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+            'determiner',
+            'adverb',
+        }
+        if not role_pairs or not all(
+            current in contextual_roles and replacement in contextual_roles
+            for current, replacement in role_pairs
+        ):
+            return candidates
+        promoted = replace(alternative, score=first.score, uncertain=True)
+        return (promoted, first)[:max_candidates]
 
     def _promote_isolated_verb_role_candidate(
         self,
@@ -540,13 +644,13 @@ class KoreanAnalyzer:
                 continue
             seen.add(key)
             first_target_index = target_pairs[0][0]
-            preceding_context_token = next(
-                (
-                    token
-                    for token in reversed(tokens[:first_target_index])
-                    if not _base_tag(token.tag).startswith('S')
-                ),
-                None,
+            preceding_context_tokens = [
+                token
+                for token in tokens[:first_target_index]
+                if not _base_tag(token.tag).startswith('S')
+            ]
+            preceding_context_token = (
+                preceding_context_tokens[-1] if preceding_context_tokens else None
             )
             preceding_context_tag = (
                 _base_tag(preceding_context_token.tag)
@@ -557,6 +661,13 @@ class KoreanAnalyzer:
                 preceding_context_token.form
                 if preceding_context_token is not None
                 else None
+            )
+            nominalized_gido_context = bool(
+                len(preceding_context_tokens) >= 2
+                and preceding_context_tokens[-2].form == '기'
+                and _base_tag(preceding_context_tokens[-2].tag) == 'ETN'
+                and preceding_context_tokens[-1].form == '도'
+                and _base_tag(preceding_context_tokens[-1].tag) == 'JX'
             )
             components = self._lexical_components(
                 target_tokens,
@@ -583,7 +694,7 @@ class KoreanAnalyzer:
                 uncertain=not bool(entries),
             )
             candidates.append(candidate)
-            if preceding_context_tag == 'EC' and any(
+            if (preceding_context_tag == 'EC' or nominalized_gido_context) and any(
                 component.learner_role == 'helping verb' for component in components
             ):
                 contextual_auxiliary_ids.add(id(candidate))
@@ -626,6 +737,7 @@ class KoreanAnalyzer:
             'name or proper noun',
             'pronoun',
             'determiner',
+            'adverb',
         }
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
@@ -656,6 +768,10 @@ class KoreanAnalyzer:
             if all(
                 current.learner_role in nominal_roles
                 and alternative.learner_role in nominal_roles
+                and (
+                    current.learner_role != 'adverb'
+                    or alternative.learner_role == 'adverb'
+                )
                 and (preferred := self.dictionary.lookup(alternative.lemma, None, 1))
                 and preferred[0].part_of_speech == alternative.learner_role
                 for current, alternative in differing
@@ -924,7 +1040,7 @@ class KoreanAnalyzer:
             if (
                 lookup_tag in {'VV', 'VA', 'XSV', 'XSA'}
                 and previous_tag == 'EC'
-                and previous_form not in _REPORTED_SPEECH_CONNECTIVES
+                and not _is_non_auxiliary_connective(previous_form)
                 and self._has_auxiliary_entry(lemma)
             ):
                 lookup_tag = 'VX'

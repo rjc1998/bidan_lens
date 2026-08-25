@@ -950,3 +950,70 @@ def test_dictionary_noun_entry_can_disambiguate_a_proper_noun_tag() -> None:
     ).analyze('그', (0, 1))[0]
 
     assert candidate.lexical_components[0].learner_role == 'noun'
+
+
+class AdverbNounRoleDictionary(DictionaryStore):
+    def __init__(self, preferred_role: str) -> None:
+        self.preferred_role = preferred_role
+
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma != '깊이':
+            return ()
+        other_role = 'noun' if self.preferred_role == 'adverb' else 'adverb'
+        entries = (
+            DictionaryEntry(
+                self.preferred_role,
+                lemma,
+                self.preferred_role,
+                None,
+                None,
+                (DictionarySense('preferred'),),
+            ),
+            DictionaryEntry(
+                other_role,
+                lemma,
+                other_role,
+                None,
+                None,
+                (DictionarySense('other'),),
+            ),
+        )
+        if part_of_speech is not None:
+            entries = tuple(
+                entry for entry in entries if entry.part_of_speech == part_of_speech
+            )
+        return entries[:limit]
+
+
+@pytest.mark.parametrize(
+    (
+        'preferred_role',
+        'first_tag',
+        'alternative_tag',
+        'alternative_score',
+        'expected_role',
+    ),
+    [
+        ('noun', 'MAG', 'NNG', -3.3, 'adverb'),
+        ('adverb', 'NNG', 'MAG', -3.3, 'adverb'),
+        ('adverb', 'NNG', 'MAG', -3.5, 'noun'),
+    ],
+)
+def test_dictionary_preferred_adverb_noun_role_is_score_bounded(
+    preferred_role: str,
+    first_tag: str,
+    alternative_tag: str,
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        ([Token('깊이', first_tag, 0, 2)], -1.0),
+        ([Token('깊이', alternative_tag, 0, 2)], alternative_score),
+    ]
+
+    candidate = KoreanAnalyzer(
+        AdverbNounRoleDictionary(preferred_role),
+        FakeKiwi(analyses),
+    ).analyze('깊이', (0, 2))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
