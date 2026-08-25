@@ -11,8 +11,10 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
+    _recover_overlapping_suffix_pairs,
     _recover_overlapping_word_triplets,
     _recover_terminal_overlapping_word_pair,
+    _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _split_mandatory_auxiliary_spacing,
     _split_punctuation_wrapped_word,
@@ -421,6 +423,43 @@ def test_matching_character_fragment_with_normal_pitch_is_removed() -> None:
     ]
 
 
+def test_contained_suffix_fragment_of_short_word_is_removed() -> None:
+    line = OcrLine(
+        '기원 원 수세기',
+        BoundingBox(0, 0, 120, 20),
+        0.9,
+        (
+            OcrEojeol('기원', BoundingBox(0, 0, 40, 20), 0.99, 0, 2),
+            OcrEojeol('원', BoundingBox(30, 0, 41, 20), 0.99, 3, 4),
+            OcrEojeol('수세기', BoundingBox(50, 0, 110, 20), 0.99, 5, 8),
+        ),
+    )
+
+    cleaned = _remove_tiny_contained_fragments(line)
+
+    assert cleaned.text == '기원 수세기'
+    assert [item.text for item in cleaned.eojeols] == ['기원', '수세기']
+    assert [(item.sentence_start, item.sentence_end) for item in cleaned.eojeols] == [
+        (0, 2),
+        (3, 6),
+    ]
+
+
+def test_unrelated_contained_character_of_short_word_is_preserved() -> None:
+    line = OcrLine(
+        '기원 가 수세기',
+        BoundingBox(0, 0, 120, 20),
+        0.9,
+        (
+            OcrEojeol('기원', BoundingBox(0, 0, 40, 20), 0.99, 0, 2),
+            OcrEojeol('가', BoundingBox(30, 0, 41, 20), 0.99, 3, 4),
+            OcrEojeol('수세기', BoundingBox(50, 0, 110, 20), 0.99, 5, 8),
+        ),
+    )
+
+    assert _remove_tiny_contained_fragments(line) == line
+
+
 def test_contained_fragment_at_width_threshold_is_preserved() -> None:
     line = OcrLine(
         "\uc544 \ud559\uad50\uc5d0\uc11c",
@@ -478,9 +517,9 @@ def test_overlapping_character_is_preserved_without_exact_confirmation() -> None
     )
 
 
-def test_narrow_overlapping_character_is_preserved_despite_exact_confirmation() -> None:
+def test_high_confidence_overlapping_character_is_preserved_despite_exact_confirmation() -> None:
     words = [
-        ('학', BoundingBox(30, 0, 36, 20), 0.782),
+        ('학', BoundingBox(30, 0, 36, 20), 0.982),
         ('학교에서', BoundingBox(35, 0, 93, 20), 0.999),
     ]
 
@@ -490,6 +529,41 @@ def test_narrow_overlapping_character_is_preserved_despite_exact_confirmation() 
             Image.new('RGB', (100, 20)),
             BoundingBox(0, 0, 100, 20),
             DuplicateCharacterRecognizer(),
+        )
+        == words
+    )
+
+
+def test_exactly_confirmed_touching_character_duplicate_is_discarded() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 39, 20), 0.33),
+        ('학교에서', BoundingBox(39, 0, 99, 20), 0.998),
+    ]
+
+    recovered = _discard_confirmed_overlapping_character_duplicates(
+        words,
+        Image.new('RGB', (110, 20)),
+        BoundingBox(0, 0, 110, 20),
+        DuplicateCharacterRecognizer(),
+    )
+
+    assert recovered == [
+        ('학교에서', BoundingBox(30, 0, 99, 20), 0.998),
+    ]
+
+
+def test_normal_width_character_duplicate_requires_exact_confirmation() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 43, 20), 0.33),
+        ('학교에서', BoundingBox(42, 0, 102, 20), 0.998),
+    ]
+
+    assert (
+        _discard_confirmed_overlapping_character_duplicates(
+            words,
+            Image.new('RGB', (110, 20)),
+            BoundingBox(0, 0, 110, 20),
+            DuplicateCharacterRecognizer('학생학교에서'),
         )
         == words
     )
@@ -517,6 +591,85 @@ def test_overlapping_word_triplet_discards_only_confirmed_leading_sliver() -> No
     assert recovered == [
         ("\ud559\uad50\uc5d0\uc11c\ub294", BoundingBox(10, 0, 94, 20), 0.93),
     ]
+
+
+def test_triplet_recovery_precedes_pair_duplicate_cleanup() -> None:
+    words = [
+        ('가', BoundingBox(10, 0, 16, 20), 0.78),
+        ('학교에서', BoundingBox(15, 0, 75, 20), 0.999),
+        ('는', BoundingBox(74, 0, 94, 20), 0.93),
+    ]
+
+    recovered = _recover_word_boundaries(
+        words,
+        Image.new('RGB', (100, 20)),
+        BoundingBox(0, 0, 100, 20),
+        TripletRecognizer(),
+    )
+
+    assert recovered == [
+        ('학교에서는', BoundingBox(10, 0, 94, 20), 0.93),
+    ]
+
+
+class OverlappingSuffixRecognizer:
+    def __init__(self, text: str = '의도와는') -> None:
+        self.text = text
+
+    def recognize(self, _image):
+        return RecognizedText(self.text, 0.9994)
+
+
+def test_overlapping_suffix_pair_merges_with_exact_combined_recognition() -> None:
+    words = [
+        ('의도', BoundingBox(10, 0, 50, 30), 0.603),
+        ('도와는', BoundingBox(49, 0, 100, 30), 0.978),
+    ]
+
+    recovered = _recover_overlapping_suffix_pairs(
+        words,
+        Image.new('RGB', (110, 30)),
+        BoundingBox(0, 0, 110, 30),
+        OverlappingSuffixRecognizer(),
+    )
+
+    assert recovered == [
+        ('의도와는', BoundingBox(10, 0, 100, 30), 0.603),
+    ]
+
+
+def test_overlapping_suffix_pair_requires_exact_combined_recognition() -> None:
+    words = [
+        ('의도', BoundingBox(10, 0, 50, 30), 0.603),
+        ('도와는', BoundingBox(49, 0, 100, 30), 0.978),
+    ]
+
+    assert (
+        _recover_overlapping_suffix_pairs(
+            words,
+            Image.new('RGB', (110, 30)),
+            BoundingBox(0, 0, 110, 30),
+            OverlappingSuffixRecognizer('의도 도와는'),
+        )
+        == words
+    )
+
+
+def test_high_confidence_repeated_boundary_is_preserved() -> None:
+    words = [
+        ('학교', BoundingBox(10, 0, 50, 30), 0.999),
+        ('교실', BoundingBox(49, 0, 90, 30), 0.998),
+    ]
+
+    assert (
+        _recover_overlapping_suffix_pairs(
+            words,
+            Image.new('RGB', (100, 30)),
+            BoundingBox(0, 0, 100, 30),
+            OverlappingSuffixRecognizer('학교실'),
+        )
+        == words
+    )
 
 
 def test_overlapping_word_triplet_preserves_wider_leading_word() -> None:

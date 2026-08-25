@@ -562,13 +562,13 @@ def _discard_confirmed_overlapping_character_duplicates(
             last_pitch = last[1].width / len(last[0])
             matches_geometry = (
                 len(first[0]) == 1
-                and len(last[0]) >= 3
+                and len(last[0]) >= 2
                 and contains_hangul(first[0])
                 and contains_hangul(last[0])
-                and 0.72 <= first[2] < 0.92
-                and last[2] >= 0.985
-                and last_pitch * 0.45 <= first[1].width <= last_pitch * 0.55
-                and 0.04 <= overlap_ratio <= 0.06
+                and first[2] < 0.96
+                and last[2] >= 0.7
+                and first[1].width <= last_pitch * 0.9
+                and 0 <= overlap_ratio <= 0.07
             )
             if matches_geometry:
                 combined_crop = crop.crop(
@@ -581,7 +581,7 @@ def _discard_confirmed_overlapping_character_duplicates(
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(' ', '')
-                if combined.confidence >= 0.995 and combined_text == last[0]:
+                if combined.confidence >= 0.99 and combined_text == last[0]:
                     recovered.append(
                         (
                             last[0],
@@ -777,6 +777,84 @@ def _recover_isolated_overlapping_word_pairs(
     return recovered
 
 
+def _recover_overlapping_suffix_pairs(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index + 1 < len(words):
+            first, last = words[index : index + 2]
+            overlap_ratio = (first[1].right - last[1].left) / line_box.height
+            matches_geometry = (
+                len(first[0]) >= 2
+                and len(last[0]) >= 2
+                and contains_hangul(first[0])
+                and contains_hangul(last[0])
+                and first[0][-1] == last[0][0]
+                and min(first[2], last[2]) < 0.8
+                and max(first[2], last[2]) >= 0.95
+                and 0 < overlap_ratio <= 0.04
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(' ', '')
+                merged_text = first[0] + last[0][1:]
+                if combined.confidence >= 0.998 and combined_text == merged_text:
+                    recovered.append(
+                        (
+                            merged_text,
+                            BoundingBox.union((first[1], last[1])),
+                            min(first[2], last[2], combined.confidence),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
+def _recover_word_boundaries(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    words = _recover_overlapping_word_triplets(words, crop, line_box, recognizer)
+    words = _discard_confirmed_overlapping_character_duplicates(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_overlapping_suffix_pairs(words, crop, line_box, recognizer)
+    words = _recover_terminal_overlapping_word_pair(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_isolated_overlapping_word_pairs(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    return _recover_isolated_close_word_pairs(words, crop, line_box, recognizer)
+
+
 def _vertical_overlap_ratio(left: OcrLine, right: OcrLine) -> float:
     overlap = min(left.box.bottom, right.box.bottom) - max(left.box.top, right.box.top)
     return max(0.0, overlap) / max(1.0, min(left.box.height, right.box.height))
@@ -802,13 +880,24 @@ def _overlapping_prefix_end(left: str, right: str) -> int:
 
 
 def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
+    def fragment_key(value: str) -> str:
+        start = 0
+        end = len(value)
+        while start < end and unicodedata.category(value[start])[0] in {'P', 'Z'}:
+            start += 1
+        while end > start and unicodedata.category(value[end - 1])[0] in {'P', 'Z'}:
+            end -= 1
+        return value[start:end]
+
     fragments = []
     for item in line.eojeols:
-        if len(item.text) != 1:
+        item_key = fragment_key(item.text)
+        if len(item_key) != 1:
             continue
         center = (item.box.left + item.box.right) / 2
         for other in line.eojeols:
-            if other is item or len(other.text) < 3:
+            other_key = fragment_key(other.text)
+            if other is item or len(other_key) < 2:
                 continue
             vertical_overlap = max(
                 0.0,
@@ -821,17 +910,28 @@ def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
             )
             character_pitch = other.box.width / len(other.text)
             matched_character_fragment = (
-                item.text in other.text
+                len(other_key) >= 3
+                and item.text in other.text
                 and other.box.left <= item.box.left
                 and item.box.right <= other.box.right
                 and item.box.width <= character_pitch * 1.25
+            )
+            matched_suffix_fragment = (
+                len(item_key) < len(other_key)
+                and other_key.endswith(item_key)
+                and item.box.width <= character_pitch * 1.25
+            )
+            tiny_contained_fragment = (
+                len(other_key) >= 3
+                and item.box.width <= other.box.width * 0.1
             )
             if (
                 vertical_overlap >= 0.8
                 and other.box.left <= center <= other.box.right
                 and (
-                    item.box.width <= other.box.width * 0.1
+                    tiny_contained_fragment
                     or matched_character_fragment
+                    or matched_suffix_fragment
                 )
                 and not same_span
             ):
@@ -1126,31 +1226,7 @@ class PaddleOcrEngine(OcrEngine):
             for text, box, confidence in words
             for part in _split_mandatory_auxiliary_spacing(text, box, confidence)
         ]
-        words = _discard_confirmed_overlapping_character_duplicates(
-            words,
-            crop,
-            line_box,
-            self.recognizer,
-        )
-        words = _recover_overlapping_word_triplets(
-            words,
-            crop,
-            line_box,
-            self.recognizer,
-        )
-        words = _recover_terminal_overlapping_word_pair(
-            words,
-            crop,
-            line_box,
-            self.recognizer,
-        )
-        words = _recover_isolated_overlapping_word_pairs(
-            words,
-            crop,
-            line_box,
-            self.recognizer,
-        )
-        words = _recover_isolated_close_word_pairs(
+        words = _recover_word_boundaries(
             words,
             crop,
             line_box,

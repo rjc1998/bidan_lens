@@ -60,25 +60,26 @@ quick cases, is hash-locked, and passes corpus validation. It uses the current c
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.12 200-case quick tier records 98.92% whole-eojeol OCR, 99.00% target
-selection, 92.50% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 88.50% fully correct first popups, with 206.88 ms
-median / 308.23 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+The accepted v4.12 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
+selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.61 ms
+median / 327.24 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
-four component roles), 13 context cases, and two target cases. Aggregate and per-category negative
+four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
-The complete v4.12 development evaluation has now run. Its 2,000 main cases record 97.91%
-whole-eojeol OCR, 97.10% target selection, 85.80% functional context, 69.10% exact sentence
-transcription, 88.65% component accuracy, 92.10% exact KRDict fidelity, 76.15% fully correct first
+The complete v4.12 development evaluation has now run against the current reconstruction cleanup.
+Its 2,000 main cases record 97.97% whole-eojeol OCR, 97.10% target selection, 86.60% functional
+context, 69.80% exact sentence transcription, 88.65% component accuracy, 92.10% exact KRDict
+fidelity, 76.90% fully correct first
 popups, and 92.55% alternative recovery. False promotions remain zero and automated latency is
-218.28 ms median / 322.34 ms p95. Privacy-safe diagnostics contain 58 target, 226 context, and
+216.04 ms median / 321.45 ms p95. Privacy-safe diagnostics contain 58 target, 210 context, and
 193 analysis failures; the analysis stages are 74 primary lemmas, 90 component roles, 12 component
 surfaces, nine component counts, and eight grammar roles. Three additional records fail only a
 negative-pointer category.
 
-The nonblocking 250-case stress tier records 94.11% OCR, 96.00% target selection, 66.80%
-functional context, and 62.40% fully correct first popups. The 400-case held-out language tier
+The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
+functional context, and 62.80% fully correct first popups. The 400-case held-out language tier
 records 88.00% overall, 89.50% auxiliary, 86.50% multi-lexical, and 100% direct KRDict
 conformance. Aggregate main negative activation is 0.14%; blank, English, and near-miss probes
 remain at zero, whitespace is four of 1,931 (0.21%), and punctuation is nine of 1,582 (0.57%).
@@ -88,18 +89,24 @@ and per-category negative-activation gates fail.
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
 initialization and categorized one stable ID at a time, writing each categorical decision
-immediately. The initial stratified 53-case 12 px through 18 px review contains 25 non-target OCR
-transcription errors, 14 punctuation or structured-text cases, nine missed or merged OCR word
-boundaries, and five incorrect line/sentence reconstructions. The added transcription category
+immediately. The current 153-case review contains 64 non-target OCR transcription errors, 44
+punctuation or structured-text cases, 28 missed or merged OCR word boundaries, and 17 incorrect
+line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts; 173 of the 226 active main context failures remain
-unreviewed.
+IDs, categorical decisions, and counts. The current full diagnostics have 210 active context
+cases; reconciliation finds 12 resolved reviewed IDs, 141 active reviewed IDs, and 69 missing
+decisions.
 
-Four reviewed reconstruction cases contain a narrow one-character segment overlapping the next
-word, and combined recognition returns only that next word. Broadening the existing discard rule
-would also remove a protected narrow real-character regression, so no OCR change was accepted.
-Additional classification or a stronger independent confirmation signal is required.
+Three independently reviewed reconstruction cases contained a one-character eojeol centered
+inside a two-character eojeol while exactly repeating its punctuation-normalized suffix. The
+accepted cleanup removes only that suffix-specific contained fragment, preserves the protected
+unrelated-character regression, and resolves all three stable IDs. On the quick tier it recovers
+one context and popup case without changing target selection, component or dictionary accuracy,
+false promotions, or negative activation.
+
+Compared with the earlier full report, the three accepted cleanups resolve 16 context IDs without
+introducing a new context failure.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -132,11 +139,18 @@ single-character pitch. This recovered two cases and improved OCR, functional co
 transcription, and popup correctness without a target, alternative, promotion, or negative-probe
 regression.
 
-A second review-supported rule handles a partially overlapping one-character sliver only when
-its width is close to half the following word's character pitch and recognizing their union with
-very high confidence exactly reproduces the following word. A narrower real character is covered
-by a regression test. This recovered one further context and popup case while preserving OCR,
-target selection, alternative recovery, false promotions, and every negative-pointer category.
+A second review-supported rule handles a low-confidence one-character Hangul sliver only when it
+touches or slightly overlaps a following Hangul word, is no wider than 90% of that word's character
+pitch, and recognizing their union at 99% confidence or better exactly reproduces the following
+word. The more specific exact-confirmed triplet recovery runs first so a real final syllable is not
+stranded. This resolves 11 further full-tier context cases without a new context failure and
+preserves the accepted quick-tier OCR, target, popup, promotion, and negative-pointer results.
+
+A third exact-confirmation rule merges an overlapping pair only when its surfaces share exactly
+one boundary syllable, one side is below 80% confidence, the other is at least 95%, and recognizing
+their union at 99.8% confidence or better exactly reproduces the deduplicated surface. This
+resolves two reviewed suffix-overlap reconstruction cases without a new full-tier context failure
+or any quick-tier change.
 
 Reported-speech connectives are now passed into learner-role construction. A following lexical
 verb is no longer relabeled as a helping verb merely because the same headword also has an
