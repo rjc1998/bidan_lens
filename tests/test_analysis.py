@@ -160,6 +160,229 @@ def test_hwa_derivation_requires_an_exact_dictionary_entry() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ('stem', 'suffix_tag', 'part_of_speech', 'expected_role'),
+    [
+        ('가득', 'XSA', 'adjective', 'descriptive verb'),
+        ('못', 'XSV', 'verb', 'action verb'),
+    ],
+)
+def test_dictionary_backed_adverb_hada_derivation_forms_one_component(
+    stem: str,
+    suffix_tag: str,
+    part_of_speech: str,
+    expected_role: str,
+) -> None:
+    lemma = stem + '하다'
+
+    class DerivedAdverbDictionary(DictionaryStore):
+        def lookup(self, value: str, position=None, limit: int = 10):
+            if value != lemma or position not in {None, part_of_speech}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    part_of_speech,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token(stem, 'MAG', 0, len(stem)),
+        Token('하', suffix_tag, len(stem), 1),
+        Token('다', 'EF', len(stem) + 1, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        DerivedAdverbDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze(stem + '하다', (0, len(stem) + 2))[0]
+
+    assert candidate.lemma == lemma
+    assert len(candidate.lexical_components) == 1
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_dictionary_backed_adverb_hada_preserves_contextual_auxiliary_role() -> None:
+    class AuxiliaryDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != '못하다' or part_of_speech not in {'verb', '보조 동사'}:
+                return ()
+            return (
+                DictionaryEntry(
+                    part_of_speech,
+                    lemma,
+                    part_of_speech,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('지', 'EC', 0, 1),
+        Token('못', 'MAG', 2, 1),
+        Token('하', 'XSV', 3, 1),
+        Token('었', 'EP', 3, 1),
+        Token('다', 'EF', 4, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        AuxiliaryDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('지 못했다', (2, 5))[0]
+
+    assert candidate.lemma == '못하다'
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+    assert candidate.dictionary_entries[0].part_of_speech == '보조 동사'
+
+
+def test_adverb_hada_derivation_requires_an_exact_dictionary_entry() -> None:
+    tokens = [
+        Token('가득', 'MAG', 0, 2),
+        Token('하', 'XSA', 2, 1),
+        Token('다', 'EF', 3, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('가득하다', (0, 4))[0]
+
+    assert candidate.lemma == '가득'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '가득',
+        '하다',
+    ]
+
+
+def test_isolated_decomposition_does_not_displace_complete_adverb_hada() -> None:
+    sentence = '지 못했다'
+    surface = '못했다'
+
+    class DerivationDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            known = {
+                ('못', 'adverb'): '못',
+                ('하다', '보조 동사'): '하다',
+                ('못하다', 'verb'): '못하다',
+                ('못하다', '보조 동사'): '못하다',
+            }
+            headword = known.get((lemma, part_of_speech))
+            if headword is None:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma + str(part_of_speech),
+                    headword,
+                    part_of_speech,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    full_context = [
+        Token('지', 'EC', 0, 1),
+        Token('못', 'MAG', 2, 1),
+        Token('하', 'XSV', 3, 1),
+        Token('었', 'EP', 3, 1),
+        Token('다', 'EF', 4, 1),
+    ]
+    split_context = [
+        Token('지', 'EC', 0, 1),
+        Token('못', 'MAG', 2, 1),
+        Token('하', 'VX', 3, 1),
+        Token('었', 'EP', 3, 1),
+        Token('다', 'EF', 4, 1),
+    ]
+    full_isolated = [
+        Token('못', 'MAG', 0, 1),
+        Token('하', 'XSV', 1, 1),
+        Token('었', 'EP', 1, 1),
+        Token('다', 'EF', 2, 1),
+    ]
+    split_isolated = [
+        Token('못', 'MAG', 0, 1),
+        Token('하', 'VX', 1, 1),
+        Token('었', 'EP', 1, 1),
+        Token('다', 'EF', 2, 1),
+    ]
+
+    class DerivationKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            analyses = {
+                sentence: [(full_context, -1.0), (split_context, -4.0)],
+                surface: [(split_isolated, -1.0), (full_isolated, -2.0)],
+            }
+            return analyses[text][:top_n]
+
+    candidate = KoreanAnalyzer(
+        DerivationDictionary(),
+        DerivationKiwi([]),
+    ).analyze(sentence, (2, 5))[0]
+
+    assert candidate.lemma == '못하다'
+    assert len(candidate.lexical_components) == 1
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_zero_length_kiwi_insertion_is_not_a_lexical_component() -> None:
+    class InsertionDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            known = {
+                ('불과하다', 'adjective'),
+                ('하다', 'verb'),
+            }
+            if (lemma, part_of_speech) not in known:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    part_of_speech,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('불과', 'MAG', 0, 2),
+        Token('하', 'XSA', 2, 1),
+        Token('다고', 'EC', 3, 1),
+        Token('하', 'VV', 4, 0),
+        Token('는', 'ETM', 4, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        InsertionDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('불과하다는', (0, 5))[0]
+
+    assert candidate.lemma == '불과하다'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '불과하다'
+    ]
+
+
+def test_nonduplicate_zero_length_kiwi_ellipsis_remains_a_component() -> None:
+    tokens = [
+        Token('살', 'VV', 0, 1),
+        Token('ㄴ다고', 'EC', 0, 2),
+        Token('하', 'VV', 2, 0),
+        Token('고', 'EC', 2, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('산다고', (0, 3))[0]
+
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '살다',
+        '하다',
+    ]
+
+
 def test_multi_eojeol_construction_remains_two_targets_with_shared_context() -> None:
     tokens = [
         Token("먹", "VV", 0, 1),
@@ -357,6 +580,73 @@ def test_between_noun_suffix_is_not_assigned_to_either_component() -> None:
     assert [item.surface for item in candidate.lexical_components] == [first, second]
 
 
+def test_dictionary_backed_internal_noun_suffix_extends_preceding_component() -> None:
+    class InternalSuffixDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma not in {'민주화', '운동'} or part_of_speech not in {None, 'noun'}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    'noun',
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('민주', 'NNG', 0, 2),
+        Token('화', 'XSN', 2, 1),
+        Token('운동', 'NNG', 3, 2),
+        Token('의', 'JKG', 5, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        InternalSuffixDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('민주화운동의', (0, 6))[0]
+
+    assert candidate.lemma == '민주화'
+    assert [item.surface for item in candidate.lexical_components] == [
+        '민주화',
+        '운동',
+    ]
+
+
+def test_dictionary_backed_internal_non_hwa_suffix_remains_unattached() -> None:
+    class InternalSuffixDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma not in {'언어적', '대관'} or part_of_speech not in {None, 'noun'}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    'noun',
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('언어', 'NNG', 0, 2),
+        Token('적', 'XSN', 2, 1),
+        Token('대관', 'NNG', 3, 2),
+    ]
+    candidate = KoreanAnalyzer(
+        InternalSuffixDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('언어적대관', (0, 5))[0]
+
+    assert candidate.lemma == '언어'
+    assert [item.surface for item in candidate.lexical_components] == [
+        '언어',
+        '대관',
+    ]
+
+
 def test_noun_suffix_before_copula_does_not_extend_component() -> None:
     noun = "\uc0dd\uc0b0"
     suffix = "\uc801"
@@ -376,6 +666,37 @@ def test_noun_suffix_before_copula_does_not_extend_component() -> None:
     candidate = KoreanAnalyzer(FakeDictionary(), kiwi).analyze(noun + suffix + "\uc778", (0, 4))[0]
 
     assert candidate.lexical_components[0].surface == noun
+
+
+def test_dictionary_backed_noun_suffix_before_copula_remains_unattached() -> None:
+    class CopularNounDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != '현실적' or part_of_speech not in {None, 'noun'}:
+                return ()
+            return (
+                DictionaryEntry(
+                    lemma,
+                    lemma,
+                    'noun',
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('현실', 'NNG', 0, 2),
+        Token('적', 'XSN', 2, 1),
+        Token('이', 'VCP', 3, 1),
+        Token('ㄴ', 'ETM', 3, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        CopularNounDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('현실적인', (0, 4))[0]
+
+    assert candidate.lemma == '현실'
+    assert candidate.lexical_components[0].surface == '현실'
 
 
 def test_dictionary_backed_noun_prefix_recovers_complete_component() -> None:

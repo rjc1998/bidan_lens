@@ -76,3 +76,57 @@ def test_existing_dictionary_analysis_is_not_replaced_by_suffix_fallback() -> No
 
     assert candidate.lemma == surface
     assert candidate.dictionary_entries[0].entry_id == 'whole'
+
+
+class StandaloneParticleDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        entries = {
+            ('를', 'particle'): ('object-particle', '를', 'particle'),
+            ('르', 'noun'): ('defined-noun', '르', 'noun'),
+            ('은', 'particle'): ('topic-particle', '은', 'particle'),
+            ('은', 'noun'): ('silver', '은', 'noun'),
+        }
+        value = entries.get((lemma, part_of_speech))
+        if value is None:
+            return ()
+        return (
+            DictionaryEntry(
+                value[0],
+                value[1],
+                value[2],
+                None,
+                None,
+                (DictionarySense('definition', 1),),
+            ),
+        )
+
+
+class StandaloneParticleKiwi:
+    def analyze(self, text: str, top_n: int = 1):
+        form = '르' if text == '를' else text
+        return [([(form, 'NNG', 0, 1)], -1.0)]
+
+    def space(self, text: str, reset_whitespace: bool = False) -> str:
+        return text
+
+
+def test_dictionary_backed_standalone_object_particle_is_promoted() -> None:
+    candidate = KoreanAnalyzer(
+        StandaloneParticleDictionary(),
+        StandaloneParticleKiwi(),
+    ).analyze('를', (0, 1))[0]
+
+    assert candidate.lemma == '를'
+    assert candidate.lexical_components[0].learner_role == 'particle'
+    assert candidate.dictionary_entries[0].entry_id == 'object-particle'
+
+
+def test_ambiguous_standalone_particle_surface_is_not_promoted() -> None:
+    candidate = KoreanAnalyzer(
+        StandaloneParticleDictionary(),
+        StandaloneParticleKiwi(),
+    ).analyze('은', (0, 1))[0]
+
+    assert candidate.lemma == '은'
+    assert candidate.lexical_components[0].learner_role == 'noun'
+    assert candidate.dictionary_entries[0].entry_id == 'silver'

@@ -56,6 +56,7 @@ _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
 _REPORTED_SPEECH_CONNECTIVES = frozenset({'다고', '라고', '냐고', '자고'})
+_STANDALONE_OBJECT_PARTICLES = frozenset({'을', '를'})
 
 
 def _base_tag(tag: str) -> str:
@@ -261,6 +262,8 @@ class KoreanAnalyzer:
                 for current, alternative in differing_roles
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
+        if self._is_dictionary_backed_adverb_hada_derivation(first):
+            return candidates
         if (
             surface == first.lemma
             or not first.lexical_components
@@ -303,6 +306,23 @@ class KoreanAnalyzer:
                         *candidates[index + 1 :],
                     )
         return candidates
+
+    @staticmethod
+    def _is_dictionary_backed_adverb_hada_derivation(
+        candidate: AnalysisCandidate,
+    ) -> bool:
+        if len(candidate.lexical_components) != 1 or len(candidate.morphemes) < 2:
+            return False
+        component = candidate.lexical_components[0]
+        return bool(
+            component.dictionary_entries
+            and candidate.lemma == component.lemma == component.surface + '다'
+            and candidate.morphemes[0].learner_label == 'adverb'
+            and candidate.morphemes[1].surface == '하'
+            and candidate.morphemes[1].learner_label == 'word part'
+            and component.surface
+            == candidate.morphemes[0].surface + candidate.morphemes[1].surface
+        )
 
     def _isolated_defined_component_fallback(
         self,
@@ -438,6 +458,22 @@ class KoreanAnalyzer:
     def _particle_candidate(
         self, surface: str, candidates: tuple[AnalysisCandidate, ...]
     ) -> AnalysisCandidate | None:
+        if surface in _STANDALONE_OBJECT_PARTICLES:
+            entries = self.dictionary.lookup(surface, 'particle', 10)
+            if entries:
+                score = candidates[0].score + 0.01 if candidates else 0.4
+                return AnalysisCandidate(
+                    surface=surface,
+                    lemma=surface,
+                    score=score,
+                    morphemes=(explain_morpheme(surface, surface, 'JKO'),),
+                    features=learner_features([(surface, 'JKO')]),
+                    dictionary_entries=entries,
+                    lexical_components=(
+                        LexicalComponent(surface, surface, 'particle', entries),
+                    ),
+                    uncertain=bool(candidates),
+                )
         if candidates and candidates[0].dictionary_entries:
             return None
         for suffix in known_particle_suffixes():
@@ -773,6 +809,13 @@ class KoreanAnalyzer:
             component_index = index
             token = tokens[index]
             tag = _base_tag(token.tag)
+            if (
+                token.length <= 0
+                and components
+                and components[-1].surface.endswith(token.form)
+            ):
+                index += 1
+                continue
             if tag == 'XR' and index + 1 < len(tokens):
                 suffix = tokens[index + 1]
                 if _base_tag(suffix.tag) == 'XSA':
@@ -801,6 +844,25 @@ class KoreanAnalyzer:
             lemma = self._lemma_for_token(token)
             role = explain_morpheme(surface, lemma, token.tag).learner_label
             lookup_tag = tag
+            if tag in {'MAG', 'MAJ'} and index + 1 < len(tokens):
+                verb_suffix = tokens[index + 1]
+                verb_suffix_tag = _base_tag(verb_suffix.tag)
+                if (
+                    verb_suffix_tag in {'XSV', 'XSA'}
+                    and verb_suffix.form == '하'
+                ):
+                    derived_surface = token.form + verb_suffix.form
+                    derived_lemma = derived_surface + '다'
+                    if self._ordered_entries(derived_lemma, verb_suffix_tag):
+                        surface = derived_surface
+                        lemma = derived_lemma
+                        lookup_tag = verb_suffix_tag
+                        role = (
+                            'action verb'
+                            if verb_suffix_tag == 'XSV'
+                            else 'descriptive verb'
+                        )
+                        index += 1
             if tag.startswith('N') and index + 2 < len(tokens):
                 noun_suffix = tokens[index + 1]
                 verb_suffix = tokens[index + 2]
@@ -837,20 +899,30 @@ class KoreanAnalyzer:
             if tag.startswith('N') and index + 1 < len(tokens):
                 suffix = tokens[index + 1]
                 following_tag = _base_tag(suffix.tag)
+                tag_after_suffix = (
+                    None
+                    if index + 2 >= len(tokens)
+                    else _base_tag(tokens[index + 2].tag)
+                )
                 suffix_closes_noun = (
-                    index + 2 >= len(tokens)
-                    or _base_tag(tokens[index + 2].tag).startswith('J')
+                    tag_after_suffix is None or tag_after_suffix.startswith('J')
+                )
+                dictionary_backed_suffix = bool(
+                    following_tag == 'XSN'
+                    and suffix.form == '화'
+                    and tag_after_suffix not in {'VCP', 'VCN'}
+                    and self._ordered_entries(lemma + suffix.form, 'NNG')
                 )
                 if (
                     following_tag == 'XSN'
                     and suffix.form != '들'
-                    and suffix_closes_noun
+                    and (suffix_closes_noun or dictionary_backed_suffix)
                 ):
                     surface += suffix.form
                     lemma += suffix.form
                     index += 1
             if (
-                lookup_tag in {'VV', 'VA'}
+                lookup_tag in {'VV', 'VA', 'XSV', 'XSA'}
                 and previous_tag == 'EC'
                 and previous_form not in _REPORTED_SPEECH_CONNECTIVES
                 and self._has_auxiliary_entry(lemma)
