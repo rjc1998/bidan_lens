@@ -53,38 +53,36 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.12\dev`; the untouched v4.2 release corpus remains under
+`F:\bidan-lens-eval-ud218-v4.13\dev`; the untouched v4.2 release corpus remains under
 `F:\bidan-lens-eval-ud218-v4.2\release` and has not been evaluated. Earlier roots remain
-preserved. The v4.12 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
+preserved. The v4.13 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
 quick cases, is hash-locked, and passes corpus validation. It uses the current corpus builder and
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.12 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
+The accepted v4.13 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.61 ms
-median / 323.25 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.89 ms
+median / 327.69 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
-The accepted primary-lemma v2 quick rerun preserves every substantive quick result and its
-privacy-safe diagnostics byte-for-byte, with 209.81 ms median / 319.16 ms p95 automated latency.
+The v4.13 quick diagnostics remain byte-identical to the accepted v4.12 primary-lemma rerun.
 
-The complete v4.12 development evaluation has now run against the current analyzer cleanup.
+The complete v4.13 development evaluation has now run against the current analyzer cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 91.60% component accuracy, 94.50% exact KRDict
-fidelity, 80.20% fully correct first popups, and 93.40% alternative recovery. False promotions
-remain zero and automated latency is 213.07 ms median / 319.83 ms p95. Privacy-safe diagnostics
-contain 58 target, 205 context, and 133 analysis failures; the analysis stages are 48 primary
-lemmas, 59 component roles, 12 component surfaces, six component counts, and eight grammar roles.
-Three additional records fail only a
-negative-pointer category.
+context, 70.00% exact sentence transcription, 92.00% component accuracy, 94.55% exact KRDict
+fidelity, 80.60% fully correct first popups, and 93.90% alternative recovery. False promotions
+remain zero and automated latency is 218.99 ms median / 324.67 ms p95. Privacy-safe diagnostics
+contain 58 target, 205 context, and 125 analysis failures; the analysis stages are 48 primary
+lemmas, 63 component roles, six component counts, and eight grammar roles. No component-surface
+failures remain. Three additional records fail only a negative-pointer category.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
-functional context, and 63.20% fully correct first popups. The 400-case held-out language tier
-records 91.50% overall, 96.00% auxiliary, 87.00% multi-lexical, and 100% direct KRDict
-conformance. Aggregate main negative activation is 0.14%; blank, English, and near-miss probes
+functional context, 93.60% component accuracy, and 63.20% fully correct first popups. The 400-case
+held-out language tier records 91.50% overall, 96.00% auxiliary, 87.00% multi-lexical, and 100%
+direct KRDict conformance. Aggregate main negative activation is 0.14%; blank, English, and near-miss probes
 remain at zero, whitespace is four of 1,931 (0.21%), and punctuation is nine of 1,582 (0.57%).
 The correction, dictionary-conformance, and latency gates pass, but the primary, exceptional-floor,
 and per-category negative-activation gates fail.
@@ -118,13 +116,15 @@ better omits it and exactly reproduces the following Hangul word. This resolves 
 full-tier cases without a new failure or quick-tier change.
 
 The first-popup reviewer now has the same separately scoped full-tier mode, repeated stable-ID
-batch inspection, structure-only output, and batch categorical recording. Full reports use
-the `first_popup_analysis_full` kind and cannot be mixed with quick reports. Its 155 decisions
-contain 73 Kiwi-analysis errors, 32 annotation-convention differences, 34 equivalent learner
-interpretations, 10 corpus-oracle defects, and six genuinely ambiguous cases. Against the
-current diagnostics, 108 reviewed IDs remain active, 47 are resolved, and 25 active analysis IDs
-remain unreviewed. No reviewed stage is stale. The report persists no corpus or analysis text;
-its SHA-256 is `f6e6fc2de693b29eb777efb0542abdfdffc19348d342458aa6ae0cc5caee2d19`.
+batch inspection, structure-only output, batch categorical recording, and matching-only migration
+for an oracle-corrected corpus. Full reports use the `first_popup_analysis_full` kind and cannot
+be mixed with quick reports. The v4.12 history contains 167 decisions: 73 Kiwi-analysis errors,
+32 annotation-convention differences, 34 equivalent learner interpretations, 22 corpus-oracle
+defects, and six genuinely ambiguous cases. Its SHA-256 is
+`76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
+The fail-closed v4.13 migration carries 106 still-active matching decisions, reports no stale
+stages, and leaves 19 cases explicitly unreviewed. Its SHA-256 is
+`0d83652c84c224e04bfc55365037b8740900f644ac93c2d3aedf36decad097bc`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
@@ -222,6 +222,20 @@ failure, and one component-count failure, adds none, and leaves quick diagnostic
 Main component accuracy rises to 91.60%, KRDict fidelity to 94.50%, popup correctness to 80.20%,
 and alternative recovery to 93.40%. Stress popup correctness is unchanged; held-out language
 rises to 91.50% overall and 96.00% auxiliary with multi-lexical unchanged at 87.00%.
+
+The ninth batch classifies all 12 remaining component-surface cases as corpus-oracle defects.
+Each pinned KAIST token uses the `pad` demonstrative-adjective tag, which the independent builder
+had omitted from descriptive-predicate component mapping; the fallback therefore represented the
+whole conjugated form instead of the annotated lexical stem. The v4.13 rebuild maps `pad`
+consistently in component roles, dictionary ordering, component lemmas, and primary lemmas. It
+removes all 12 main and two stress component-surface failures. An earlier accepted GSD correction
+also takes effect in this rebuild: single-token `ADV` records now use their published adverb role,
+resolving two main role failures while exposing six main and two stress role disagreements. The
+net main comparison removes eight analysis failures and adds no component-surface failure. Quick
+diagnostics remain byte-identical; main component accuracy rises to 92.00%, popup correctness to
+80.60%, and alternative recovery to 93.90%. Stress popup correctness and held-out language are
+unchanged. A matching-only review migration copies only current IDs with unchanged failure stages,
+rejects stage changes, and leaves new cases visibly missing rather than discarding the audit.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -427,12 +441,12 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The historical v4.9 multi-lexical result passed, but the complete v4.12 development run now shows
+The historical v4.9 multi-lexical result passed, but the complete v4.13 development run now shows
 that main popup, functional context, required render strata, held-out multi-lexical analysis, and
-punctuation activation still block release evidence. Primary-lemma and component-role review is
-complete. The next review target is the 12 unreviewed component-surface cases; 25 privacy-safe main
-analysis failures remain unreviewed in total, including six component counts and seven grammar-role
-cases. General corrections supported by that review
+punctuation activation still block release evidence. Primary-lemma and component-surface review is
+complete. The next review target is the six newly exposed component-role cases; 19 privacy-safe
+main analysis failures remain unreviewed in total, including six component counts and seven
+grammar-role cases. General corrections supported by that review
 should be cross-validated against the quick, full, stress, and held-out tiers before returning to
 the nine punctuation activations. Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See

@@ -131,7 +131,7 @@ incrementally with `--full --inspect --sample-id ID`, followed by
 that case and labels its
 trailing summary as selection-only rather than presenting it as a complete audit.
 Repeat `--sample-id` during inspection to initialize the OCR models once for a selected batch;
-categorical recording continues to require exactly one ID per command.
+repeat it during categorical recording when every selected ID receives the same decision.
 
 Review first-popup analysis and dictionary disagreements only after target and functional
 context are correct with
@@ -147,12 +147,17 @@ categorical failure stage itself.
 Use `--full` and a separate decision path for the 2,000-case main tier. Full popup reports use
 the distinct `first_popup_analysis_full` review kind and cannot be loaded as quick reports.
 Repeat `--sample-id ID` with `--full --inspect` to inspect a selected batch after one OCR/model
-initialization; recording still requires exactly one ID. Selected inspection emits a
-selection-only summary rather than presenting the partial result as a complete audit.
+initialization; repeat it with `--record-decision` when the selected batch shares one category.
+Selected inspection emits a selection-only summary rather than presenting the partial result as a
+complete audit.
 When a new development corpus intentionally preserves the reviewed quick cases, use
 `--carry-forward PRIOR_DECISIONS` with either reviewer. It writes a new report only when every
 current stable ID is present in the prior report; the popup reviewer additionally requires an
 exact failure-stage match. It refuses to overwrite an existing report and carries no corpus text.
+When a corrected oracle intentionally resolves reviewed cases while exposing new cases, the popup
+reviewer also supports `--carry-forward-matching PRIOR_DECISIONS`. It copies only current stable
+IDs whose failure stage still matches, rejects stage changes, and leaves every new case explicitly
+missing in the resulting audit. Resolved history remains in the prior report.
 
 Run the complete development corpus until its provisional gates pass and the thresholds are
 explicitly frozen. Build and lock the release corpus beforehand, but do not evaluate it until

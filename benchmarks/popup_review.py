@@ -205,16 +205,37 @@ def carry_forward_popup_decisions(
     current = {item.sample.sample_id: item.failure_stage for item in cases}
     reviewed = {item.sample_id: item for item in prior}
     missing = sorted(set(current) - set(reviewed))
+    try:
+        matching = carry_forward_matching_popup_decisions(cases, prior)
+    except CorpusError:
+        raise CorpusError(
+            'popup review cannot be carried forward because current cases changed'
+        ) from None
+    if missing:
+        raise CorpusError(
+            'popup review cannot be carried forward because current cases changed'
+        )
+    return matching
+
+
+def carry_forward_matching_popup_decisions(
+    cases: tuple[PopupReviewCase, ...],
+    prior: tuple[PopupReviewDecision, ...],
+) -> tuple[PopupReviewDecision, ...]:
+    current = {item.sample.sample_id: item.failure_stage for item in cases}
+    reviewed = {item.sample_id: item for item in prior}
     stale = sorted(
         sample_id
         for sample_id, stage in current.items()
         if sample_id in reviewed and reviewed[sample_id].failure_stage != stage
     )
-    if missing or stale:
+    if stale:
         raise CorpusError(
-            'popup review cannot be carried forward because current cases changed'
+            'popup review cannot carry forward stage-changed decisions'
         )
-    return tuple(reviewed[sample_id] for sample_id in sorted(current))
+    return tuple(
+        reviewed[sample_id] for sample_id in sorted(set(current) & set(reviewed))
+    )
 
 
 def audit_popup_review(
@@ -522,6 +543,12 @@ def main() -> None:
         help='copy only exactly matching categorical decisions from a prior corpus',
     )
     parser.add_argument(
+        '--carry-forward-matching',
+        type=Path,
+        metavar='PRIOR_DECISIONS',
+        help='copy matching reviewed cases and leave new cases missing',
+    )
+    parser.add_argument(
         '--compact',
         action='store_true',
         help='show a compact local-only case view with --inspect',
@@ -569,12 +596,17 @@ def main() -> None:
         parser.error('--record-decision requires --sample-id')
     if arguments.record_decision and arguments.inspect:
         parser.error('--record-decision cannot be combined with --inspect')
-    if arguments.carry_forward and (
+    carry_forward_path = (
+        arguments.carry_forward or arguments.carry_forward_matching
+    )
+    if arguments.carry_forward and arguments.carry_forward_matching:
+        parser.error('choose only one carry-forward mode')
+    if carry_forward_path and (
         arguments.inspect or arguments.audit or arguments.record_decision
     ):
-        parser.error('--carry-forward cannot be combined with another review mode')
-    if arguments.carry_forward and arguments.decisions.is_file():
-        parser.error('--carry-forward refuses to replace an existing decision report')
+        parser.error('carry-forward cannot be combined with another review mode')
+    if carry_forward_path and arguments.decisions.is_file():
+        parser.error('carry-forward refuses to replace an existing decision report')
 
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
@@ -605,9 +637,12 @@ def main() -> None:
             scope = 'full-tier' if arguments.full else 'quick-tier'
             parser.error(f'unknown {scope} sample ID: {missing[0]}')
     cases = collect_popup_review_cases(engine, analyzer, case_samples)
-    if arguments.carry_forward:
-        prior = load_popup_review(arguments.carry_forward, None, review_kind)
-        decisions = carry_forward_popup_decisions(cases, prior)
+    if carry_forward_path:
+        prior = load_popup_review(carry_forward_path, None, review_kind)
+        if arguments.carry_forward_matching:
+            decisions = carry_forward_matching_popup_decisions(cases, prior)
+        else:
+            decisions = carry_forward_popup_decisions(cases, prior)
         write_popup_review(
             arguments.decisions,
             corpus_id,

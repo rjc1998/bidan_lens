@@ -482,7 +482,7 @@ def _oracle_lookup(
 def _component_role(tag: str) -> str | None:
     if tag in {"pvg", "vv", "xsv"}:
         return "action verb"
-    if tag in {"paa", "va", "xsa", "xsm"}:
+    if tag in {"paa", "pad", "va", "xsa", "xsm"}:
         return "descriptive verb"
     if tag in {"px", "vx"}:
         return "helping verb"
@@ -530,7 +530,7 @@ def _component_positions(tag: str, role: str | None = None) -> tuple[str, ...]:
         return ("보조 동사", "보조 형용사")
     if tag in {"pvg", "vv", "xsv"}:
         return ("verb",)
-    if tag in {"paa", "va", "xsa", "xsm"}:
+    if tag in {"paa", "pad", "va", "xsa", "xsm"}:
         return ("adjective",)
     if tag.startswith("n"):
         return ("noun",)
@@ -596,7 +596,17 @@ def _expected_components(
                     surface += _normalized(forms[index + 1])
                     lemma = surface
                     index += 1
-        elif tag in {"pvg", "paa", "px", "vv", "va", "vx", "xsv", "xsa"}:
+        elif tag in {
+            "pvg",
+            "paa",
+            "pad",
+            "px",
+            "vv",
+            "va",
+            "vx",
+            "xsv",
+            "xsa",
+        }:
             lemma = form if form.endswith("다") else form + "다"
         entries = _ordered_oracle_entries(oracle, lemma, _component_positions(component_tag, role))
         components.append(OracleComponent(surface, lemma, role, entries))
@@ -668,7 +678,7 @@ def _expected_lemma(token: UdToken) -> str | None:
             and tags[index + 1] == "xsm"
         ):
             return forms[index] + forms[index + 1] + "다"
-    verb_roots = {"pvg", "paa", "px", "vv", "va", "vx", "xsv", "xsa"}
+    verb_roots = {"pvg", "paa", "pad", "px", "vv", "va", "vx", "xsv", "xsa"}
     for index, tag in enumerate(tags):
         if (
             tag.startswith("n")

@@ -511,6 +511,28 @@ def test_gsd_upos_refines_broad_verb_xpos_role() -> None:
     ]
 
 
+def test_kaist_demonstrative_adjective_tag_builds_a_lexical_component() -> None:
+    token = UdToken("1", "이러한", "이러하+ㄴ", "VERB", "pad+etm", "")
+    oracle = {
+        "이러하다": (
+            OracleEntry(
+                "adjective",
+                "이러하다",
+                ((1, "like this"),),
+                "adjective",
+            ),
+        ),
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert _expected_lemma(token) == "이러하다"
+    assert component.surface == "이러하"
+    assert component.lemma == "이러하다"
+    assert component.learner_role == "descriptive verb"
+    assert [entry.entry_id for entry in component.entries] == ["adjective"]
+
+
 def test_gsd_upos_refines_a_single_nominal_xpos_adverb() -> None:
     token = UdToken('1', '진짜', '진짜', 'ADV', 'NNG', '')
     oracle = {

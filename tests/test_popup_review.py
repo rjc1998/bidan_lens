@@ -11,6 +11,7 @@ from benchmarks.popup_review import (
     FULL_POPUP_REVIEW_KIND,
     PopupReviewDecision,
     audit_popup_review,
+    carry_forward_matching_popup_decisions,
     carry_forward_popup_decisions,
     inspection_popup_cases,
     load_popup_review,
@@ -128,6 +129,39 @@ def test_popup_review_carry_forward_requires_matching_stage() -> None:
             (
                 PopupReviewDecision(
                     'active',
+                    'primary_lemma',
+                    'kiwi_analysis_error',
+                ),
+            ),
+        )
+
+
+def test_popup_review_can_carry_forward_only_matching_reviewed_cases() -> None:
+    cases = (
+        SimpleNamespace(
+            sample=SimpleNamespace(sample_id='reviewed'),
+            failure_stage='component_role',
+        ),
+        SimpleNamespace(
+            sample=SimpleNamespace(sample_id='new'),
+            failure_stage='grammar_roles',
+        ),
+    )
+    prior = (
+        PopupReviewDecision('reviewed', 'component_role', 'kiwi_analysis_error'),
+        PopupReviewDecision('resolved', 'primary_lemma', 'ambiguous_korean'),
+    )
+
+    assert carry_forward_matching_popup_decisions(  # type: ignore[arg-type]
+        cases, prior
+    ) == (prior[0],)
+
+    with pytest.raises(CorpusError, match='stage-changed'):
+        carry_forward_matching_popup_decisions(  # type: ignore[arg-type]
+            cases,
+            (
+                PopupReviewDecision(
+                    'reviewed',
                     'primary_lemma',
                     'kiwi_analysis_error',
                 ),
