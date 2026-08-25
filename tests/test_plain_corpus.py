@@ -511,6 +511,21 @@ def test_gsd_upos_refines_broad_verb_xpos_role() -> None:
     ]
 
 
+def test_gsd_upos_refines_a_single_nominal_xpos_adverb() -> None:
+    token = UdToken('1', '진짜', '진짜', 'ADV', 'NNG', '')
+    oracle = {
+        '진짜': (
+            OracleEntry('noun', '진짜', ((1, 'real thing'),), 'noun'),
+            OracleEntry('adverb', '진짜', ((1, 'really'),), 'adverb'),
+        ),
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.learner_role == 'adverb'
+    assert [entry.entry_id for entry in component.entries] == ['adverb', 'noun']
+
+
 def test_kaist_copula_is_not_reported_as_a_particle() -> None:
     token = UdToken(
         "1",

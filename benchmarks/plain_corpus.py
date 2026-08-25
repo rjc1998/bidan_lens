@@ -518,6 +518,8 @@ def _upos_component_role(upos: str) -> str:
 
 
 def _component_positions(tag: str, role: str | None = None) -> tuple[str, ...]:
+    if role == 'adverb':
+        return ('adverb',)
     if role == "helping verb":
         return ("보조 동사", "보조 형용사")
     if role == "descriptive verb":
@@ -573,6 +575,8 @@ def _expected_components(
             role = "descriptive verb"
         elif token.upos == "AUX" and role in {"action verb", "descriptive verb"}:
             role = "helping verb"
+        if token.upos == 'ADV' and role == 'noun' and len(tags) == 1:
+            role = 'adverb'
         surface = form
         lemma = form
         component_tag = tag

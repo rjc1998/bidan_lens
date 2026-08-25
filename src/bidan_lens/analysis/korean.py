@@ -53,6 +53,9 @@ _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
 _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN = 2.7
+_UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
+_CONTEXTUAL_SIK_NOUN_SCORE_MARGIN = 5.1
+_COMPOUND_TERMINAL_NOUN_SCORE_MARGIN = 6.0
 _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN = 1.0
 _LOCATIVE_ITDA_SCORE_MARGIN = 7.0
 _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
@@ -132,12 +135,17 @@ class KoreanAnalyzer:
         )
         candidates = self._promote_isolated_verb_role_candidate(
             sentence,
+            target_span,
             surface,
             wrapper_candidates,
             max_candidates,
         )
         if wrapper_synthesized:
             candidates = wrapper_candidates
+        candidates = tuple(self._promote_contextual_sik_noun(list(candidates)))
+        candidates = tuple(
+            self._promote_compound_terminal_noun(list(candidates))
+        )
         candidates = self._promote_gido_auxiliary_candidate(
             sentence,
             target_span,
@@ -347,12 +355,26 @@ class KoreanAnalyzer:
     def _promote_isolated_verb_role_candidate(
         self,
         sentence: str,
+        target_span: tuple[int, int],
         surface: str,
         candidates: tuple[AnalysisCandidate, ...],
         max_candidates: int,
     ) -> tuple[AnalysisCandidate, ...]:
         if sentence == surface or len(candidates) < 2:
             return candidates
+        start, end = target_span
+        punctuation_or_fragment_boundary = (
+            start == 0
+            or end == len(sentence)
+            or (
+                start > 0
+                and unicodedata.category(sentence[start - 1]).startswith('P')
+            )
+            or (
+                end < len(sentence)
+                and unicodedata.category(sentence[end]).startswith('P')
+            )
+        )
         isolated = self._analyze_candidates(
             surface,
             (0, len(surface)),
@@ -389,7 +411,7 @@ class KoreanAnalyzer:
                     differing_roles.append(
                         (current.learner_role, alternative.learner_role)
                     )
-            if differing_roles and all(
+            if punctuation_or_fragment_boundary and differing_roles and all(
                 current in verb_roles and alternative in verb_roles
                 for current, alternative in differing_roles
             ):
@@ -797,7 +819,7 @@ class KoreanAnalyzer:
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
                 first.score - candidate.score
-                > _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN
+                > _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN
                 or candidate.lemma != first.lemma
                 or len(candidate.lexical_components)
                 != len(first.lexical_components)
@@ -822,6 +844,27 @@ class KoreanAnalyzer:
                 continue
             if (
                 first.score - candidate.score
+                <= _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN
+                and all(
+                    current.learner_role == 'dependent noun'
+                    and alternative.learner_role == 'noun'
+                    and self.dictionary.lookup(alternative.lemma, 'noun', 1)
+                    and not self.dictionary.lookup(
+                        alternative.lemma,
+                        '의존 명사',
+                        1,
+                    )
+                    for current, alternative in differing
+                )
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+            if (
+                first.score - candidate.score
+                > _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN
+            ):
+                continue
+            if (
+                first.score - candidate.score
                 > _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN
                 and not all(
                     alternative.learner_role == 'dependent noun'
@@ -841,6 +884,92 @@ class KoreanAnalyzer:
                     alternative.learner_role,
                 )
                 for current, alternative in differing
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    def _promote_contextual_sik_noun(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or len(candidates[0].lexical_components) != 1:
+            return candidates
+        first = candidates[0]
+        current = first.lexical_components[0]
+        suffix = first.surface[len(current.surface) :]
+        labels = {feature.label for feature in first.features}
+        labels.update(item.learner_label for item in first.morphemes)
+        contextual_suffix = suffix in {'로', '으로'} or (
+            suffix.startswith('이') and 'verb ending' in labels
+        )
+        if (
+            current.lemma != '식'
+            or current.learner_role != 'dependent noun'
+            or not contextual_suffix
+        ):
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score > _CONTEXTUAL_SIK_NOUN_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                alternative.surface == current.surface
+                and alternative.lemma == current.lemma
+                and alternative.learner_role == 'noun'
+                and alternative.dictionary_entries
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    def _promote_compound_terminal_noun(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or len(candidates[0].lexical_components) < 2:
+            return candidates
+        first = candidates[0]
+        current_components = first.lexical_components
+        current_terminal = current_components[-1]
+        labels = {feature.label for feature in first.features}
+        labels.update(item.learner_label for item in first.morphemes)
+        if (
+            current_terminal.learner_role != 'dependent noun'
+            or 'particle' not in labels
+            or not first.surface.startswith(
+                ''.join(component.surface for component in current_components)
+            )
+        ):
+            return candidates
+        preferred = self.dictionary.lookup(current_terminal.lemma, None, 1)
+        if not preferred or preferred[0].part_of_speech != 'noun':
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score > _COMPOUND_TERMINAL_NOUN_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components) != len(current_components)
+            ):
+                continue
+            alternative_components = candidate.lexical_components
+            if any(
+                current != alternative
+                for current, alternative in zip(
+                    current_components[:-1],
+                    alternative_components[:-1],
+                    strict=True,
+                )
+            ):
+                continue
+            alternative_terminal = alternative_components[-1]
+            if (
+                alternative_terminal.surface == current_terminal.surface
+                and alternative_terminal.lemma == current_terminal.lemma
+                and alternative_terminal.learner_role == 'noun'
+                and alternative_terminal.dictionary_entries
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
@@ -1189,11 +1318,13 @@ class KoreanAnalyzer:
                     surface += suffix.form
                     lemma += suffix.form
                     index += 1
-            if (
-                lookup_tag in {'VV', 'VA', 'XSV', 'XSA'}
-                and previous_tag == 'EC'
-                and not _is_non_auxiliary_connective(previous_form)
-                and self._has_auxiliary_entry(lemma)
+            if lookup_tag in {'VV', 'VA', 'XSV', 'XSA'} and (
+                self._has_only_auxiliary_entries(lemma)
+                or (
+                    previous_tag == 'EC'
+                    and not _is_non_auxiliary_connective(previous_form)
+                    and self._has_auxiliary_entry(lemma)
+                )
             ):
                 lookup_tag = 'VX'
                 role = 'helping verb'
@@ -1216,6 +1347,13 @@ class KoreanAnalyzer:
         return bool(
             self.dictionary.lookup(lemma, '보조 동사', 1)
             or self.dictionary.lookup(lemma, '보조 형용사', 1)
+        )
+
+    def _has_only_auxiliary_entries(self, lemma: str) -> bool:
+        return bool(
+            self._has_auxiliary_entry(lemma)
+            and not self.dictionary.lookup(lemma, 'verb', 1)
+            and not self.dictionary.lookup(lemma, 'adjective', 1)
         )
 
     def _ordered_entries(
