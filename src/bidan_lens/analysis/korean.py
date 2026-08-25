@@ -801,7 +801,24 @@ class KoreanAnalyzer:
             lemma = self._lemma_for_token(token)
             role = explain_morpheme(surface, lemma, token.tag).learner_label
             lookup_tag = tag
-            if tag.startswith('N') and index + 1 < len(tokens):
+            if tag.startswith('N') and index + 2 < len(tokens):
+                noun_suffix = tokens[index + 1]
+                verb_suffix = tokens[index + 2]
+                if (
+                    _base_tag(noun_suffix.tag) == 'XSN'
+                    and noun_suffix.form == '화'
+                    and _base_tag(verb_suffix.tag) == 'XSV'
+                    and verb_suffix.form in {'하', '되'}
+                ):
+                    derived_surface = token.form + noun_suffix.form + verb_suffix.form
+                    derived_lemma = derived_surface + '다'
+                    if self._ordered_entries(derived_lemma, 'XSV'):
+                        surface = derived_surface
+                        lemma = derived_lemma
+                        lookup_tag = 'XSV'
+                        role = 'action verb'
+                        index += 2
+            if tag.startswith('N') and lookup_tag == tag and index + 1 < len(tokens):
                 following = tokens[index + 1]
                 following_tag = _base_tag(following.tag)
                 if following_tag in {'XSV', 'XSA'}:

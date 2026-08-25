@@ -68,13 +68,13 @@ promotions remain zero. Its remaining failures are eight analysis cases (four pr
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
-The complete v4.12 development evaluation has now run against the current reconstruction cleanup.
+The complete v4.12 development evaluation has now run against the current analyzer cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 88.75% component accuracy, 92.20% exact KRDict
-fidelity, 77.25% fully correct first
-popups, and 92.55% alternative recovery. False promotions remain zero and automated latency is
-215.01 ms median / 320.84 ms p95. Privacy-safe diagnostics contain 58 target, 205 context, and
-192 analysis failures; the analysis stages are 74 primary lemmas, 88 component roles, 12 component
+context, 70.00% exact sentence transcription, 88.95% component accuracy, 92.40% exact KRDict
+fidelity, 77.45% fully correct first
+popups, and 92.75% alternative recovery. False promotions remain zero and automated latency is
+225.41 ms median / 338.58 ms p95. Privacy-safe diagnostics contain 58 target, 205 context, and
+188 analysis failures; the analysis stages are 70 primary lemmas, 88 component roles, 12 component
 surfaces, nine component counts, and nine grammar roles. Three additional records fail only a
 negative-pointer category.
 
@@ -116,12 +116,19 @@ full-tier cases without a new failure or quick-tier change.
 
 The first-popup reviewer now has the same separately scoped full-tier mode, repeated stable-ID
 batch inspection, structure-only output, and single-ID categorical recording. Full reports use
-the `first_popup_analysis_full` kind and cannot be mixed with quick reports. The initial 20-case
-review contains seven annotation-convention differences, five equivalent learner interpretations,
-five Kiwi-analysis errors, two corpus-oracle defects, and one genuinely ambiguous case. Against
-the current diagnostics, 19 reviewed IDs remain active, one is resolved, and 173 active analysis
-IDs remain unreviewed. The report persists no corpus or analysis text; its SHA-256 is
-`3afed70984d178b5f9edd3477c01dbe90abf7c25fc921e756d1a732adf6d5833`.
+the `first_popup_analysis_full` kind and cannot be mixed with quick reports. The first 40 decisions
+contain 13 Kiwi-analysis errors, 12 equivalent learner interpretations, nine annotation-convention
+differences, four corpus-oracle defects, and two genuinely ambiguous cases. Against the current
+diagnostics, 37 reviewed IDs remain active, three are resolved, and 151 active analysis IDs remain
+unreviewed. The report persists no corpus or analysis text; its SHA-256 is
+`e009f6d9b11556f1f5703cd6eb0c0a8ab2b0c20b8bc31ba54cefbfa29f3087bd`.
+
+The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
+a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
+verb. The accepted analyzer joins only `noun + 화 + 하/되` and only when the exact complete verb is
+dictionary-backed. It resolves four main primary-lemma failures, including both reviewed examples,
+without adding a failure. Quick diagnostics remain byte-identical, and stress and held-out language
+results are unchanged.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -329,10 +336,12 @@ learner interpretations, and no review-supported general runtime correction.
 
 The historical v4.9 multi-lexical result passed, but the complete v4.12 development run now shows
 that main popup, functional context, required render strata, held-out multi-lexical analysis, and
-punctuation activation still block release evidence. The next review target is the remaining 173
-privacy-safe main context failures, continuing through the 12 px, 14 px, serif-font, and single-line
-strata, followed by the nine punctuation activations. Thresholds are not frozen, and neither the
-untouched release split nor the 500-attempt foreground benchmark has been run. See
+punctuation activation still block release evidence. The next review target is the 151 unreviewed
+privacy-safe main analysis failures: 45 primary lemmas, 78 component roles, 12 component surfaces,
+nine component counts, and seven grammar-role cases. General corrections supported by that review
+should be cross-validated against the quick, full, stress, and held-out tiers before returning to
+the nine punctuation activations. Thresholds are not frozen, and neither the untouched release
+split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
 ## Required before a public v1 release
@@ -344,8 +353,8 @@ untouched release split nor the 500-attempt foreground benchmark has been run. S
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- preserve the now-passing held-out multi-lexical, functional-context, and per-category
-  negative-activation gates while improving first-popup correctness;
+- preserve the passing quick gates while improving full first-popup correctness, functional
+  context, held-out multi-lexical analysis, required render strata, and punctuation activation;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;

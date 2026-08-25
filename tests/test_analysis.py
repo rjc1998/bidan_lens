@@ -100,6 +100,66 @@ def test_noun_plus_hada_recovers_compound_dictionary_form() -> None:
     assert candidate.lemma == "공부하다"
 
 
+@pytest.mark.parametrize(
+    ('verb_suffix', 'expected_lemma'),
+    [('하', '국유화하다'), ('되', '국유화되다')],
+)
+def test_dictionary_backed_hwa_derivation_forms_one_action_verb(
+    verb_suffix: str,
+    expected_lemma: str,
+) -> None:
+    class DerivedVerbDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != expected_lemma or part_of_speech not in {None, 'verb'}:
+                return ()
+            return (
+                DictionaryEntry(
+                    expected_lemma,
+                    expected_lemma,
+                    'verb',
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                ),
+            )
+
+    tokens = [
+        Token('국유', 'NNG', 0, 2),
+        Token('화', 'XSN', 2, 1),
+        Token(verb_suffix, 'XSV', 3, 1),
+        Token('었', 'EP', 4, 1),
+        Token('다', 'EF', 5, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        DerivedVerbDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('국유화' + verb_suffix + '었다', (0, 6))[0]
+
+    assert candidate.lemma == expected_lemma
+    assert candidate.lexical_components[0].surface == '국유화' + verb_suffix
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+    assert candidate.lexical_components[0].dictionary_entries
+
+
+def test_hwa_derivation_requires_an_exact_dictionary_entry() -> None:
+    tokens = [
+        Token('국유', 'NNG', 0, 2),
+        Token('화', 'XSN', 2, 1),
+        Token('되', 'XSV', 3, 1),
+        Token('다', 'EF', 4, 1),
+    ]
+    candidate = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    ).analyze('국유화되다', (0, 5))[0]
+
+    assert candidate.lemma == '국유'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '국유',
+        '되다',
+    ]
+
+
 def test_multi_eojeol_construction_remains_two_targets_with_shared_context() -> None:
     tokens = [
         Token("먹", "VV", 0, 1),

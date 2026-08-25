@@ -61,13 +61,13 @@ The aggregate quick report and privacy-safe diagnostic SHA-256 values are
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.12 by numeric ID
 without a fresh review audit.
 
-The complete v4.12 development run against the current reconstruction cleanup records 97.98%
+The complete v4.12 development run against the current analyzer cleanup records 97.98%
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
-transcription, 88.75% component accuracy, 92.20% exact KRDict fidelity, 77.25% fully correct first
-popups, 92.55% alternative recovery, and zero false promotions across 2,000 main cases. Automated
-latency is 215.01 ms median / 320.84 ms p95. The privacy-safe stage totals are 58 target, 205
-context, and 192 analysis failures. The
-analysis failures comprise 74 primary lemmas, 88 component roles, 12 component surfaces, nine
+transcription, 88.95% component accuracy, 92.40% exact KRDict fidelity, 77.45% fully correct first
+popups, 92.75% alternative recovery, and zero false promotions across 2,000 main cases. Automated
+latency is 225.41 ms median / 338.58 ms p95. The privacy-safe stage totals are 58 target, 205
+context, and 188 analysis failures. The
+analysis failures comprise 70 primary lemmas, 88 component roles, 12 component surfaces, nine
 component counts, and nine grammar roles.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
@@ -79,8 +79,8 @@ punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The
 dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`70a59bcb5e37d6019c421cc485e4eb7f8b465b99dd08e7742e498a2c0a02d366` and
-`de6cf7f1c9ec3630bac871ccf7abfd6f4b223c6d128759e1eddadf2b8cefcafd`.
+`e15e6968c9ddcb3230106140416d9d1191bdd4104cfea7f5094ce26d8961089e` and
+`59514f5366bf768ca0e55d1a4810a7062eb89ba90059a878ccb2c08e754f322a`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -105,11 +105,17 @@ full-tier cases without a new failure and leaves the quick diagnostics byte-iden
 
 The popup reviewer now supports a separately scoped `first_popup_analysis_full` report, repeated
 stable-ID batch inspection, structure-only output, and single-ID categorical recording. Its
-initial 20 decisions are seven annotation-convention differences, five equivalent learner
-interpretations, five Kiwi-analysis errors, two corpus-oracle defects, and one genuinely ambiguous
-case. Reconciliation finds 19 active reviewed IDs, one resolved reviewed ID, and 173 active
-analysis IDs still unreviewed. The report stores no corpus or analysis text; its SHA-256 is
-`3afed70984d178b5f9edd3477c01dbe90abf7c25fc921e756d1a732adf6d5833`.
+first 40 decisions are 13 Kiwi-analysis errors, 12 equivalent learner interpretations, nine
+annotation-convention differences, four corpus-oracle defects, and two genuinely ambiguous cases.
+Reconciliation finds 37 active reviewed IDs, three resolved reviewed IDs, and 151 active analysis
+IDs still unreviewed. The report stores no corpus or analysis text; its SHA-256 is
+`e009f6d9b11556f1f5703cd6eb0c0a8ab2b0c20b8bc31ba54cefbfa29f3087bd`.
+
+The second full-tier batch supports one bounded morphology correction. When Kiwi emits
+`noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
+contains the exact complete `-화하다` or `-화되다` lemma. This resolves four main primary-lemma
+failures and adds none. The accepted quick diagnostic remains byte-identical, while stress and
+held-out language results are unchanged.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects
