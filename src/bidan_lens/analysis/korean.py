@@ -47,10 +47,14 @@ _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
+_ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
 _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
+_ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN = 1.0
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
+_COMPLETE_DERIVED_PREDICATE_SCORE_MARGIN = 5.0
+_COMPLETE_LEXICAL_ADVERB_SCORE_MARGIN = 5.0
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
 _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN = 2.7
 _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
@@ -294,6 +298,17 @@ class KoreanAnalyzer:
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
             return candidates
+        if (
+            len(candidates) >= 2
+            and len({candidate.lemma for candidate in candidates}) == 1
+            and self._is_inflected_predicate_candidate(contextual[0])
+            and all(
+                self._is_whole_surface_nominal_candidate(candidate)
+                for candidate in candidates
+            )
+        ):
+            promoted = replace(contextual[0], score=candidates[0].score, uncertain=True)
+            return (promoted, *candidates)[:max_candidates]
         first_signature = self._candidate_signature(candidates[0])
         if any(
             self._candidate_signature(candidate) != first_signature
@@ -416,6 +431,25 @@ class KoreanAnalyzer:
                 for current, alternative in differing_roles
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
+        if (
+            punctuation_or_fragment_boundary
+            and self._is_whole_surface_nominal_candidate(first)
+            and len(first.surface) >= 2
+            and first.lexical_components[0].learner_role
+            in {'noun', 'name or proper noun'}
+            and self._is_inflected_predicate_candidate(isolated[0])
+        ):
+            for index, candidate in enumerate(candidates[1:], start=1):
+                if (
+                    self._candidate_signature(candidate) == signature
+                    and first.score - candidate.score
+                    <= _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN
+                ):
+                    return (
+                        candidate,
+                        *candidates[:index],
+                        *candidates[index + 1 :],
+                    )
         if self._is_dictionary_backed_adverb_hada_derivation(first):
             return candidates
         if (
@@ -441,6 +475,7 @@ class KoreanAnalyzer:
                     component.learner_role == 'helping verb'
                     for component in components
                 )
+                or not self._has_connective_before_helping_verb(evidence)
                 or self._has_unrepresented_word_part(evidence)
             ):
                 continue
@@ -461,6 +496,16 @@ class KoreanAnalyzer:
                         *candidates[index + 1 :],
                     )
         return candidates
+
+    @staticmethod
+    def _has_connective_before_helping_verb(candidate: AnalysisCandidate) -> bool:
+        saw_ending = False
+        for morpheme in candidate.morphemes:
+            if morpheme.learner_label == 'verb ending':
+                saw_ending = True
+            elif morpheme.learner_label == 'helping verb' and saw_ending:
+                return True
+        return False
 
     @staticmethod
     def _is_dictionary_backed_adverb_hada_derivation(
@@ -569,6 +614,42 @@ class KoreanAnalyzer:
             ),
         )
 
+    def _is_inflected_predicate_candidate(
+        self,
+        candidate: AnalysisCandidate,
+    ) -> bool:
+        labels = {feature.label for feature in candidate.features}
+        labels.update(item.learner_label for item in candidate.morphemes)
+        components = candidate.lexical_components
+        return bool(
+            len(components) == 1
+            and components[0].learner_role
+            in {'action verb', 'descriptive verb', 'helping verb'}
+            and components[0].dictionary_entries
+            and 'verb ending' in labels
+            and not self._has_unrepresented_word_part(candidate)
+        )
+
+    @staticmethod
+    def _is_whole_surface_nominal_candidate(
+        candidate: AnalysisCandidate,
+    ) -> bool:
+        components = candidate.lexical_components
+        return bool(
+            len(components) == 1
+            and components[0].surface == candidate.surface
+            and components[0].learner_role
+            in {
+                'noun',
+                'name or proper noun',
+                'pronoun',
+                'number',
+                'dependent noun',
+                'determiner',
+            }
+            and components[0].dictionary_entries
+        )
+
     def _augment_verified_particle_features(
         self, surface: str, candidates: tuple[AnalysisCandidate, ...]
     ) -> tuple[AnalysisCandidate, ...]:
@@ -629,7 +710,15 @@ class KoreanAnalyzer:
                     ),
                     uncertain=bool(candidates),
                 )
-        if candidates and candidates[0].dictionary_entries:
+        if (
+            candidates
+            and candidates[0].dictionary_entries
+            and not self._has_unrepresented_word_part(candidates[0])
+            and not any(
+                component.learner_role == 'word part'
+                for component in candidates[0].lexical_components
+            )
+        ):
             return None
         for suffix in known_particle_suffixes():
             if not surface.endswith(suffix) or len(surface) <= len(suffix):
@@ -640,6 +729,9 @@ class KoreanAnalyzer:
                 entries = self.dictionary.lookup(lemma, None, 10)
             if not entries:
                 continue
+            dependent = entries[0].part_of_speech == '의존 명사'
+            role = 'dependent noun' if dependent else 'noun'
+            tag = 'NNB' if dependent else 'NNG'
             for candidate in candidates:
                 labels = {feature.label for feature in candidate.features}
                 labels.update(item.learner_label for item in candidate.morphemes)
@@ -651,13 +743,13 @@ class KoreanAnalyzer:
                 lemma=lemma,
                 score=score,
                 morphemes=(
-                    explain_morpheme(lemma, lemma, 'NNG'),
+                    explain_morpheme(lemma, lemma, tag),
                     explain_morpheme(suffix, suffix, 'JX'),
                 ),
                 features=learner_features([(suffix, 'JX')]),
                 dictionary_entries=entries,
                 lexical_components=(
-                    LexicalComponent(lemma, lemma, 'noun', entries),
+                    LexicalComponent(lemma, lemma, role, entries),
                 ),
                 uncertain=bool(candidates),
             )
@@ -678,6 +770,7 @@ class KoreanAnalyzer:
         contextual_auxiliary_ids: set[int] = set()
         locative_itda_ids: set[int] = set()
         post_particle_inflected_verb_ids: set[int] = set()
+        adnominal_dependent_noun_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         for rank, analysis in enumerate(analyses):
             raw_tokens, kiwi_score = analysis
@@ -712,6 +805,16 @@ class KoreanAnalyzer:
             preceding_context_form = (
                 preceding_context_token.form
                 if preceding_context_token is not None
+                else None
+            )
+            following_context_tokens = [
+                token
+                for token in tokens[target_pairs[-1][0] + 1 :]
+                if not _base_tag(token.tag).startswith('S')
+            ]
+            following_context_tag = (
+                _base_tag(following_context_tokens[0].tag)
+                if following_context_tokens
                 else None
             )
             nominalized_gido_context = bool(
@@ -778,6 +881,16 @@ class KoreanAnalyzer:
                 and any(feature.label == 'verb ending' for feature in features)
             ):
                 post_particle_inflected_verb_ids.add(id(candidate))
+            if (
+                following_context_tag == 'NNB'
+                and any(_base_tag(token.tag) == 'ETM' for token in target_tokens)
+                and any(
+                    component.learner_role
+                    in {'action verb', 'descriptive verb', 'helping verb'}
+                    for component in components
+                )
+            ):
+                adnominal_dependent_noun_ids.add(id(candidate))
         candidates.sort(key=lambda candidate: candidate.score, reverse=True)
         candidates = self._promote_dictionary_preferred_nominal_role(candidates)
         candidates = self._promote_dictionary_preferred_predicate_role(candidates)
@@ -791,10 +904,15 @@ class KoreanAnalyzer:
         candidates = self._promote_close_inflected_verb_after_particle(
             candidates, post_particle_inflected_verb_ids
         )
-        candidates = self._promote_close_complete_inflected_word(candidates)
+        candidates = self._promote_adnominal_before_dependent_noun(
+            candidates,
+            adnominal_dependent_noun_ids,
+        )
         candidates = self._promote_close_complete_multi_component(
             candidates, contextual_auxiliary_ids
         )
+        candidates = self._promote_close_complete_inflected_word(candidates)
+        candidates = self._promote_complete_lexical_adverb(candidates)
         limited = candidates[:max_candidates]
         if len(limited) > 1:
             limited = [replace(candidate, uncertain=True) for candidate in limited]
@@ -1105,27 +1223,92 @@ class KoreanAnalyzer:
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
 
+    def _promote_adnominal_before_dependent_noun(
+        self,
+        candidates: list[AnalysisCandidate],
+        adnominal_ids: set[int],
+    ) -> list[AnalysisCandidate]:
+        if (
+            not candidates
+            or id(candidates[0]) in adnominal_ids
+            or not self._is_whole_surface_nominal_candidate(candidates[0])
+        ):
+            return candidates
+        first = candidates[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                id(candidate) in adnominal_ids
+                and first.score - candidate.score
+                <= _ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
     def _promote_close_complete_inflected_word(
         self,
         candidates: list[AnalysisCandidate],
     ) -> list[AnalysisCandidate]:
-        if not candidates or not self._has_unrepresented_word_part(candidates[0]):
+        if not candidates:
             return candidates
         first = candidates[0]
+        first_feature_labels = {feature.label for feature in first.features}
+        incomplete = self._has_unrepresented_word_part(first) or any(
+            component.learner_role == 'word part'
+            for component in first.lexical_components
+        )
+        if not incomplete:
+            return candidates
         verb_roles = {'action verb', 'descriptive verb'}
         for index, candidate in enumerate(candidates[1:], start=1):
             labels = {feature.label for feature in candidate.features}
+            feature_labels = set(labels)
             labels.update(item.learner_label for item in candidate.morphemes)
             components = candidate.lexical_components
+            margin = _COMPLETE_INFLECTED_SCORE_MARGIN
+            if len(first.lexical_components) > 1 and len(components) == 1:
+                margin = _COMPLETE_DERIVED_PREDICATE_SCORE_MARGIN
             if (
-                first.score - candidate.score <= _COMPLETE_INFLECTED_SCORE_MARGIN
+                first.score - candidate.score <= margin
                 and components
-                and sum(len(component.surface) for component in components)
-                == len(candidate.surface)
                 and any(component.learner_role in verb_roles for component in components)
                 and all(component.dictionary_entries for component in components)
+                and first_feature_labels <= feature_labels
                 and 'verb ending' in labels
                 and not self._has_unrepresented_word_part(candidate)
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    @staticmethod
+    def _promote_complete_lexical_adverb(
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or len(candidates[0].lexical_components) < 2:
+            return candidates
+        first = candidates[0]
+        nominal_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+            'determiner',
+        }
+        if not all(
+            component.learner_role in nominal_roles
+            for component in first.lexical_components
+        ):
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            components = candidate.lexical_components
+            if (
+                first.score - candidate.score
+                <= _COMPLETE_LEXICAL_ADVERB_SCORE_MARGIN
+                and len(components) == 1
+                and components[0].surface == candidate.surface
+                and components[0].lemma == candidate.lemma
+                and components[0].learner_role == 'adverb'
+                and components[0].dictionary_entries
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
@@ -1143,6 +1326,7 @@ class KoreanAnalyzer:
             'pronoun',
             'number',
             'dependent noun',
+            'adverb',
         }
         if (
             len(first.lexical_components) == 1

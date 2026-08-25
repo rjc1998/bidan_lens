@@ -549,7 +549,7 @@ def main() -> None:
     parser.add_argument(
         '--record-decision',
         choices=POPUP_REVIEW_DECISIONS,
-        help='record one categorical decision without displaying corpus text',
+        help='record one categorical decision for selected IDs without displaying text',
     )
     arguments = parser.parse_args()
     if (
@@ -567,8 +567,6 @@ def main() -> None:
         parser.error('--sample-id requires --inspect or --record-decision')
     if arguments.record_decision and not arguments.sample_id:
         parser.error('--record-decision requires --sample-id')
-    if arguments.record_decision and len(arguments.sample_id) != 1:
-        parser.error('--record-decision requires exactly one --sample-id')
     if arguments.record_decision and arguments.inspect:
         parser.error('--record-decision cannot be combined with --inspect')
     if arguments.carry_forward and (
@@ -621,12 +619,14 @@ def main() -> None:
     existing = load_popup_review(arguments.decisions, corpus_id, review_kind)
     audit = audit_popup_review(cases, existing)
     if arguments.record_decision:
-        decisions = record_popup_decision(
-            cases,
-            existing,
-            arguments.sample_id[0],
-            arguments.record_decision,
-        )
+        decisions = existing
+        for sample_id in arguments.sample_id:
+            decisions = record_popup_decision(
+                cases,
+                decisions,
+                sample_id,
+                arguments.record_decision,
+            )
         write_popup_review(
             arguments.decisions,
             corpus_id,
@@ -636,7 +636,7 @@ def main() -> None:
         print(
             json.dumps(
                 {
-                    'sample_id': arguments.sample_id[0],
+                    'sample_ids': arguments.sample_id,
                     'decision': arguments.record_decision,
                     'review_kind': review_kind,
                     'decision_count': len(decisions),

@@ -4,7 +4,14 @@ import pytest
 
 from bidan_lens.analysis.korean import KoreanAnalyzer
 from bidan_lens.dictionary.store import DictionaryStore
-from bidan_lens.models import DictionaryEntry, DictionarySense
+from bidan_lens.models import (
+    AnalysisCandidate,
+    DictionaryEntry,
+    DictionarySense,
+    LearnerFeature,
+    LexicalComponent,
+    MorphemeExplanation,
+)
 
 
 @dataclass
@@ -1189,6 +1196,22 @@ class ReviewedRoleDictionary(DictionaryStore):
             '이루다': ('verb',),
             '지다': ('보조 동사',),
             '이루어지다': ('verb',),
+            '알': ('noun', '의존 명사'),
+            '알다': ('verb',),
+            '대한': ('noun',),
+            '대하다': ('verb',),
+            '한': ('determiner',),
+            '층': ('noun',),
+            '한층': ('adverb',),
+            '바라다': ('verb',),
+            '보다': ('보조 동사',),
+            '바라보다': ('verb',),
+            '거듭': ('adverb',),
+            '거듭되다': ('verb',),
+            '해': ('noun',),
+            '그런': ('determiner',),
+            '그러다': ('verb',),
+            '바뀌다': ('verb',),
         }.get(lemma, ())
         if part_of_speech is not None:
             roles = tuple(role for role in roles if role == part_of_speech)
@@ -1592,3 +1615,241 @@ def test_isolated_decomposition_still_applies_in_complete_unwrapped_context() ->
         '이루다',
         '지다',
     ]
+
+
+def test_adnominal_before_dependent_noun_promotes_an_inflected_verb() -> None:
+    analyses = [
+        ([Token('알', 'NNG', 0, 1), Token('수', 'NNB', 2, 1)], -1.0),
+        (
+            [
+                Token('알', 'VV', 0, 1),
+                Token('ㄹ', 'ETM', 0, 1),
+                Token('수', 'NNB', 2, 1),
+            ],
+            -1.8,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('알 수', (0, 1))[0]
+
+    assert candidate.lemma == '알다'
+
+
+def test_boundary_isolated_evidence_promotes_an_inflected_predicate() -> None:
+    sentence = '대한 자료'
+    contextual = [
+        ([Token('대한', 'NNG', 0, 2), Token('자료', 'NNG', 3, 2)], -1.0),
+        (
+            [
+                Token('대하', 'VV', 0, 2),
+                Token('ㄴ', 'ETM', 1, 1),
+                Token('자료', 'NNG', 3, 2),
+            ],
+            -6.8,
+        ),
+    ]
+    isolated = [
+        ([Token('대하', 'VV', 0, 2), Token('ㄴ', 'ETM', 1, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '대한' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (0, 2))[0]
+
+    assert candidate.lemma == '대하다'
+
+
+def test_wrapper_context_synthesizes_a_repeated_nominal_as_a_predicate() -> None:
+    sentence = '[대한]'
+    wrapped = [
+        ([Token('대한', 'NNG', 1, 2)], -1.0),
+        ([Token('대한', 'NNP', 1, 2)], -2.0),
+    ]
+    unwrapped = [
+        ([Token('대하', 'VV', 0, 2), Token('ㄴ', 'ETM', 1, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = unwrapped if text == '대한' else wrapped
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (1, 3))[0]
+
+    assert candidate.lemma == '대하다'
+
+
+def test_complete_lexical_adverb_is_not_resplit() -> None:
+    analyses = [
+        ([Token('한', 'MM', 0, 1), Token('층', 'NNG', 1, 1)], -1.0),
+        ([Token('한층', 'MAG', 0, 2)], -5.4),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('한층', (0, 2))[0]
+
+    assert candidate.lemma == '한층'
+    assert candidate.lexical_components[0].learner_role == 'adverb'
+
+
+def test_isolated_auxiliary_decomposition_requires_a_connective() -> None:
+    sentence = '바라보는 시선'
+    contextual = [
+        ([Token('바라보', 'VV', 0, 3), Token('는', 'ETM', 3, 1)], -1.0),
+        (
+            [
+                Token('바라', 'VV', 0, 2),
+                Token('보', 'VX', 2, 1),
+                Token('는', 'ETM', 3, 1),
+            ],
+            -3.5,
+        ),
+    ]
+    isolated = [
+        ([Token('바라보', 'VV', 0, 3), Token('는', 'ETM', 3, 1)], -1.0),
+        (
+            [
+                Token('바라', 'VV', 0, 2),
+                Token('보', 'VX', 2, 1),
+                Token('는', 'ETM', 3, 1),
+            ],
+            -4.0,
+        ),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '바라보는' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (0, 4))[0]
+
+    assert candidate.lemma == '바라보다'
+    assert len(candidate.lexical_components) == 1
+
+
+def test_complete_dictionary_predicate_replaces_a_word_part_derivation() -> None:
+    analyses = [
+        (
+            [
+                Token('거듭', 'MAG', 0, 2),
+                Token('되', 'XSV', 2, 1),
+                Token('었', 'EP', 3, 1),
+                Token('다', 'EF', 4, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('거듭되', 'VV', 0, 3),
+                Token('었', 'EP', 3, 1),
+                Token('다', 'EF', 4, 1),
+            ],
+            -5.7,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('거듭되었다', (0, 5))[0]
+
+    assert candidate.lemma == '거듭되다'
+
+
+@pytest.mark.parametrize(
+    ('sentence', 'surface', 'contextual', 'isolated', 'expected_lemma'),
+    [
+        (
+            '해,',
+            '해',
+            [
+                ([Token('해', 'NNG', 0, 1)], -1.0),
+                ([Token('하', 'VV', 0, 1), Token('어', 'ETM', 0, 1)], -6.0),
+            ],
+            [([Token('하', 'VV', 0, 1), Token('어', 'ETM', 0, 1)], -1.0)],
+            '해',
+        ),
+        (
+            '그런, 상황',
+            '그런',
+            [
+                ([Token('그런', 'MM', 0, 2)], -1.0),
+                ([Token('그러', 'VV', 0, 2), Token('ㄴ', 'ETM', 1, 1)], -2.5),
+            ],
+            [([Token('그러', 'VV', 0, 2), Token('ㄴ', 'ETM', 1, 1)], -1.0)],
+            '그런',
+        ),
+    ],
+)
+def test_boundary_inflected_evidence_preserves_ambiguous_nominals(
+    sentence: str,
+    surface: str,
+    contextual: list[tuple[list[Token], float]],
+    isolated: list[tuple[list[Token], float]],
+    expected_lemma: str,
+) -> None:
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == surface else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (0, len(surface)))[0]
+
+    assert candidate.lemma == expected_lemma
+
+
+def test_complete_predicate_recovery_preserves_existing_tense_features() -> None:
+    entry = ReviewedRoleDictionary().lookup('바뀌다', 'verb', 1)
+    component = LexicalComponent('바뀌', '바뀌다', 'action verb', entry)
+    current = AnalysisCandidate(
+        '바뀌였다',
+        '바뀌다',
+        -1.0,
+        (
+            MorphemeExplanation('바뀌', '바뀌다', 'action verb'),
+            MorphemeExplanation('이', '이', 'word part'),
+        ),
+        (
+            LearnerFeature('past tense', 'past'),
+            LearnerFeature('verb ending', 'ending'),
+        ),
+        entry,
+        (component,),
+    )
+    alternative = AnalysisCandidate(
+        '바뀌였다',
+        '바뀌다',
+        -1.5,
+        (MorphemeExplanation('바뀌', '바뀌다', 'action verb'),),
+        (LearnerFeature('verb ending', 'ending'),),
+        entry,
+        (component,),
+    )
+
+    promoted = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi([]),
+    )._promote_close_complete_inflected_word([current, alternative])
+
+    assert promoted[0] is current

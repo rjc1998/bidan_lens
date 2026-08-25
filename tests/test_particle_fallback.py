@@ -1,3 +1,5 @@
+import pytest
+
 from bidan_lens.analysis.korean import KoreanAnalyzer
 from bidan_lens.dictionary.store import DictionaryStore
 from bidan_lens.models import DictionaryEntry, DictionarySense
@@ -130,3 +132,62 @@ def test_ambiguous_standalone_particle_surface_is_not_promoted() -> None:
     assert candidate.lemma == '은'
     assert candidate.lexical_components[0].learner_role == 'noun'
     assert candidate.dictionary_entries[0].entry_id == 'silver'
+
+
+class ReviewedSuffixDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        role = {
+            '번': '의존 명사',
+            '필생': 'noun',
+        }.get(lemma)
+        if role is None or (part_of_speech is not None and part_of_speech != role):
+            return ()
+        return (
+            DictionaryEntry(
+                lemma,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition', 1),),
+            ),
+        )
+
+
+class ReviewedSuffixKiwi(FakeKiwi):
+    def analyze(self, text: str, top_n: int = 1):
+        analyses = {
+            '번쯤': [([('번쯤', 'NNG', 0, 2)], -1.0)],
+            '필생토록': [
+                (
+                    [
+                        ('필생', 'NNG', 0, 2),
+                        ('토록', 'XSA', 2, 2),
+                    ],
+                    -1.0,
+                )
+            ],
+        }
+        return analyses[text][:top_n]
+
+
+@pytest.mark.parametrize(
+    ('surface', 'expected_lemma', 'expected_role'),
+    [
+        ('번쯤', '번', 'dependent noun'),
+        ('필생토록', '필생', 'noun'),
+    ],
+)
+def test_reviewed_particle_suffix_recovers_a_dictionary_stem(
+    surface: str,
+    expected_lemma: str,
+    expected_role: str,
+) -> None:
+    candidate = KoreanAnalyzer(
+        ReviewedSuffixDictionary(),
+        ReviewedSuffixKiwi(),
+    ).analyze(surface, (0, len(surface)))[0]
+
+    assert candidate.lemma == expected_lemma
+    assert candidate.lexical_components[0].learner_role == expected_role
+    assert 'particle' in {feature.label for feature in candidate.features}

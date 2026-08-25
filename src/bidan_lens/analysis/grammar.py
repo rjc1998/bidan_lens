@@ -16,6 +16,8 @@ _PARTICLE_EXPLANATIONS = {
     "만": "limiting particle; means only",
     "와": "joining particle; means and or with",
     "과": "joining particle; means and or with",
+    "쯤": "approximation particle; means about or approximately",
+    "토록": "extent particle; means throughout or to the extent of",
 }
 
 _ENDING_EXPLANATIONS = {
