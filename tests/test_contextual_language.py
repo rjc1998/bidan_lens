@@ -255,6 +255,52 @@ def test_context_does_not_promote_distant_same_lemma_helping_alternative() -> No
     assert candidate.lexical_components[0].learner_role == 'action verb'
 
 
+def test_ge_doeda_promotes_distant_same_lemma_helping_alternative() -> None:
+    sentence = '\ubcf4\uac8c \ub418\ub294'
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '\ub418\ub2e4': (_entry('become', '\ub418\ub2e4', 'verb', 'to become'),),
+    }
+    analyses = {
+        sentence: [
+            (
+                [
+                    Token('\ubcf4', 'VV', 0, 1),
+                    Token('\uac8c', 'EC', 1, 1),
+                    Token('\ub418', 'VV', 3, 1),
+                    Token('\ub294', 'ETM', 4, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('\ubcf4', 'VV', 0, 1),
+                    Token('\uac8c', 'EC', 1, 1),
+                    Token('\ub418', 'VX', 3, 1),
+                    Token('\ub294', 'ETM', 4, 1),
+                ],
+                -10.5,
+            ),
+        ],
+        '\ub418\ub294': [
+            (
+                [
+                    Token('\ub418', 'VV', 0, 1),
+                    Token('\ub294', 'ETM', 1, 1),
+                ],
+                -1.0,
+            ),
+        ],
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        sentence, (3, 5)
+    )[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
 def test_context_still_promotes_distant_different_lemma_helping_analysis() -> None:
     sentence = '\uba39\uc5b4 \ub193\ub2e4'
     dictionary = RoleDictionary()

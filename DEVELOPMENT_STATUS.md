@@ -62,25 +62,25 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.12 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 254.92 ms
-median / 395.08 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 210.77 ms
+median / 322.92 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The complete v4.12 development evaluation has now run against the current reconstruction cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 88.65% component accuracy, 92.10% exact KRDict
-fidelity, 77.15% fully correct first
+context, 70.00% exact sentence transcription, 88.75% component accuracy, 92.20% exact KRDict
+fidelity, 77.25% fully correct first
 popups, and 92.55% alternative recovery. False promotions remain zero and automated latency is
-232.23 ms median / 346.56 ms p95. Privacy-safe diagnostics contain 58 target, 205 context, and
-194 analysis failures; the analysis stages are 74 primary lemmas, 90 component roles, 12 component
+215.01 ms median / 320.84 ms p95. Privacy-safe diagnostics contain 58 target, 205 context, and
+192 analysis failures; the analysis stages are 74 primary lemmas, 88 component roles, 12 component
 surfaces, nine component counts, and nine grammar roles. Three additional records fail only a
 negative-pointer category.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
-functional context, and 62.80% fully correct first popups. The 400-case held-out language tier
-records 88.00% overall, 89.50% auxiliary, 86.50% multi-lexical, and 100% direct KRDict
+functional context, and 63.20% fully correct first popups. The 400-case held-out language tier
+records 88.25% overall, 90.00% auxiliary, 86.50% multi-lexical, and 100% direct KRDict
 conformance. Aggregate main negative activation is 0.14%; blank, English, and near-miss probes
 remain at zero, whitespace is four of 1,931 (0.21%), and punctuation is nine of 1,582 (0.57%).
 The correction, dictionary-conformance, and latency gates pass, but the primary, exceptional-floor,
@@ -113,6 +113,15 @@ two full-tier context cases while leaving the quick diagnostics byte-identical. 
 now accepts an ASCII digit as the leading artifact only when recognizing the union at 99% or
 better omits it and exactly reproduces the following Hangul word. This resolves three additional
 full-tier cases without a new failure or quick-tier change.
+
+The first-popup reviewer now has the same separately scoped full-tier mode, repeated stable-ID
+batch inspection, structure-only output, and single-ID categorical recording. Full reports use
+the `first_popup_analysis_full` kind and cannot be mixed with quick reports. The initial 20-case
+review contains seven annotation-convention differences, five equivalent learner interpretations,
+five Kiwi-analysis errors, two corpus-oracle defects, and one genuinely ambiguous case. Against
+the current diagnostics, 19 reviewed IDs remain active, one is resolved, and 173 active analysis
+IDs remain unreviewed. The report persists no corpus or analysis text; its SHA-256 is
+`3afed70984d178b5f9edd3477c01dbe90abf7c25fc921e756d1a732adf6d5833`.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -163,6 +172,12 @@ verb is no longer relabeled as a helping verb merely because the same headword a
 auxiliary dictionary sense. This resolved one reviewed component-role case and improved component
 accuracy, KRDict fidelity, popup correctness, and alternative recovery without an OCR, target,
 context, promotion, or negative-probe regression.
+
+The grammatical `-게 되다` construction now prefers a same-lemma, same-boundary, dictionary-backed
+helping-verb candidate within a separately bounded 10-point score margin. It runs after isolated
+role corroboration so the eojeol alone cannot override sentence-level grammar. This resolves two
+main component-role cases, one stress case, and one held-out auxiliary case without a quick-tier,
+upstream, alternative, promotion, or negative-probe regression.
 
 For otherwise identical nominal interpretations, a lower-ranked candidate may now be promoted
 within a 2.5-point score margin only when KRDict's default homograph order prefers every differing

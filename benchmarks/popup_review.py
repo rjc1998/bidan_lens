@@ -34,6 +34,8 @@ from bidan_lens.pipeline.hit_test import hit_test
 
 REVIEW_SCHEMA_VERSION = 1
 POPUP_REVIEW_KIND = 'first_popup_analysis'
+FULL_POPUP_REVIEW_KIND = 'first_popup_analysis_full'
+POPUP_REVIEW_KINDS = frozenset({POPUP_REVIEW_KIND, FULL_POPUP_REVIEW_KIND})
 POPUP_REVIEW_DECISIONS = (
     'kiwi_analysis_error',
     'annotation_convention_difference',
@@ -109,7 +111,10 @@ def write_popup_review(
     path: Path,
     corpus_id: str,
     decisions: tuple[PopupReviewDecision, ...],
+    review_kind: str = POPUP_REVIEW_KIND,
 ) -> None:
+    if review_kind not in POPUP_REVIEW_KINDS:
+        raise CorpusError('popup review contains an unknown review kind')
     ordered = tuple(sorted(decisions, key=lambda item: item.sample_id))
     if len({item.sample_id for item in ordered}) != len(ordered):
         raise CorpusError('popup review contains duplicate sample ids')
@@ -120,7 +125,7 @@ def write_popup_review(
     value = {
         'schema_version': REVIEW_SCHEMA_VERSION,
         'corpus_id': corpus_id,
-        'review_kind': POPUP_REVIEW_KIND,
+        'review_kind': review_kind,
         'decisions': [
             {
                 'sample_id': item.sample_id,
@@ -144,7 +149,10 @@ def write_popup_review(
 def load_popup_review(
     path: Path,
     corpus_id: str | None,
+    review_kind: str = POPUP_REVIEW_KIND,
 ) -> tuple[PopupReviewDecision, ...]:
+    if review_kind not in POPUP_REVIEW_KINDS:
+        raise CorpusError('popup review contains an unknown review kind')
     if not path.is_file():
         return ()
     try:
@@ -158,7 +166,7 @@ def load_popup_review(
         or value.get('schema_version') != REVIEW_SCHEMA_VERSION
         or not isinstance(value.get('corpus_id'), str)
         or (corpus_id is not None and value.get('corpus_id') != corpus_id)
-        or value.get('review_kind') != POPUP_REVIEW_KIND
+        or value.get('review_kind') != review_kind
         or not isinstance(value.get('decisions'), list)
     ):
         raise CorpusError('popup review decisions do not match this corpus')
@@ -503,6 +511,11 @@ def main() -> None:
         help='validate an existing decision report without prompting',
     )
     parser.add_argument(
+        '--full',
+        action='store_true',
+        help='review all 2,000 main cases using a separately scoped decision report',
+    )
+    parser.add_argument(
         '--carry-forward',
         type=Path,
         metavar='PRIOR_DECISIONS',
@@ -530,7 +543,8 @@ def main() -> None:
     )
     parser.add_argument(
         '--sample-id',
-        help='stable sample ID for --record-decision',
+        action='append',
+        help='stable ID for --inspect or --record-decision; repeat for inspection',
     )
     parser.add_argument(
         '--record-decision',
@@ -547,8 +561,14 @@ def main() -> None:
         parser.error('inspection filters and views require --inspect')
     if arguments.compact and arguments.structure_only:
         parser.error('--compact and --structure-only cannot be combined')
-    if bool(arguments.sample_id) != bool(arguments.record_decision):
-        parser.error('--sample-id and --record-decision must be used together')
+    if arguments.sample_id and not (
+        arguments.inspect or arguments.record_decision
+    ):
+        parser.error('--sample-id requires --inspect or --record-decision')
+    if arguments.record_decision and not arguments.sample_id:
+        parser.error('--record-decision requires --sample-id')
+    if arguments.record_decision and len(arguments.sample_id) != 1:
+        parser.error('--record-decision requires exactly one --sample-id')
     if arguments.record_decision and arguments.inspect:
         parser.error('--record-decision cannot be combined with --inspect')
     if arguments.carry_forward and (
@@ -561,8 +581,11 @@ def main() -> None:
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
     sources = load_sources(arguments.corpus, locked)
-    selected = _quick_annotations(arguments.corpus, locked)
+    selected = None if arguments.full else _quick_annotations(arguments.corpus, locked)
     samples = load_plain_samples(arguments.corpus, 'plain', locked, sources, selected)
+    review_kind = (
+        FULL_POPUP_REVIEW_KIND if arguments.full else POPUP_REVIEW_KIND
+    )
     dictionary = SqliteDictionaryStore(_asset(arguments.assets, 'dictionary.sqlite3'))
     analyzer = KoreanAnalyzer(dictionary)
     engine = PaddleOcrEngine(
@@ -572,24 +595,56 @@ def main() -> None:
             _asset(arguments.assets, 'korean_characters.txt'),
         ),
     )
-    cases = collect_popup_review_cases(engine, analyzer, samples)
+    case_samples = samples
+    partial_selection = bool(arguments.sample_id)
+    if partial_selection:
+        selected_ids = set(arguments.sample_id)
+        case_samples = tuple(
+            sample for sample in samples if sample.sample_id in selected_ids
+        )
+        missing = sorted(selected_ids - {sample.sample_id for sample in case_samples})
+        if missing:
+            scope = 'full-tier' if arguments.full else 'quick-tier'
+            parser.error(f'unknown {scope} sample ID: {missing[0]}')
+    cases = collect_popup_review_cases(engine, analyzer, case_samples)
     if arguments.carry_forward:
-        prior = load_popup_review(arguments.carry_forward, None)
+        prior = load_popup_review(arguments.carry_forward, None, review_kind)
         decisions = carry_forward_popup_decisions(cases, prior)
-        write_popup_review(arguments.decisions, corpus_id, decisions)
+        write_popup_review(
+            arguments.decisions,
+            corpus_id,
+            decisions,
+            review_kind,
+        )
         print(json.dumps(audit_popup_review(cases, decisions), ensure_ascii=True, indent=2))
         return
-    existing = load_popup_review(arguments.decisions, corpus_id)
+    existing = load_popup_review(arguments.decisions, corpus_id, review_kind)
     audit = audit_popup_review(cases, existing)
     if arguments.record_decision:
         decisions = record_popup_decision(
             cases,
             existing,
-            arguments.sample_id,
+            arguments.sample_id[0],
             arguments.record_decision,
         )
-        write_popup_review(arguments.decisions, corpus_id, decisions)
-        print(json.dumps(audit_popup_review(cases, decisions), ensure_ascii=True, indent=2))
+        write_popup_review(
+            arguments.decisions,
+            corpus_id,
+            decisions,
+            review_kind,
+        )
+        print(
+            json.dumps(
+                {
+                    'sample_id': arguments.sample_id[0],
+                    'decision': arguments.record_decision,
+                    'review_kind': review_kind,
+                    'decision_count': len(decisions),
+                },
+                ensure_ascii=True,
+                indent=2,
+            )
+        )
         return
     if arguments.audit:
         print(json.dumps(audit, ensure_ascii=True, indent=2))
@@ -618,10 +673,30 @@ def main() -> None:
                 _display_compact_case(case, print)
             else:
                 _display_case(case, print)
-        print(json.dumps(audit, ensure_ascii=True, indent=2))
+        if partial_selection:
+            print(
+                json.dumps(
+                    {
+                        'selection_only': True,
+                        'sample_ids': arguments.sample_id,
+                        'active_popup_failure_ids': [
+                            case.sample.sample_id for case in cases
+                        ],
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                )
+            )
+        else:
+            print(json.dumps(audit, ensure_ascii=True, indent=2))
         return
     decisions = review_popup_cases(cases, existing)
-    write_popup_review(arguments.decisions, corpus_id, decisions)
+    write_popup_review(
+        arguments.decisions,
+        corpus_id,
+        decisions,
+        review_kind,
+    )
     print(json.dumps(audit_popup_review(cases, decisions), ensure_ascii=True, indent=2))
 
 

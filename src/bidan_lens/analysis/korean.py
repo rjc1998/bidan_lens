@@ -44,6 +44,7 @@ _LEXICAL_TAGS = _VERB_TAGS | {
 _KIWI_ANALYSIS_DEPTH = 10
 _MULTI_COMPONENT_SCORE_MARGIN = 2.0
 _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
+_GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
@@ -107,6 +108,11 @@ class KoreanAnalyzer:
             candidates,
             max_candidates,
         )
+        candidates = self._promote_ge_doeda_auxiliary_candidate(
+            sentence,
+            target_span,
+            candidates,
+        )
         candidates = self._augment_verified_particle_features(surface, candidates)
         particle = self._particle_candidate(surface, candidates)
         if particle is not None:
@@ -125,6 +131,47 @@ class KoreanAnalyzer:
             )
             for candidate in candidates
         )
+
+    @staticmethod
+    def _promote_ge_doeda_auxiliary_candidate(
+        sentence: str,
+        target_span: tuple[int, int],
+        candidates: tuple[AnalysisCandidate, ...],
+    ) -> tuple[AnalysisCandidate, ...]:
+        start, end = target_span
+        surface = sentence[start:end]
+        if (
+            len(candidates) < 2
+            or not sentence[:start].rstrip().endswith('\uac8c')
+            or not surface.startswith('\ub418')
+        ):
+            return candidates
+        first = candidates[0]
+        if len(first.lexical_components) != 1:
+            return candidates
+        current = first.lexical_components[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score > _GE_DOEDA_AUXILIARY_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or candidate.lemma != '\ub418\ub2e4'
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                current.surface == alternative.surface
+                and current.lemma == alternative.lemma
+                and current.learner_role != 'helping verb'
+                and alternative.learner_role == 'helping verb'
+                and alternative.dictionary_entries
+            ):
+                return (
+                    candidate,
+                    *candidates[:index],
+                    *candidates[index + 1 :],
+                )
+        return candidates
 
     def _promote_close_wrapper_context_candidate(
         self,
@@ -582,7 +629,8 @@ class KoreanAnalyzer:
 
     @staticmethod
     def _promote_contextual_auxiliary(
-        candidates: list[AnalysisCandidate], contextual_auxiliary_ids: set[int]
+        candidates: list[AnalysisCandidate],
+        contextual_auxiliary_ids: set[int],
     ) -> list[AnalysisCandidate]:
         if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
             return candidates

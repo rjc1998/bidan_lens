@@ -8,6 +8,7 @@ import pytest
 
 from benchmarks.locked_corpus import CorpusError
 from benchmarks.popup_review import (
+    FULL_POPUP_REVIEW_KIND,
     PopupReviewDecision,
     audit_popup_review,
     carry_forward_popup_decisions,
@@ -47,6 +48,32 @@ def test_popup_review_round_trip_contains_only_categorical_data(tmp_path: Path) 
         'decision',
     }
     assert 'sentence' not in path.read_text(encoding='utf-8')
+
+
+def test_full_popup_review_cannot_be_loaded_as_quick_scope(tmp_path: Path) -> None:
+    path = tmp_path / 'full-review.json'
+    decisions = (
+        PopupReviewDecision(
+            'dev-plain-0017',
+            'component_role',
+            'annotation_convention_difference',
+        ),
+    )
+
+    write_popup_review(path, 'corpus-v5', decisions, FULL_POPUP_REVIEW_KIND)
+
+    assert load_popup_review(path, 'corpus-v5', FULL_POPUP_REVIEW_KIND) == decisions
+    with pytest.raises(CorpusError, match='do not match'):
+        load_popup_review(path, 'corpus-v5')
+
+
+def test_popup_review_rejects_unknown_scope(tmp_path: Path) -> None:
+    path = tmp_path / 'review.json'
+
+    with pytest.raises(CorpusError, match='unknown review kind'):
+        write_popup_review(path, 'corpus-v5', (), 'unknown')
+    with pytest.raises(CorpusError, match='unknown review kind'):
+        load_popup_review(path, 'corpus-v5', 'unknown')
 
 
 def test_record_popup_decision_uses_current_failure_stage() -> None:

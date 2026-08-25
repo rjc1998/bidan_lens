@@ -144,6 +144,11 @@ missing, resolved, or stage-changed decisions without storing corpus text.
 After structure-only review, record one decision without redisplaying corpus text with
 `--sample-id ID --record-decision CATEGORY`; the reviewer derives and persists the current
 categorical failure stage itself.
+Use `--full` and a separate decision path for the 2,000-case main tier. Full popup reports use
+the distinct `first_popup_analysis_full` review kind and cannot be loaded as quick reports.
+Repeat `--sample-id ID` with `--full --inspect` to inspect a selected batch after one OCR/model
+initialization; recording still requires exactly one ID. Selected inspection emits a
+selection-only summary rather than presenting the partial result as a complete audit.
 When a new development corpus intentionally preserves the reviewed quick cases, use
 `--carry-forward PRIOR_DECISIONS` with either reviewer. It writes a new report only when every
 current stable ID is present in the prior report; the popup reviewer additionally requires an
