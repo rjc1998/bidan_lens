@@ -1017,3 +1017,157 @@ def test_dictionary_preferred_adverb_noun_role_is_score_bounded(
     ).analyze('깊이', (0, 2))[0]
 
     assert candidate.lexical_components[0].learner_role == expected_role
+
+
+class VerbRoleDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '만들다': ('verb',),
+            '만': ('noun',),
+            '들다': ('보조 동사', 'verb'),
+            '보다': ('보조 동사', 'verb'),
+            '되다': ('verb',),
+        }.get(lemma, ())
+        if not roles:
+            return ()
+        if part_of_speech is not None and part_of_speech not in roles:
+            return ()
+        role = part_of_speech or roles[0]
+        return (
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            ),
+        )
+
+
+def test_vx_without_an_auxiliary_entry_uses_lexical_dictionary_role() -> None:
+    sentence = '제도를 만든다'
+    contextual = [
+        (
+            [
+                Token('제도', 'NNG', 0, 2),
+                Token('를', 'JKO', 2, 1),
+                Token('만들', 'VX', 4, 2),
+                Token('ㄴ다', 'EF', 6, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('제도', 'NNG', 0, 2),
+                Token('를', 'JKO', 2, 1),
+                Token('만들', 'VV', 4, 2),
+                Token('ㄴ다', 'EF', 6, 1),
+            ],
+            -7.4,
+        ),
+        (
+            [
+                Token('제도', 'NNG', 0, 2),
+                Token('를', 'JKO', 2, 1),
+                Token('만', 'NR', 4, 1),
+                Token('들', 'VX', 5, 1),
+                Token('ㄴ다', 'EF', 6, 1),
+            ],
+            -8.0,
+        ),
+    ]
+    isolated = [
+        ([Token('만들', 'VX', 0, 2), Token('ㄴ다', 'EF', 2, 1)], -1.0),
+        ([Token('만들', 'VV', 0, 2), Token('ㄴ다', 'EF', 2, 1)], -7.4),
+        (
+            [
+                Token('만', 'NR', 0, 1),
+                Token('들', 'VX', 1, 1),
+                Token('ㄴ다', 'EF', 2, 1),
+            ],
+            -8.0,
+        ),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = contextual if text == sentence else isolated
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        VerbRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (4, 7))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+
+
+def test_unsupported_auxiliary_promotion_is_score_bounded() -> None:
+    analyses = [
+        ([Token('만들', 'VX', 0, 2), Token('ㄴ다', 'EF', 2, 1)], -1.0),
+        ([Token('만들', 'VV', 0, 2), Token('ㄴ다', 'EF', 2, 1)], -8.1),
+    ]
+
+    candidate = KoreanAnalyzer(
+        VerbRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('만든다', (0, 3))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_contextual_helping_verb_is_not_demoted() -> None:
+    sentence = '먹어 본다'
+    analyses = [
+        (
+            [Token('먹어', 'EC', 0, 2), Token('보', 'VX', 3, 1), Token('ㄴ다', 'EF', 4, 1)],
+            -1.0,
+        ),
+        (
+            [Token('먹어', 'EC', 0, 2), Token('보', 'VV', 3, 1), Token('ㄴ다', 'EF', 4, 1)],
+            -1.5,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        VerbRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze(sentence, (3, 5))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_ge_doeda_auxiliary_cue_ignores_wrapper_punctuation() -> None:
+    sentence = '게 /된다/'
+    analyses = [
+        (
+            [Token('게', 'NNG', 0, 1), Token('되', 'VV', 3, 1), Token('ㄴ다', 'EF', 4, 1)],
+            -1.0,
+        ),
+        (
+            [Token('게', 'EC', 0, 1), Token('되', 'VX', 3, 1), Token('ㄴ다', 'EF', 4, 1)],
+            -3.5,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        VerbRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze(sentence, (3, 5))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_dictionary_preference_does_not_demote_a_determiner() -> None:
+    analyses = [
+        ([Token('그', 'MM', 0, 1), Token('돈', 'NNG', 2, 1)], -1.0),
+        ([Token('그', 'NNG', 0, 1), Token('돈', 'NNG', 2, 1)], -1.4),
+    ]
+
+    candidate = KoreanAnalyzer(
+        NominalRoleDictionary('noun'),
+        FakeKiwi(analyses),
+    ).analyze('그 돈', (0, 1))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'determiner'

@@ -52,6 +52,7 @@ _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
+_NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -199,10 +200,10 @@ class KoreanAnalyzer:
         candidates: tuple[AnalysisCandidate, ...],
     ) -> tuple[AnalysisCandidate, ...]:
         start, _ = target_span
-        if (
-            len(candidates) < 2
-            or not sentence[:start].rstrip().endswith('\uac8c')
-        ):
+        prefix = sentence[:start].rstrip()
+        while prefix and unicodedata.category(prefix[-1]).startswith('P'):
+            prefix = prefix[:-1].rstrip()
+        if len(candidates) < 2 or not prefix.endswith('\uac8c'):
             return candidates
         first = candidates[0]
         if len(first.lexical_components) != 1:
@@ -259,6 +260,8 @@ class KoreanAnalyzer:
         if not contextual or not contextual[0].dictionary_entries:
             return candidates
         signature = self._candidate_signature(contextual[0])
+        if self._candidate_signature(candidates[0]) == signature:
+            return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
             if self._candidate_signature(candidate) != signature:
                 continue
@@ -386,6 +389,7 @@ class KoreanAnalyzer:
                 or len(components) <= len(first.lexical_components)
                 or len(components) < 2
                 or not all(component.dictionary_entries for component in components)
+                or components[0].learner_role == 'number'
                 or not any(
                     component.learner_role == 'helping verb'
                     for component in components
@@ -713,6 +717,9 @@ class KoreanAnalyzer:
         candidates = self._promote_contextual_auxiliary(
             candidates, contextual_auxiliary_ids
         )
+        candidates = self._promote_noncontextual_lexical_verb(
+            candidates, contextual_auxiliary_ids
+        )
         candidates = self._promote_close_inflected_verb_after_particle(
             candidates, post_particle_inflected_verb_ids
         )
@@ -768,10 +775,7 @@ class KoreanAnalyzer:
             if all(
                 current.learner_role in nominal_roles
                 and alternative.learner_role in nominal_roles
-                and (
-                    current.learner_role != 'adverb'
-                    or alternative.learner_role == 'adverb'
-                )
+                and current.learner_role not in {'adverb', 'determiner'}
                 and (preferred := self.dictionary.lookup(alternative.lemma, None, 1))
                 and preferred[0].part_of_speech == alternative.learner_role
                 for current, alternative in differing
@@ -797,6 +801,38 @@ class KoreanAnalyzer:
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
+
+    def _promote_noncontextual_lexical_verb(
+        self,
+        candidates: list[AnalysisCandidate],
+        contextual_auxiliary_ids: set[int],
+    ) -> list[AnalysisCandidate]:
+        if len(candidates) < 2 or id(candidates[0]) in contextual_auxiliary_ids:
+            return candidates
+        first = candidates[0]
+        if (
+            len(first.lexical_components) != 1
+            or first.lexical_components[0].learner_role != 'helping verb'
+            or self._has_auxiliary_entry(first.lemma)
+        ):
+            return candidates
+        candidate = candidates[1]
+        if (
+            first.score - candidate.score > _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN
+            or candidate.lemma != first.lemma
+            or len(candidate.lexical_components) != 1
+        ):
+            return candidates
+        current = first.lexical_components[0]
+        alternative = candidate.lexical_components[0]
+        if (
+            current.surface != alternative.surface
+            or current.lemma != alternative.lemma
+            or alternative.learner_role not in {'action verb', 'descriptive verb'}
+            or not alternative.dictionary_entries
+        ):
+            return candidates
+        return [candidate, first, *candidates[2:]]
 
     @staticmethod
     def _promote_close_inflected_verb_after_particle(
@@ -880,6 +916,7 @@ class KoreanAnalyzer:
                 first.score - candidate.score <= _MULTI_COMPONENT_SCORE_MARGIN
                 and len(components) > len(first.lexical_components)
                 and len(components) >= 2
+                and components[0].learner_role != 'number'
                 and all(component.dictionary_entries for component in components)
                 and not (
                     'particle' in first_labels and 'particle' not in candidate_labels

@@ -62,19 +62,19 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.12 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 211.21 ms
-median / 319.99 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.61 ms
+median / 323.25 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The complete v4.12 development evaluation has now run against the current analyzer cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 89.95% component accuracy, 93.35% exact KRDict
-fidelity, 78.40% fully correct first popups, and 93.10% alternative recovery. False promotions
-remain zero and automated latency is 205.23 ms median / 308.87 ms p95. Privacy-safe diagnostics
-contain 58 target, 205 context, and 169 analysis failures; the analysis stages are 63 primary
-lemmas, 78 component roles, 12 component surfaces, seven component counts, and nine grammar roles.
+context, 70.00% exact sentence transcription, 90.20% component accuracy, 93.50% exact KRDict
+fidelity, 78.65% fully correct first popups, and 93.10% alternative recovery. False promotions
+remain zero and automated latency is 220.26 ms median / 327.93 ms p95. Privacy-safe diagnostics
+contain 58 target, 205 context, and 164 analysis failures; the analysis stages are 63 primary
+lemmas, 73 component roles, 12 component surfaces, seven component counts, and nine grammar roles.
 Three additional records fail only a
 negative-pointer category.
 
@@ -116,12 +116,12 @@ full-tier cases without a new failure or quick-tier change.
 
 The first-popup reviewer now has the same separately scoped full-tier mode, repeated stable-ID
 batch inspection, structure-only output, and single-ID categorical recording. Full reports use
-the `first_popup_analysis_full` kind and cannot be mixed with quick reports. The first 80 decisions
-contain 28 Kiwi-analysis errors, 21 equivalent learner interpretations, 20 annotation-convention
-differences, five corpus-oracle defects, and six genuinely ambiguous cases. Against the current
-diagnostics, 66 reviewed IDs remain active, 14 are resolved, and 103 active analysis IDs remain
+the `first_popup_analysis_full` kind and cannot be mixed with quick reports. The first 100 decisions
+contain 40 Kiwi-analysis errors, 24 equivalent learner interpretations, 24 annotation-convention
+differences, six corpus-oracle defects, and six genuinely ambiguous cases. Against the current
+diagnostics, 83 reviewed IDs remain active, 17 are resolved, and 81 active analysis IDs remain
 unreviewed. No reviewed stage is stale. The report persists no corpus or analysis text; its
-SHA-256 is `5e2153c3371605fd8653e07be691133f264d29a79149b968e7eb7bd5c3be2143`.
+SHA-256 is `366ff8650c36c5b132b5efeb660fa7920d71afd54980747c1f7ebcaf4d964062`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
@@ -157,6 +157,18 @@ byte-identical quick diagnostics, all stress results, held-out multi-lexical acc
 upstream and negative-pointer metric while recovering six held-out auxiliary cases. A symmetric
 adverb/noun reranker was rejected after introducing two main component-role regressions.
 
+The fifth full-tier batch classifies 20 more component-role cases as 12 Kiwi-analysis errors,
+four annotation-convention differences, three equivalent learner interpretations, and one
+corpus-oracle defect. Paired punctuation no longer hides the existing `-게 되다` cue. When a leading
+single-component helping-verb candidate has no auxiliary KRDict sense or connective context, only
+its immediate same-lemma, same-boundary, dictionary-backed lexical alternative may replace it,
+within a 7.1-point score margin. Dictionary ordering cannot demote an already-leading determiner or
+adverb, and a numeric-plus-helping decomposition cannot displace a complete dictionary-backed
+verb. The accepted rerun removes five main component-role failures and adds none, raising component
+accuracy from 89.95% to 90.20%, KRDict fidelity from 93.35% to 93.50%, and full popup correctness
+from 78.40% to 78.65%. Quick diagnostics remain byte-identical; alternative recovery, stress,
+held-out language, upstream, promotion, and negative-pointer results are unchanged.
+
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
 adjacent points in order and emits only a point inside the viewport and outside every oracle
@@ -170,8 +182,8 @@ historical evidence but must not be transferred to v4.11 by ID without a fresh a
 held-out language tier was not evaluated. The v4.12 tier has now been evaluated only as part of
 the complete development run described above.
 
-Fresh v4.12 privacy-safe reviews are complete and contain no corpus text or pixels. The popup
-review retains 20 decisions: seven Kiwi-analysis errors, five annotation-convention
+The separately scoped v4.12 quick reviews are complete and contain no corpus text or pixels. The
+quick popup review retains 20 decisions: seven Kiwi-analysis errors, five annotation-convention
 differences, seven equivalent learner interpretations, and one genuinely ambiguous case. The
 context review retains 16 decisions: seven incorrect line/sentence reconstructions, four missed
 or merged word boundaries, and five punctuation or structured-text handling cases. Its current
