@@ -563,7 +563,7 @@ def _discard_confirmed_overlapping_character_duplicates(
             matches_geometry = (
                 len(first[0]) == 1
                 and len(last[0]) >= 2
-                and contains_hangul(first[0])
+                and (contains_hangul(first[0]) or first[0] in '0123456789')
                 and contains_hangul(last[0])
                 and first[2] < 0.96
                 and last[2] >= 0.7

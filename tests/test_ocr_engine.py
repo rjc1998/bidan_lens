@@ -570,6 +570,41 @@ def test_one_pixel_duplicate_overlap_is_allowed_on_small_line() -> None:
     ]
 
 
+def test_exactly_confirmed_overlapping_digit_artifact_is_discarded() -> None:
+    words = [
+        ('9', BoundingBox(30, 0, 40, 30), 0.915),
+        ('약소국', BoundingBox(39, 0, 93, 30), 0.995),
+    ]
+
+    recovered = _discard_confirmed_overlapping_character_duplicates(
+        words,
+        Image.new('RGB', (100, 30)),
+        BoundingBox(0, 0, 100, 30),
+        DuplicateCharacterRecognizer('약소국'),
+    )
+
+    assert recovered == [
+        ('약소국', BoundingBox(30, 0, 93, 30), 0.995),
+    ]
+
+
+def test_overlapping_digit_is_preserved_without_exact_confirmation() -> None:
+    words = [
+        ('9', BoundingBox(30, 0, 40, 30), 0.915),
+        ('약소국', BoundingBox(39, 0, 93, 30), 0.995),
+    ]
+
+    assert (
+        _discard_confirmed_overlapping_character_duplicates(
+            words,
+            Image.new('RGB', (100, 30)),
+            BoundingBox(0, 0, 100, 30),
+            DuplicateCharacterRecognizer('9약소국'),
+        )
+        == words
+    )
+
+
 def test_normal_width_character_duplicate_requires_exact_confirmation() -> None:
     words = [
         ('학', BoundingBox(30, 0, 43, 20), 0.33),
