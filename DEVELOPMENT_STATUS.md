@@ -89,13 +89,13 @@ and per-category negative-activation gates fail.
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
 initialization and categorized one stable ID at a time, writing each categorical decision
-immediately. The current 153-case review contains 64 non-target OCR transcription errors, 44
-punctuation or structured-text cases, 28 missed or merged OCR word boundaries, and 17 incorrect
+immediately. The current 173-case review contains 71 non-target OCR transcription errors, 50
+punctuation or structured-text cases, 33 missed or merged OCR word boundaries, and 19 incorrect
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
 IDs, categorical decisions, and counts. The current full diagnostics have 210 active context
-cases; reconciliation finds 12 resolved reviewed IDs, 141 active reviewed IDs, and 69 missing
+cases; reconciliation finds 12 resolved reviewed IDs, 161 active reviewed IDs, and 49 missing
 decisions.
 
 Three independently reviewed reconstruction cases contained a one-character eojeol centered

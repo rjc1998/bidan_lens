@@ -84,17 +84,17 @@ The full aggregate report and privacy-safe diagnostic SHA-256 values are
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
-main image. The current 153-case review is 64 non-target OCR transcription errors, 44 punctuation
-or structured-text cases, 28 missed or merged OCR word boundaries, and 17 incorrect line/sentence
+main image. The current 173-case review is 71 non-target OCR transcription errors, 50 punctuation
+or structured-text cases, 33 missed or merged OCR word boundaries, and 19 incorrect line/sentence
 reconstructions. The current full diagnostics have 210 active context cases; reconciliation finds
-12 resolved reviewed IDs, 141 active reviewed IDs, and 69 missing decisions. The additional
+12 resolved reviewed IDs, 161 active reviewed IDs, and 49 missing decisions. The additional
 transcription category distinguishes non-target character
 substitution or omission from sentence reconstruction and target-span defects. Three reconstruction
 cases share a one-character eojeol centered inside a two-character eojeol and repeating its
 normalized suffix. The accepted contained-suffix cleanup resolves all three and preserves the
 protected unrelated-character regression. The decision report persists no corpus text, recognized
 text, definitions, or pixels. Its SHA-256 is
-`8d0707ed344d698f529ea8b195645602e43c5db92ff02f8fd8451387939d793d`.
+`ababc034d3d0c93bd3440f1b27462bc22c8288c8c455755f0d09efc1e85cb171`.
 The current full run resolves 16 context IDs from the earlier report without adding a new context
 failure: three from the contained-suffix cleanup, 11 from the confirmed leading-sliver cleanup,
 and two from the exact-confirmed suffix-overlap cleanup.
