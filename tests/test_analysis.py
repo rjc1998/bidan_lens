@@ -1171,3 +1171,252 @@ def test_dictionary_preference_does_not_demote_a_determiner() -> None:
     ).analyze('그 돈', (0, 1))[0]
 
     assert candidate.lexical_components[0].learner_role == 'determiner'
+
+
+class ReviewedRoleDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '적': ('의존 명사', 'noun'),
+            '부정하다': ('verb', 'adjective'),
+            '있다': ('보조 동사', 'verb', 'adjective'),
+            '하다': ('보조 동사', 'verb'),
+            '가다': ('verb', '보조 동사'),
+        }.get(lemma, ())
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-3.6, 'dependent noun'), (-3.7, 'noun')],
+)
+def test_dictionary_preferred_dependent_noun_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        ([Token('적', 'NNG', 0, 1), Token('은', 'JX', 1, 1)], -1.0),
+        ([Token('적', 'NNB', 0, 1), Token('은', 'JX', 1, 1)], alternative_score),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('적은', (0, 2))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_dictionary_preference_does_not_demote_a_dependent_noun() -> None:
+    class NounFirstDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            roles = ('noun', '의존 명사')
+            if part_of_speech is not None:
+                roles = tuple(role for role in roles if role == part_of_speech)
+            return tuple(
+                DictionaryEntry(
+                    lemma + role,
+                    lemma,
+                    role,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                )
+                for role in roles[:limit]
+            )
+
+    analyses = [
+        ([Token('수', 'NNB', 0, 1), Token('가', 'JKS', 1, 1)], -1.0),
+        ([Token('수', 'NNG', 0, 1), Token('가', 'JKS', 1, 1)], -1.2),
+    ]
+
+    candidate = KoreanAnalyzer(
+        NounFirstDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('수가', (0, 2))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'dependent noun'
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-1.8, 'action verb'), (-2.0, 'descriptive verb')],
+)
+def test_dictionary_preferred_predicate_role_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        ([Token('부정하', 'VA', 0, 3), Token('ㄴ', 'ETM', 3, 1)], -1.0),
+        ([Token('부정하', 'VV', 0, 3), Token('ㄴ', 'ETM', 3, 1)], alternative_score),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('부정한', (0, 4))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_locative_itda_prefers_descriptive_role() -> None:
+    analyses = [
+        (
+            [
+                Token('왕', 'NNG', 0, 1),
+                Token('에게', 'JKB', 1, 2),
+                Token('있', 'VV', 4, 1),
+                Token('었', 'EP', 5, 1),
+                Token('다', 'EF', 6, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('왕', 'NNG', 0, 1),
+                Token('에게', 'JKB', 1, 2),
+                Token('있', 'VA', 4, 1),
+                Token('었', 'EP', 5, 1),
+                Token('다', 'EF', 6, 1),
+            ],
+            -6.0,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('왕에게 있었다', (4, 7))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'descriptive verb'
+
+
+def test_hayaman_particle_preserves_auxiliary_context() -> None:
+    analyses = [
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('어야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VV', 6, 1),
+                Token('ㄹ', 'ETM', 6, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('어야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VX', 6, 1),
+                Token('ㄹ', 'ETM', 6, 1),
+            ],
+            -1.8,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('기울여야만 할', (6, 7))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_wrapper_context_can_replace_learner_identical_candidates() -> None:
+    wrapped = '휩쓸어 -간다-'
+    unwrapped = '휩쓸어 간다'
+    contextual = [
+        (
+            [Token('휩쓸어', 'NNG', 0, 3), Token('가', 'VV', 5, 1), Token('ㄴ다', 'EF', 6, 1)],
+            -1.0,
+        ),
+        (
+            [Token('휩쓸어', 'NNG', 0, 3), Token('가', 'VV', 5, 1), Token('ㄴ다', 'EF', 6, 1)],
+            -1.5,
+        ),
+    ]
+    unwrapped_analysis = [
+        (
+            [
+                Token('휩쓸', 'VV', 0, 2),
+                Token('어', 'EC', 2, 1),
+                Token('가', 'VX', 4, 1),
+                Token('ㄴ다', 'EF', 5, 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                values = unwrapped_analysis
+            elif text == '간다':
+                values = [
+                    ([Token('가', 'VV', 0, 1), Token('ㄴ다', 'EF', 1, 1)], -1.0)
+                ]
+            else:
+                values = contextual
+            return values[:top_n]
+
+    analyzer = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        WrapperKiwi([]),
+    )
+    initial = analyzer._analyze_candidates(wrapped, (5, 7), 5)
+    promoted = analyzer._promote_close_wrapper_context_candidate(
+        wrapped,
+        (5, 7),
+        initial,
+        5,
+    )
+
+    assert promoted[0].lexical_components[0].learner_role == 'helping verb'
+
+    candidate = analyzer.analyze(wrapped, (5, 7))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+def test_contracted_hayaman_context_promotes_auxiliary_hada() -> None:
+    analyses = [
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('여야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VV', 7, 1),
+                Token('ㄹ', 'ETM', 7, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('여야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VX', 7, 1),
+                Token('ㄹ', 'ETM', 7, 1),
+            ],
+            -1.8,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('기울여야만 /할/', (7, 8))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
