@@ -552,6 +552,24 @@ def test_exactly_confirmed_touching_character_duplicate_is_discarded() -> None:
     ]
 
 
+def test_one_pixel_duplicate_overlap_is_allowed_on_small_line() -> None:
+    words = [
+        ('학', BoundingBox(30, 0, 37, 14), 0.55),
+        ('학교에서', BoundingBox(36, 0, 92, 14), 0.991),
+    ]
+
+    recovered = _discard_confirmed_overlapping_character_duplicates(
+        words,
+        Image.new('RGB', (100, 14)),
+        BoundingBox(0, 0, 100, 14),
+        DuplicateCharacterRecognizer(),
+    )
+
+    assert recovered == [
+        ('학교에서', BoundingBox(30, 0, 92, 14), 0.991),
+    ]
+
+
 def test_normal_width_character_duplicate_requires_exact_confirmation() -> None:
     words = [
         ('학', BoundingBox(30, 0, 43, 20), 0.33),

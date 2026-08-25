@@ -568,7 +568,7 @@ def _discard_confirmed_overlapping_character_duplicates(
                 and first[2] < 0.96
                 and last[2] >= 0.7
                 and first[1].width <= last_pitch * 0.9
-                and 0 <= overlap_ratio <= 0.07
+                and 0 <= overlap_ratio <= 0.075
             )
             if matches_geometry:
                 combined_crop = crop.crop(
