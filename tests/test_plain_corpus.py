@@ -534,7 +534,7 @@ def test_kaist_demonstrative_adjective_tag_builds_a_lexical_component() -> None:
 
 
 def test_gsd_upos_refines_a_single_nominal_xpos_adverb() -> None:
-    token = UdToken('1', '진짜', '진짜', 'ADV', 'NNG', '')
+    token = UdToken('1', '진짜', '진짜', 'ADV', 'NNG', '', 'advmod')
     oracle = {
         '진짜': (
             OracleEntry('noun', '진짜', ((1, 'real thing'),), 'noun'),
@@ -546,6 +546,20 @@ def test_gsd_upos_refines_a_single_nominal_xpos_adverb() -> None:
 
     assert component.learner_role == 'adverb'
     assert [entry.entry_id for entry in component.entries] == ['adverb', 'noun']
+
+
+def test_gsd_nominal_conj_is_not_overridden_by_adverb_upos() -> None:
+    token = UdToken('1', '가맹점', '가맹점', 'ADV', 'NNG', '', 'conj')
+    oracle = {
+        '가맹점': (
+            OracleEntry('noun', '가맹점', ((1, 'member store'),), 'noun'),
+        ),
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.learner_role == 'noun'
+    assert [entry.entry_id for entry in component.entries] == ['noun']
 
 
 def test_kaist_copula_is_not_reported_as_a_particle() -> None:

@@ -85,6 +85,7 @@ class UdToken:
     upos: str
     xpos: str
     misc: str
+    dependency_relation: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -575,7 +576,12 @@ def _expected_components(
             role = "descriptive verb"
         elif token.upos == "AUX" and role in {"action verb", "descriptive verb"}:
             role = "helping verb"
-        if token.upos == 'ADV' and role == 'noun' and len(tags) == 1:
+        if (
+            token.upos == 'ADV'
+            and role == 'noun'
+            and len(tags) == 1
+            and token.dependency_relation == 'advmod'
+        ):
             role = 'adverb'
         surface = form
         lemma = form
@@ -632,7 +638,15 @@ def _parse_ud(path: Path) -> tuple[UdSentence, ...]:
                 fields = line.split("\t")
                 if len(fields) == 10 and "-" not in fields[0] and "." not in fields[0]:
                     tokens.append(
-                        UdToken(fields[0], fields[1], fields[2], fields[3], fields[4], fields[9])
+                        UdToken(
+                            fields[0],
+                            fields[1],
+                            fields[2],
+                            fields[3],
+                            fields[4],
+                            fields[9],
+                            fields[7],
+                        )
                     )
         if sent_id and text and tokens:
             sentences.append(UdSentence(sent_id, _normalized(text), tuple(tokens)))

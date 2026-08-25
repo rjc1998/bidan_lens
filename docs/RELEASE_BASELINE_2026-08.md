@@ -37,37 +37,37 @@ outlined text on image-like gradients. Complex samples add smooth multicolor bac
 shapes, outline variations, and small rotations. The morphology set uses 50 reviewed common
 verbs across four ending patterns and 50 reviewed common nouns across two particle contexts.
 
-## Plain-v1 schema-v4.13 development follow-up
+## Plain-v1 schema-v4.14 development follow-up
 
 The current development-only corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.13\dev`. It contains 2,000 main, 250 stress, 400 held-out
+`F:\bidan-lens-eval-ud218-v4.14\dev`. It contains 2,000 main, 250 stress, 400 held-out
 language, and 200 quick cases and records the `viewport-v3` policy for both renderers. The policy
 shifts only targets outside the 1280 by 720 image into a 10 px safe band and removes clipped words
 from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
-The v4.13 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
+The v4.14 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
 functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 89.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted rerun is 214.89 ms median / 327.69 ms p95. There
+false promotions. The accepted rerun is 214.35 ms median / 317.74 ms p95. There
 are eight analysis, 12 context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
 
-The v4.13 lock SHA-256 is
-`cf2c6e733f5baf44e8d37ba5537a9071efa281ea33d36425b298e4706f65bfdd`.
+The v4.14 lock SHA-256 is
+`aaff5f06298d1c9c8ce4c79777a3fbfa215a0667d942a5b92b6a8b80a671d8e0`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`aa1db82f675d64092fae1a8dac51958d51cad9206983ec7481d670f7da7f9a9e` and
+`afccbc0d821cc95e715234627d1ea82dccba8bb62ea03eb4c2c79a4aa6512895` and
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
-Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.13 by numeric ID
+Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.14 by numeric ID
 without a fresh review audit.
 
-The complete v4.13 development run against the current analyzer cleanup records 97.98%
+The complete v4.14 development run against the current analyzer cleanup records 97.98%
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
-transcription, 92.00% component accuracy, 94.55% exact KRDict fidelity, 80.60% fully correct first
-popups, 93.90% alternative recovery, and zero false promotions across 2,000 main cases. Automated
-latency is 218.99 ms median / 324.67 ms p95. The privacy-safe stage totals are 58 target, 205
-context, and 125 analysis failures. The analysis failures comprise 48 primary lemmas, 63 component
+transcription, 92.10% component accuracy, 94.60% exact KRDict fidelity, 80.65% fully correct first
+popups, 94.00% alternative recovery, and zero false promotions across 2,000 main cases. Automated
+latency is 220.18 ms median / 326.49 ms p95. The privacy-safe stage totals are 58 target, 205
+context, and 124 analysis failures. The analysis failures comprise 48 primary lemmas, 62 component
 roles, six component counts, and eight grammar roles; no component-surface failures remain.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
@@ -80,8 +80,8 @@ punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The
 dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`0640e8041257a96fa3aa790d43380d0cdba3078df7189d7f867cbd0785283bf1` and
-`2ffb0728e8bcbe5b98771ae7048f3a6f40b7638ee3b87c5321daeddf32150d2c`.
+`4757c3be4173a0995f9fc21dc2248dd51251e2df54e5c55d1844ecd210a6644e` and
+`300e578f7ffc11a86b6fc28e9f31c57c6b9fd5609c71c487f0ccbe69f834b435`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -110,9 +110,11 @@ matching-only migration mode for corrected corpora. The v4.12 history has 167 de
 Kiwi-analysis errors, 32 annotation-convention differences, 34 equivalent learner interpretations,
 22 corpus-oracle defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
-The fail-closed v4.13 migration carries 106 current decisions with matching stages, reports no
-stale or resolved IDs, and leaves 19 current cases explicitly missing. Its SHA-256 is
-`0d83652c84c224e04bfc55365037b8740900f644ac93c2d3aedf36decad097bc`.
+The v4.13 history then has 112 active decisions and SHA-256
+`a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
+The fail-closed v4.14 migration carries 111 current decisions with matching stages, reports no
+stale or resolved IDs, and leaves 13 current cases explicitly missing. Its SHA-256 is
+`70e6851bc5088acd7cabbb090f595aea6293557bd3c23109ec148e304c2be5e3`.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
@@ -216,8 +218,19 @@ two main role failures while exposing six main and two stress role disagreements
 delta is 14 removed analysis failures and six newly exposed role failures, with no surface failure
 remaining. Quick diagnostics are byte-identical; main component accuracy rises to 92.00%, popup
 correctness to 80.60%, and alternative recovery to 93.90%. Stress popup correctness and held-out
-language remain unchanged. The next target is the six newly exposed component-role cases, followed
-by six component-count and seven grammar-role cases.
+language remain unchanged. At that point the next target was the six newly exposed component-role
+cases, followed by six component-count and seven grammar-role cases.
+
+The tenth batch reviews the six component-role cases exposed by the GSD `ADV` correction. Five
+are annotation-convention differences: published UPOS and `advmod` describe sentence function,
+while XPOS, Kiwi, and every local KRDict headword entry identify a lexical noun. Those useful noun
+readings remain unchanged. The remaining case is an oracle defect whose nominal list item has
+`ADV` UPOS but `conj` dependency and noun XPOS. The v4.14 oracle therefore requires `advmod`
+before a single nominal XPOS component inherits the adverb role. The exact comparison removes that
+one main component-role failure and adds none. Quick diagnostics are byte-identical, stress and
+held-out language remain unchanged, and main component accuracy rises to 92.10%, popup correctness
+to 80.65%, and alternative recovery to 94.00%. Component-role review is complete; the next target
+is six component-count cases followed by seven grammar-role cases.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects
