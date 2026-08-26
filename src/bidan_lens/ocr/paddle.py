@@ -617,6 +617,10 @@ def _recover_isolated_close_word_pairs(
             first_pitch = first[1].width / len(first[0])
             last_pitch = last[1].width / len(last[0])
             pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+            pure_hangul_pair = all(
+                '\uac00' <= character <= '\ud7a3'
+                for character in first[0] + last[0]
+            )
             long_suffix_profile = (
                 previous is not None
                 and len(first[0]) == 2
@@ -695,6 +699,29 @@ def _recover_isolated_close_word_pairs(
                 <= line_box.height * 0.005
                 and pitch_ratio >= 0.95
             )
+            line_initial_three_plus_three_profile = (
+                previous is None
+                and pure_hangul_pair
+                and len(first[0]) == 3
+                and len(last[0]) == 3
+                and first[2] >= 0.9965
+                and last[2] >= 0.9999
+                and 0.26 <= gap_ratio <= 0.265
+                and 0.54 <= following_gap / line_box.height <= 0.55
+                and pitch_ratio >= 0.96
+            )
+            isolated_three_plus_three_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 3
+                and len(last[0]) == 3
+                and first[2] >= 0.9981
+                and last[2] >= 0.9968
+                and 0.35 <= gap_ratio <= 0.365
+                and previous_gap >= line_box.height * 0.61
+                and following_gap >= line_box.height * 0.44
+                and pitch_ratio >= 0.98
+            )
             matches_geometry = (
                 contains_hangul(first[0])
                 and contains_hangul(last[0])
@@ -706,6 +733,8 @@ def _recover_isolated_close_word_pairs(
                     or narrow_three_plus_two_profile
                     or line_initial_one_plus_two_profile
                     or touching_following_one_plus_two_profile
+                    or line_initial_three_plus_three_profile
+                    or isolated_three_plus_three_profile
                 )
             )
             if matches_geometry:
@@ -714,6 +743,8 @@ def _recover_isolated_close_word_pairs(
                 if (
                     line_initial_one_plus_two_profile
                     or touching_following_one_plus_two_profile
+                    or line_initial_three_plus_three_profile
+                    or isolated_three_plus_three_profile
                 ):
                     candidate_left = round(candidate_left, 6)
                     candidate_right = round(candidate_right, 6)
@@ -734,6 +765,10 @@ def _recover_isolated_close_word_pairs(
                     or touching_following_one_plus_two_profile
                 ):
                     required_confidence = 0.99975
+                elif line_initial_three_plus_three_profile:
+                    required_confidence = 0.9993
+                elif isolated_three_plus_three_profile:
+                    required_confidence = 0.9983
                 elif narrow_three_plus_two_profile:
                     required_confidence = 0.9998
                 elif isolated_final_syllable_profile:
@@ -765,6 +800,38 @@ def _recover_isolated_close_word_pairs(
                             )
                         )
                         if recognizer.recognize(competing_crop).confidence >= 0.9:
+                            recovered.append(words[index])
+                            index += 1
+                            continue
+                    if (
+                        line_initial_three_plus_three_profile
+                        or isolated_three_plus_three_profile
+                    ):
+                        competing_spans = [(last[1].left, following[1].right)]
+                        if previous is not None:
+                            competing_spans.append(
+                                (previous[1].left, first[1].right)
+                            )
+                        has_strong_competitor = False
+                        for left, right in competing_spans:
+                            competing_crop = crop.crop(
+                                (
+                                    max(
+                                        0,
+                                        math.floor(round(left - line_box.left, 6)),
+                                    ),
+                                    0,
+                                    min(
+                                        crop.width,
+                                        math.ceil(round(right - line_box.left, 6)),
+                                    ),
+                                    crop.height,
+                                )
+                            )
+                            if recognizer.recognize(competing_crop).confidence >= 0.995:
+                                has_strong_competitor = True
+                                break
+                        if has_strong_competitor:
                             recovered.append(words[index])
                             index += 1
                             continue

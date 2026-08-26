@@ -108,6 +108,14 @@ within 0.5% of touching, and compatible pitch. It uses the same combined-recogni
 Both variants reject recovery when recognizing the two-syllable fragment with its following
 neighbor reaches 90% confidence. Only these two verification paths normalize subpixel crop
 coordinates before integer rounding.
+A line-initial three-plus-three-syllable pair has a pure-Hangul merge profile requiring fragment
+confidence of at least 99.65% and 99.99%, a gap of 26% to 26.5% of line height, a following
+boundary of 54% to 55%, pitch agreement within 4%, and exact combined recognition at 99.93% or
+better. An isolated internal three-plus-three pair instead requires fragment confidence of at
+least 99.81% and 99.68%, a gap of 35% to 36.5%, a preceding boundary of at least 61%, a
+following boundary of at least 44%, pitch agreement within 2%, and exact combined recognition
+at 99.83% or better. Both variants normalize subpixel verification coordinates and reject the
+candidate when either available adjacent union reaches 99.5% confidence.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character
