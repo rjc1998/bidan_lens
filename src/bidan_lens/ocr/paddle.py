@@ -784,7 +784,7 @@ def _recover_isolated_overlapping_word_pairs(
                 and 0.035 <= overlap_ratio <= 0.06
                 and previous_gap >= line_box.height * 0.22
                 and following_gap >= line_box.height * 0.34
-                and pitch_ratio >= 0.7
+                and pitch_ratio >= 0.7 - 1e-9
             )
             overlapping_leading_syllable_profile = (
                 len(first[0]) == 1
@@ -838,6 +838,55 @@ def _recover_isolated_overlapping_word_pairs(
         recovered.append(words[index])
         index += 1
     return recovered
+
+
+def _recover_initial_overlapping_word_pair(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    if len(words) < 3:
+        return words
+    first, last, following = words[:3]
+    overlap_ratio = (first[1].right - last[1].left) / line_box.height
+    following_gap = following[1].left - last[1].right
+    first_pitch = first[1].width / len(first[0])
+    last_pitch = last[1].width / len(last[0])
+    pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+    matches_geometry = (
+        len(first[0]) == 2
+        and len(last[0]) == 1
+        and contains_hangul(first[0])
+        and contains_hangul(last[0])
+        and first[2] >= 0.9987
+        and last[2] >= 0.979
+        and 0.055 <= overlap_ratio <= 0.06
+        and following_gap >= line_box.height * 0.17
+        and pitch_ratio >= 0.8
+    )
+    if not matches_geometry:
+        return words
+    combined_crop = crop.crop(
+        (
+            max(0, math.floor(first[1].left - line_box.left)),
+            0,
+            min(crop.width, math.ceil(last[1].right - line_box.left)),
+            crop.height,
+        )
+    )
+    combined = recognizer.recognize(combined_crop)
+    combined_text = combined.text.replace(" ", "")
+    if combined.confidence < 0.9996 or combined_text != first[0] + last[0]:
+        return words
+    return [
+        (
+            combined_text,
+            BoundingBox.union((first[1], last[1])),
+            min(first[2], last[2], combined.confidence),
+        ),
+        *words[2:],
+    ]
 
 
 def _recover_overlapping_suffix_pairs(
@@ -904,6 +953,12 @@ def _recover_word_boundaries(
     )
     words = _recover_overlapping_suffix_pairs(words, crop, line_box, recognizer)
     words = _recover_terminal_overlapping_word_pair(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_initial_overlapping_word_pair(
         words,
         crop,
         line_box,

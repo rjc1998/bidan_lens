@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
     _recover_overlapping_suffix_pairs,
@@ -1351,6 +1352,28 @@ def test_isolated_overlapping_final_syllable_requires_wide_following_gap() -> No
     )
 
 
+def test_isolated_overlapping_final_syllable_accepts_pitch_roundoff() -> None:
+    words = [
+        ("다국적", BoundingBox(121.84, 149.67, 189.84, 176.09), 0.9998),
+        ("기업", BoundingBox(200.84, 149.67, 242.84, 176.09), 0.9999),
+        ("은", BoundingBox(241.84, 149.67, 271.84, 176.09), 0.9945),
+        ("이러한", BoundingBox(280.84, 149.67, 350.84, 176.09), 0.9999),
+    ]
+
+    recovered = _recover_isolated_overlapping_word_pairs(
+        words,
+        Image.new("RGB", (1000, 27)),
+        BoundingBox(66.84, 149.67, 939.16, 176.09),
+        IsolatedFinalOverlapRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("기업은", BoundingBox(200.84, 149.67, 271.84, 176.09), 0.9945),
+        words[3],
+    ]
+
+
 class IsolatedLeadingOverlapRecognizer:
     def __init__(self, confidence: float = 0.9976) -> None:
         self.confidence = confidence
@@ -1488,3 +1511,64 @@ def test_recognizer_expands_tensor_for_wide_text_lines(tmp_path) -> None:
     recognizer.recognize(Image.new("RGB", (1000, 20), (255, 0, 0)))
 
     assert session.tensor.shape == (1, 3, 48, 2400)
+
+
+class InitialFinalOverlapRecognizer:
+    def __init__(self, confidence: float = 0.99961, text: str = "신기술") -> None:
+        self.confidence = confidence
+        self.text = text
+
+    def recognize(self, _image):
+        return RecognizedText(self.text, self.confidence)
+
+
+def test_initial_overlapping_pair_merges_exact_final_syllable() -> None:
+    words = [
+        ("신기", BoundingBox(0, 0, 30, 20), 0.9988),
+        ("술", BoundingBox(28.9, 0, 40.9, 20), 0.98),
+        ("개발의", BoundingBox(44.31, 0, 86.31, 20), 0.9999),
+    ]
+    recovered = _recover_initial_overlapping_word_pair(
+        words,
+        Image.new("RGB", (100, 20)),
+        BoundingBox(0, 0, 100, 20),
+        InitialFinalOverlapRecognizer(),
+    )
+    assert recovered == [
+        ("신기술", BoundingBox(0, 0, 40.9, 20), 0.98),
+        words[2],
+    ]
+
+
+def test_initial_overlapping_pair_requires_following_gap() -> None:
+    words = [
+        ("신기", BoundingBox(0, 0, 30, 20), 0.9988),
+        ("술", BoundingBox(28.9, 0, 40.9, 20), 0.98),
+        ("개발의", BoundingBox(44.2, 0, 86.2, 20), 0.9999),
+    ]
+    assert (
+        _recover_initial_overlapping_word_pair(
+            words,
+            Image.new("RGB", (100, 20)),
+            BoundingBox(0, 0, 100, 20),
+            InitialFinalOverlapRecognizer(),
+        )
+        == words
+    )
+
+
+def test_initial_overlapping_pair_requires_exact_combined_recognition() -> None:
+    words = [
+        ("신기", BoundingBox(0, 0, 30, 20), 0.9988),
+        ("술", BoundingBox(28.9, 0, 40.9, 20), 0.98),
+        ("개발의", BoundingBox(44.31, 0, 86.31, 20), 0.9999),
+    ]
+    assert (
+        _recover_initial_overlapping_word_pair(
+            words,
+            Image.new("RGB", (100, 20)),
+            BoundingBox(0, 0, 100, 20),
+            InitialFinalOverlapRecognizer(text="신기업"),
+        )
+        == words
+    )

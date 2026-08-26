@@ -88,7 +88,11 @@ confidence, and recognizing their union at 99.99% or better exactly returns thei
 An internal two-plus-one-syllable pair has a separate shallow-overlap profile: both surrounding
 gaps must clearly separate it from neighboring words, character pitch must agree, the
 two-syllable fragment must be at least 99.7% confident, and recognizing the union at 99.97% or
-better must exactly return the concatenation.
+better must exactly return the concatenation. Its pitch-boundary comparison tolerates only
+floating-point roundoff. A line-initial two-plus-one pair has a separate narrower profile:
+overlap must be 5.5% to 6% of line height, the following gap at least 17%, character pitch
+compatible, fragment confidence at least 99.87% and 97.9%, and exact combined recognition at
+least 99.96%.
 An internal one-plus-four-syllable pair has a separate profile for a one-pixel overlap between
 otherwise positive neighboring gaps. It additionally requires compatible pitch, at least 99.75%
 confidence for the four-syllable fragment, and exact combined recognition at 99.75% or better.
