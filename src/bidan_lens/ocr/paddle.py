@@ -933,12 +933,21 @@ def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
                 and item.box.right <= other.box.right
                 and item.box.width <= other.box.width * 0.16
             )
+            low_confidence_leading_fragment = (
+                len(other_key) == 2
+                and item.confidence < 0.5
+                and other.confidence >= 0.999
+                and abs(item.box.left - other.box.left) <= 1.0
+                and item.box.right < other.box.right
+                and item.box.width <= other.box.width * 0.25
+            )
             if (
                 vertical_overlap >= 0.8
                 and other.box.left <= center <= other.box.right
                 and (
                     tiny_contained_fragment
                     or low_confidence_contained_fragment
+                    or low_confidence_leading_fragment
                     or matched_character_fragment
                     or matched_suffix_fragment
                 )

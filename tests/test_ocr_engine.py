@@ -593,6 +593,52 @@ def test_low_confidence_contained_fragment_requires_all_bounds(
     assert _remove_tiny_contained_fragments(line) == line
 
 
+def test_low_confidence_leading_fragment_of_short_word_is_removed() -> None:
+    line = OcrLine(
+        "\ub77c \uac00\ub098",
+        BoundingBox(9.5, 0, 110, 20),
+        0.9,
+        (
+            OcrEojeol("\ub77c", BoundingBox(9.5, 0, 33.5, 20), 0.49, 0, 1),
+            OcrEojeol("\uac00\ub098", BoundingBox(10, 0, 110, 20), 0.999, 2, 4),
+        ),
+    )
+
+    cleaned = _remove_tiny_contained_fragments(line)
+
+    assert cleaned.text == "\uac00\ub098"
+    assert [item.text for item in cleaned.eojeols] == ["\uac00\ub098"]
+    assert cleaned.eojeols[0].sentence_start == 0
+    assert cleaned.eojeols[0].sentence_end == 2
+
+
+@pytest.mark.parametrize(
+    ("fragment_box", "fragment_confidence", "word_confidence"),
+    [
+        (BoundingBox(9.5, 0, 35, 20), 0.49, 0.999),
+        (BoundingBox(8.9, 0, 32.9, 20), 0.49, 0.999),
+        (BoundingBox(9.5, 0, 33.5, 20), 0.5, 0.999),
+        (BoundingBox(9.5, 0, 33.5, 20), 0.49, 0.9989),
+    ],
+)
+def test_low_confidence_leading_fragment_requires_all_bounds(
+    fragment_box: BoundingBox,
+    fragment_confidence: float,
+    word_confidence: float,
+) -> None:
+    line = OcrLine(
+        "\ub77c \uac00\ub098",
+        BoundingBox(8.9, 0, 110, 20),
+        0.9,
+        (
+            OcrEojeol("\ub77c", fragment_box, fragment_confidence, 0, 1),
+            OcrEojeol("\uac00\ub098", BoundingBox(10, 0, 110, 20), word_confidence, 2, 4),
+        ),
+    )
+
+    assert _remove_tiny_contained_fragments(line) == line
+
+
 class DuplicateCharacterRecognizer:
     def __init__(self, text: str = '학교에서') -> None:
         self.text = text

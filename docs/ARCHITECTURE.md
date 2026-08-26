@@ -73,6 +73,10 @@ An unrelated one-character fragment can also be removed with sentence-span repai
 fully contained within a word of at least three characters, its confidence is below 60%, the
 containing word is at least 99% confident, its width is no more than 16% of the containing word,
 and their vertical overlap is at least 80%.
+A one-character leading artifact over a two-character word has a separate stricter profile: its
+confidence must be below 50%, the word must be at least 99.9% confident, their leading edges must
+be within one pixel, the artifact must be no wider than 25% of the word, and vertical overlap must
+be at least 80%.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
