@@ -532,6 +532,67 @@ def test_contained_fragment_at_width_threshold_is_preserved() -> None:
     assert _remove_tiny_contained_fragments(line) == line
 
 
+def test_low_confidence_contained_fragment_is_removed() -> None:
+    line = OcrLine(
+        "\ub77c \uac00\ub098\ub2e4",
+        BoundingBox(0, 0, 150, 20),
+        0.9,
+        (
+            OcrEojeol("\ub77c", BoundingBox(30, 0, 52, 20), 0.53, 0, 1),
+            OcrEojeol("\uac00\ub098\ub2e4", BoundingBox(0, 0, 150, 20), 0.999, 2, 5),
+        ),
+    )
+
+    cleaned = _remove_tiny_contained_fragments(line)
+
+    assert cleaned.text == "\uac00\ub098\ub2e4"
+    assert [item.text for item in cleaned.eojeols] == ["\uac00\ub098\ub2e4"]
+    assert cleaned.eojeols[0].sentence_start == 0
+    assert cleaned.eojeols[0].sentence_end == 3
+
+
+def test_high_confidence_contained_fragment_is_preserved() -> None:
+    line = OcrLine(
+        "\ub77c \uac00\ub098\ub2e4",
+        BoundingBox(0, 0, 150, 20),
+        0.9,
+        (
+            OcrEojeol("\ub77c", BoundingBox(30, 0, 52, 20), 0.6, 0, 1),
+            OcrEojeol("\uac00\ub098\ub2e4", BoundingBox(0, 0, 150, 20), 0.999, 2, 5),
+        ),
+    )
+
+    assert _remove_tiny_contained_fragments(line) == line
+
+
+@pytest.mark.parametrize(
+    ("fragment_box", "word_text", "word_box", "word_confidence"),
+    [
+        (BoundingBox(30, 0, 55, 20), "\uac00\ub098\ub2e4", BoundingBox(0, 0, 150, 20), 0.999),
+        (BoundingBox(-1, 0, 21, 20), "\uac00\ub098\ub2e4", BoundingBox(0, 0, 150, 20), 0.999),
+        (BoundingBox(30, 0, 52, 20), "\uac00\ub098", BoundingBox(0, 0, 150, 20), 0.999),
+        (BoundingBox(30, 0, 52, 20), "\uac00\ub098\ub2e4", BoundingBox(0, 0, 150, 20), 0.989),
+    ],
+)
+def test_low_confidence_contained_fragment_requires_all_bounds(
+    fragment_box: BoundingBox,
+    word_text: str,
+    word_box: BoundingBox,
+    word_confidence: float,
+) -> None:
+    line = OcrLine(
+        f"\ub77c {word_text}",
+        BoundingBox(-1, 0, 150, 20),
+        0.9,
+        (
+            OcrEojeol("\ub77c", fragment_box, 0.53, 0, 1),
+            OcrEojeol(word_text, word_box, word_confidence, 2, 2 + len(word_text)),
+        ),
+    )
+
+    assert _remove_tiny_contained_fragments(line) == line
+
+
 class DuplicateCharacterRecognizer:
     def __init__(self, text: str = '학교에서') -> None:
         self.text = text

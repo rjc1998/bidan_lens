@@ -69,6 +69,10 @@ edge-punctuation normalization. When every eojeol in a same-row detector fragmen
 an existing eojeol with at least 80% horizontal and vertical overlap, its geometry is retained but
 remapped to the existing sentence span instead of appending duplicate text. These context tokens
 never become hover targets.
+An unrelated one-character fragment can also be removed with sentence-span repair when its box is
+fully contained within a word of at least three characters, its confidence is below 60%, the
+containing word is at least 99% confident, its width is no more than 16% of the containing word,
+and their vertical overlap is at least 80%.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
