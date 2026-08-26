@@ -99,6 +99,10 @@ confidence for the four-syllable fragment, and exact combined recognition at 99.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
+An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
+must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
+boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character
+pitch must agree within 2%, and exact combined recognition must reach 99.98%.
 An internal two-plus-two-syllable pair has a separate relative-gap profile: both fragments must
 be pure Hangul and at least 99.6% confident, their gap must be 15% to 24% of line height, each
 available neighboring boundary must be at least ten percentage points wider, character pitch

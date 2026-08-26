@@ -1219,6 +1219,52 @@ def test_isolated_one_plus_two_pair_requires_wide_following_gap() -> None:
     )
 
 
+class NarrowThreePlusTwoRecognizer:
+    def recognize(self, _image):
+        return RecognizedText("이론에서는", 0.99985)
+
+
+def test_narrow_three_plus_two_pair_merges_with_exact_recognition() -> None:
+    words = [
+        ("상대성", BoundingBox(0, 0, 47, 20), 0.9995),
+        ("이론에", BoundingBox(52, 0, 89, 20), 0.99975),
+        ("서는", BoundingBox(91, 0, 116, 20), 0.99985),
+        ("사건이라는", BoundingBox(115, 0, 184, 20), 0.9942),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (190, 20)),
+        BoundingBox(0, 0, 190, 20),
+        NarrowThreePlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("이론에서는", BoundingBox(52, 0, 116, 20), 0.99975),
+        words[3],
+    ]
+
+
+def test_narrow_three_plus_two_pair_requires_following_overlap() -> None:
+    words = [
+        ("상대성", BoundingBox(0, 0, 47, 20), 0.9995),
+        ("이론에", BoundingBox(52, 0, 89, 20), 0.99975),
+        ("서는", BoundingBox(91, 0, 116, 20), 0.99985),
+        ("사건이라는", BoundingBox(116, 0, 185, 20), 0.9942),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (190, 20)),
+            BoundingBox(0, 0, 190, 20),
+            NarrowThreePlusTwoRecognizer(),
+        )
+        == words
+    )
+
+
 class TerminalOverlapRecognizer:
     def recognize(self, _image):
         return RecognizedText("\uc9c0\uc6d0\ud55c\ub2e4", 0.99995)

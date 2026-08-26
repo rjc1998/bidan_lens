@@ -655,6 +655,16 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.319
                 and pitch_ratio >= 0.82
             )
+            narrow_three_plus_two_profile = (
+                len(first[0]) == 3
+                and len(last[0]) == 2
+                and first[2] >= 0.9997
+                and last[2] >= 0.9998
+                and 0.1 <= gap_ratio <= 0.105
+                and previous_gap >= line_box.height * 0.25
+                and -line_box.height * 0.055 <= following_gap < 0
+                and pitch_ratio >= 0.98
+            )
             matches_geometry = (
                 contains_hangul(first[0])
                 and contains_hangul(last[0])
@@ -663,6 +673,7 @@ def _recover_isolated_close_word_pairs(
                     or isolated_final_syllable_profile
                     or isolated_two_syllable_profile
                     or isolated_one_plus_two_profile
+                    or narrow_three_plus_two_profile
                 )
             )
             if matches_geometry:
@@ -678,6 +689,8 @@ def _recover_isolated_close_word_pairs(
                 combined_text = combined.text.replace(' ', '')
                 if isolated_two_syllable_profile or isolated_one_plus_two_profile:
                     required_confidence = 0.9999
+                elif narrow_three_plus_two_profile:
+                    required_confidence = 0.9998
                 elif isolated_final_syllable_profile:
                     required_confidence = 0.9995
                 else:
