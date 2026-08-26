@@ -66,7 +66,7 @@ The complete v4.15 development run against the current OCR and analyzer cleanup 
 whole-eojeol OCR, 97.10% target selection, 88.45% functional context, 71.40% exact sentence
 transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 82.35% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 226.04 ms median / 333.63 ms p95. The privacy-safe stage totals are 58 target,
+accepted rerun is 226.48 ms median / 341.68 ms p95. The privacy-safe stage totals are 58 target,
 173 context, and 122 analysis failures. The analysis failures comprise 50 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
@@ -80,7 +80,7 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`3e697394147ba98a7d6b5dcb6b9cbd456e008505eb4cb6dfb88f1a9256cf8954` and
+`3f54313bf5628531e4a7a48783cdbe50d933439b87004c87f7ca36054d05e81a` and
 `c31896098890fae89d3873ec42eb14366de504ea8743b4feaa58fe75ff8dd2353`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
@@ -528,6 +528,18 @@ transcription remains 71.40%. The audit has 173 active context cases, 32 resolve
 boundary cases, and no missing decisions. The overlapping 1+2 case remains excluded because its
 one-character fragment is only 92.30% confident, both neighboring boundaries overlap, and exact
 union recognition reaches only 99.7795%.
+
+The thirty-fourth batch separates two same-sentence pure-Hangul 4-to-3+1 splits. The accepted
+isolated-wide profile requires fragment confidence of at least 99.97% and 99.91%, a gap of 36% to
+36.5% of line height, preceding and following boundaries of at least 51% and 56%, pitch agreement
+within 13%, exact union recognition at 99.97% or better, and no adjacent union reaching 99%. It
+recovers one exact eojeol in `dev-plain-1115`; aggregate OCR remains 98.16% after rounding, while
+the 16 px stratum rises from 98.66% to 98.70% and the ellipsis stratum rises from 98.02% to 98.06%.
+Quick diagnostics are byte-identical, full stable-ID diagnostics are unchanged, and target,
+context, analysis, stress, language, promotion, and negative-pointer metrics do not regress. The
+other occurrence remains excluded because its exact union reaches only 99.9402% and an adjacent
+union reaches 99.8913%; a separate punctuation omission also keeps the sample in the context
+review.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

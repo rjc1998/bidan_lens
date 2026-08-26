@@ -77,7 +77,7 @@ The complete v4.15 development evaluation has now run against the current OCR an
 cleanup. Its 2,000 main cases record 98.16% whole-eojeol OCR, 97.10% target selection, 88.45%
 functional context, 71.40% exact sentence transcription, 92.35% component accuracy, 94.75% exact
 KRDict fidelity, 82.35% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 226.04 ms median / 333.63 ms p95. Privacy-safe
+promotions remain zero and the accepted rerun is 226.48 ms median / 341.68 ms p95. Privacy-safe
 diagnostics contain 58 target, 173 context, and 122 analysis failures; the analysis stages are 50 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
@@ -91,7 +91,7 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`3e697394147ba98a7d6b5dcb6b9cbd456e008505eb4cb6dfb88f1a9256cf8954`; the
+`3f54313bf5628531e4a7a48783cdbe50d933439b87004c87f7ca36054d05e81a`; the
 privacy-safe diagnostic SHA-256 is
 `c31896098890fae89d3873ec42eb14366de504ea8743b4feaa58fe75ff8dd2353`.
 
@@ -346,6 +346,18 @@ transcription remains 71.40%. The audit has 173 active context cases, 32 resolve
 boundary cases, and no missing decisions. The overlapping 1+2 case remains excluded because its
 one-character fragment is only 92.30% confident, both neighboring boundaries overlap, and exact
 union recognition reaches only 99.7795%.
+
+The seventeenth word-boundary batch separates two same-sentence pure-Hangul 4-to-3+1 splits.
+The accepted isolated-wide profile requires fragment confidence of at least 99.97% and 99.91%, a
+gap of 36% to 36.5% of line height, preceding and following boundaries of at least 51% and 56%,
+pitch agreement within 13%, exact union recognition at 99.97% or better, and no adjacent union
+reaching 99%. It recovers one exact eojeol in `dev-plain-1115`; the aggregate OCR percentage stays
+98.16% after rounding, while the 16 px stratum rises from 98.66% to 98.70% and the ellipsis stratum
+rises from 98.02% to 98.06%. Quick diagnostics are byte-identical, full stable-ID diagnostics are
+unchanged, and target, context, analysis, stress, language, promotion, and negative-pointer
+metrics do not regress. The other occurrence remains excluded because its exact union reaches
+only 99.9402% and an adjacent union reaches 99.8913%; a separate punctuation omission also keeps
+the sample in the context review.
 
 Compared with the earlier full report, the accepted cleanups resolve 53 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%

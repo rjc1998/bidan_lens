@@ -145,6 +145,11 @@ union to repair exactly one internal character only when the four-character unio
 Hangul, preserves the first two characters and final fragment, reaches 99.95% confidence, and
 both adjacent unions remain below 98.5%. Its fragment confidence, overlap, isolation, and pitch
 checks are separate from the positive-gap profile.
+An isolated-wide internal three-plus-one profile requires fragment confidence of at least 99.97%
+and 99.91%, a gap of 36% to 36.5% of line height, preceding and following boundaries of at least
+51% and 56%, pitch agreement within 13%, and exact union recognition at 99.97% or better. It
+normalizes subpixel verification coordinates and preserves the pair when either available
+adjacent union reaches 99% confidence.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character

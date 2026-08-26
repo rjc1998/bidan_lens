@@ -1178,6 +1178,71 @@ def test_isolated_three_plus_one_pair_rejects_strong_competitor() -> None:
     )
 
 
+def test_isolated_wide_three_plus_one_pair_merges_exact_union() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ube44\ud310\ud574", BoundingBox(50.32, 0, 108.32, 20), 0.99975),
+        ("\uc57c", BoundingBox(115.55, 0, 132.55, 20), 0.9992),
+        ("\ub2e4\uc74c", BoundingBox(143.91, 0, 183.91, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (195, 20)),
+        BoundingBox(0, 0, 195, 20),
+        ReviewedThreePlusOneRecognizer(83, "\ube44\ud310\ud574\uc57c", 0.99975),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ube44\ud310\ud574\uc57c", BoundingBox(50.32, 0, 132.55, 20), 0.9992),
+        words[3],
+    ]
+
+
+def test_isolated_wide_three_plus_one_pair_rejects_weak_union() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ube44\ud310\ud574", BoundingBox(50.32, 0, 108.32, 20), 0.99975),
+        ("\uc57c", BoundingBox(115.55, 0, 132.55, 20), 0.9992),
+        ("\ub2e4\uc74c", BoundingBox(143.91, 0, 183.91, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (195, 20)),
+            BoundingBox(0, 0, 195, 20),
+            ReviewedThreePlusOneRecognizer(83, "\ube44\ud310\ud574\uc57c", 0.99969),
+        )
+        == words
+    )
+
+
+def test_isolated_wide_three_plus_one_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ube44\ud310\ud574", BoundingBox(50.32, 0, 108.32, 20), 0.99975),
+        ("\uc57c", BoundingBox(115.55, 0, 132.55, 20), 0.9992),
+        ("\ub2e4\uc74c", BoundingBox(143.91, 0, 183.91, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (195, 20)),
+            BoundingBox(0, 0, 195, 20),
+            ReviewedThreePlusOneRecognizer(
+                83,
+                "\ube44\ud310\ud574\uc57c",
+                0.99975,
+                strong_competitor_width=69,
+            ),
+        )
+        == words
+    )
+
+
 def test_overlapping_three_plus_one_pair_accepts_one_union_substitution() -> None:
     words = [
         ("\uc774\uc804", BoundingBox(0, 0, 37.6, 20), 0.999),

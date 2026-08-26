@@ -655,6 +655,18 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.56
                 and pitch_ratio >= 0.81
             )
+            isolated_wide_three_plus_one_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 3
+                and len(last[0]) == 1
+                and first[2] >= 0.9997
+                and last[2] >= 0.9991
+                and 0.36 <= gap_ratio <= 0.365
+                and previous_gap >= line_box.height * 0.51
+                and following_gap >= line_box.height * 0.56
+                and pitch_ratio >= 0.87
+            )
             corrected_overlapping_three_plus_one_profile = (
                 previous is not None
                 and pure_hangul_pair
@@ -813,6 +825,7 @@ def _recover_isolated_close_word_pairs(
                     long_suffix_profile
                     or isolated_final_syllable_profile
                     or isolated_three_plus_one_profile
+                    or isolated_wide_three_plus_one_profile
                     or corrected_overlapping_three_plus_one_profile
                     or isolated_two_syllable_profile
                     or isolated_one_plus_two_profile
@@ -841,6 +854,7 @@ def _recover_isolated_close_word_pairs(
                     or positive_gap_four_plus_two_profile
                     or overlapping_four_plus_two_profile
                     or isolated_three_plus_one_profile
+                    or isolated_wide_three_plus_one_profile
                     or corrected_overlapping_three_plus_one_profile
                     or isolated_wide_one_plus_two_profile
                 ):
@@ -877,6 +891,8 @@ def _recover_isolated_close_word_pairs(
                     required_confidence = 0.9993
                 elif isolated_three_plus_one_profile:
                     required_confidence = 0.9996
+                elif isolated_wide_three_plus_one_profile:
+                    required_confidence = 0.9997
                 elif corrected_overlapping_three_plus_one_profile:
                     required_confidence = 0.9995
                 elif isolated_wide_one_plus_two_profile or narrow_three_plus_two_profile:
@@ -937,6 +953,7 @@ def _recover_isolated_close_word_pairs(
                         or positive_gap_four_plus_two_profile
                         or overlapping_four_plus_two_profile
                         or isolated_three_plus_one_profile
+                        or isolated_wide_three_plus_one_profile
                         or corrected_overlapping_three_plus_one_profile
                         or isolated_wide_one_plus_two_profile
                     ):
@@ -973,6 +990,7 @@ def _recover_isolated_close_word_pairs(
                                 competing_limit = 0.985
                             elif (
                                 isolated_three_plus_one_profile
+                                or isolated_wide_three_plus_one_profile
                                 or narrow_gap_three_plus_two_profile
                             ):
                                 competing_limit = 0.99
