@@ -62,23 +62,23 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 99.23% whole-eojeol OCR, 99.00% target
 selection, 95.00% functional context, 75.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 222.70 ms
-median / 331.76 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 223.09 ms
+median / 334.84 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are nine analysis cases (five primary lemmas and
 four component roles), eight context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`9e5911fe5caad334129475d6116e6cf3fdd1d585afc73c7d34dd04ab47c90355`; the
+`f7265b77adf4febe816e047c0e2ced7058c890a09e07eaf573bd96ae516fa687`; the
 privacy-safe diagnostic SHA-256 is
 `de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.10% whole-eojeol OCR, 97.10% target selection, 88.05%
+cleanup. Its 2,000 main cases record 98.11% whole-eojeol OCR, 97.10% target selection, 88.10%
 functional context, 71.10% exact sentence transcription, 92.35% component accuracy, 94.75% exact
-KRDict fidelity, 81.95% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 226.03 ms median / 336.66 ms p95. Privacy-safe
-diagnostics contain 58 target, 181 context, and 122 analysis failures; the analysis stages are 50 primary
+KRDict fidelity, 82.00% fully correct first popups, and 94.10% alternative recovery. False
+promotions remain zero and the accepted rerun is 225.37 ms median / 338.93 ms p95. Privacy-safe
+diagnostics contain 58 target, 180 context, and 122 analysis failures; the analysis stages are 50 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
@@ -98,9 +98,9 @@ punctuation or structured-text cases, 42 missed or merged OCR word boundaries, a
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 181 active context
+IDs, categorical decisions, and counts. The current full diagnostics have 180 active context
 cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
-24 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
+25 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
 review scope and every current stable ID. The decision report SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
 
@@ -272,7 +272,21 @@ remain unchanged. Full OCR, context, exact transcription, and popup correctness 
 88.05%, 71.10%, and 81.95%. The audit has 181 active context cases, 24 resolved IDs, 23 active
 boundary cases, and no missing decisions.
 
-Compared with the earlier full report, the accepted cleanups resolve 45 context IDs without
+The twelfth word-boundary batch reviews two false 5-to-3+2 Hangul splits plus one legitimate
+spacing control. The narrow-gap profile requires fragment confidence of at least 99.87% and
+99.95%, a gap of 5% to 5.5% of line height, preceding and following boundaries of at least 20%
+and 25%, pitch agreement within 11%, and exact union recognition at 99.79% or better. The
+isolated-wide profile requires fragment confidence of at least 99.81% and 99.94%, a gap of 36%
+to 36.5%, both neighboring boundaries of at least 61%, pitch agreement within 4%, and exact
+union recognition at 99.77% or better. Both require pure Hangul and reject recovery when an
+available adjacent union reaches the profile-specific 99% or 99.5% ceiling. The 98.38%-confidence
+spacing control remains separate. Quick correctness and failure records are unchanged. The exact
+full comparison removes only `dev-plain-1129`; `dev-plain-0475` remains active because an
+independent one-plus-two split and punctuation defect remain. Full OCR, context, and popup
+correctness rise to 98.11%, 88.10%, and 82.00%. The audit has 180 active context cases, 25
+resolved IDs, 22 active boundary cases, and no missing decisions.
+
+Compared with the earlier full report, the accepted cleanups resolve 46 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
 two full-tier context cases while leaving the quick diagnostics byte-identical. The same profile
@@ -684,8 +698,8 @@ main popup correctness and required render strata still block release evidence. 
 component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
 complete. Two line/sentence reconstruction cases remain active because their intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. The next development target is the 23 active reviewed missed-or-merged OCR
-word-boundary cases among the 181 active full-tier context disagreements, grouped by component
+implemented. The next development target is the 22 active reviewed missed-or-merged OCR
+word-boundary cases among the 180 active full-tier context disagreements, grouped by component
 length and isolation before any further recovery, followed by analysis failures whose
 target and context are already correct. Thresholds are not frozen, and
 neither the untouched release

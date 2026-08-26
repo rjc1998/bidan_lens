@@ -116,6 +116,14 @@ least 99.81% and 99.68%, a gap of 35% to 36.5%, a preceding boundary of at least
 following boundary of at least 44%, pitch agreement within 2%, and exact combined recognition
 at 99.83% or better. Both variants normalize subpixel verification coordinates and reject the
 candidate when either available adjacent union reaches 99.5% confidence.
+Two internal three-plus-two-syllable pure-Hangul profiles recover independently reviewed false
+splits. The narrow-gap profile requires fragment confidence of 99.87% and 99.95%, a gap of 5%
+to 5.5% of line height, preceding and following boundaries of at least 20% and 25%, pitch
+agreement within 11%, and exact combined recognition at 99.79% or better. The isolated-wide
+profile requires fragment confidence of 99.81% and 99.94%, a gap of 36% to 36.5%, both
+neighboring boundaries of at least 61%, pitch agreement within 4%, and exact combined recognition
+at 99.77% or better. Both normalize subpixel verification coordinates and reject the candidate
+when an available adjacent union reaches 99% for the narrow profile or 99.5% for the wide one.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character

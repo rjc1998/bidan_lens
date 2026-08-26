@@ -1443,6 +1443,115 @@ def test_isolated_three_plus_three_pair_rejects_strong_competitor() -> None:
     )
 
 
+class CompetitiveThreePlusTwoRecognizer:
+    def __init__(
+        self,
+        candidate_width: int,
+        candidate_text: str,
+        *,
+        strong_competitor_width: int | None = None,
+    ) -> None:
+        self.candidate_width = candidate_width
+        self.candidate_text = candidate_text
+        self.strong_competitor_width = strong_competitor_width
+        self.calls = 0
+
+    def recognize(self, image):
+        self.calls += 1
+        if image.width == self.candidate_width:
+            return RecognizedText(self.candidate_text, 0.9994)
+        confidence = 0.995 if image.width == self.strong_competitor_width else 0.98
+        return RecognizedText("competing", confidence)
+
+
+def test_narrow_gap_three_plus_two_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uace0\ud310\ubcf8", BoundingBox(44, 0, 104, 20), 0.9988),
+        ("\uc5d0\uc11c", BoundingBox(105, 0, 145, 20), 0.9996),
+        ("\ub2e4\uc74c", BoundingBox(150, 0, 190, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (200, 20)),
+        BoundingBox(0, 0, 200, 20),
+        CompetitiveThreePlusTwoRecognizer(101, "\uace0\ud310\ubcf8\uc5d0\uc11c"),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uace0\ud310\ubcf8\uc5d0\uc11c", BoundingBox(44, 0, 145, 20), 0.9988),
+        words[3],
+    ]
+
+
+def test_isolated_wide_three_plus_two_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ub514\uc790\uc774", BoundingBox(52.2, 0, 112.2, 20), 0.9982),
+        ("\ub108\uc758", BoundingBox(119.42, 0, 159.42, 20), 0.9995),
+        ("\ub2e4\uc74c", BoundingBox(171.64, 0, 211.64, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (220, 20)),
+        BoundingBox(0, 0, 220, 20),
+        CompetitiveThreePlusTwoRecognizer(108, "\ub514\uc790\uc774\ub108\uc758"),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ub514\uc790\uc774\ub108\uc758", BoundingBox(52.2, 0, 159.42, 20), 0.9982),
+        words[3],
+    ]
+
+
+def test_narrow_gap_three_plus_two_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uace0\ud310\ubcf8", BoundingBox(44, 0, 104, 20), 0.9988),
+        ("\uc5d0\uc11c", BoundingBox(105, 0, 145, 20), 0.9996),
+        ("\ub2e4\uc74c", BoundingBox(150, 0, 190, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (200, 20)),
+            BoundingBox(0, 0, 200, 20),
+            CompetitiveThreePlusTwoRecognizer(
+                101,
+                "\uace0\ud310\ubcf8\uc5d0\uc11c",
+                strong_competitor_width=104,
+            ),
+        )
+        == words
+    )
+
+
+def test_three_plus_two_spacing_control_is_not_recovered() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ub9cc\ub4e4\uc5b4", BoundingBox(50.2, 0, 110.2, 20), 0.9838),
+        ("\ub0b4\ub294", BoundingBox(115.88, 0, 155.88, 20), 0.9999),
+        ("\ub2e4\uc74c", BoundingBox(166.1, 0, 206.1, 20), 0.999),
+    ]
+    recognizer = CompetitiveThreePlusTwoRecognizer(106, "unused")
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (215, 20)),
+            BoundingBox(0, 0, 215, 20),
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
 class NarrowThreePlusTwoRecognizer:
     def recognize(self, _image):
         return RecognizedText("이론에서는", 0.99985)
