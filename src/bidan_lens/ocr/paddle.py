@@ -1248,6 +1248,113 @@ def _recover_confirmed_three_plus_three_splits(
     return recovered
 
 
+def _recover_confirmed_two_plus_four_splits(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter):
+        return words
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for text, box, confidence in words:
+        pure_hangul = len(text) == 6 and all(
+            is_hangul(character) for character in text
+        )
+        hangul_identifier = (
+            len(text) == 6
+            and all(is_hangul(character) for character in text[:2])
+            and all(character.isdecimal() for character in text[2:])
+        )
+        minimum_confidence = 0.65 if pure_hangul else 0.9985
+        if (
+            not (pure_hangul or hangul_identifier)
+            or confidence < minimum_confidence
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        crop_left = max(0, math.floor(box.left - line_box.left))
+        crop_right = min(crop.width, math.ceil(box.right - line_box.left))
+        word_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+        try:
+            segments = segmenter(word_crop, space_threshold=0.01)
+        except TypeError:
+            recovered.append((text, box, confidence))
+            continue
+        if len(segments) != 2:
+            recovered.append((text, box, confidence))
+            continue
+        first_segment, last_segment = segments
+        gap_ratio = (last_segment[0] - first_segment[1]) / line_box.height
+        first_pitch = (first_segment[1] - first_segment[0]) / 2
+        last_pitch = (last_segment[1] - last_segment[0]) / 4
+        pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+        minimum_gap = 0.33 if pure_hangul else 0.31
+        minimum_pitch = 0.94 if pure_hangul else 0.5
+        if (
+            first_segment[0] > 1
+            or last_segment[1] < word_crop.width - 1
+            or not minimum_gap <= gap_ratio <= 0.35
+            or pitch_ratio < minimum_pitch
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        parts = tuple(
+            recognizer.recognize(
+                word_crop.crop((left, 0, right, word_crop.height))
+            )
+            for left, right in segments
+        )
+        part_texts = tuple(part.text.replace(" ", "") for part in parts)
+        matches_structure = (
+            len(part_texts[0]) == 2
+            and len(part_texts[1]) == 4
+            and all(is_hangul(character) for character in part_texts[0])
+            and (
+                all(is_hangul(character) for character in part_texts[1])
+                if pure_hangul
+                else all(character.isdecimal() for character in part_texts[1])
+            )
+        )
+        if pure_hangul:
+            confidence_matches = (
+                min(part.confidence for part in parts) >= 0.84
+                and max(part.confidence for part in parts) >= 0.9998
+            )
+        else:
+            confidence_matches = (
+                parts[0].confidence >= 0.9998
+                and parts[1].confidence >= 0.999
+            )
+        if (
+            not matches_structure
+            or not confidence_matches
+            or "".join(part_texts) != text
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        recovered.extend(
+            (
+                part_text,
+                BoundingBox(
+                    line_box.left + crop_left + left,
+                    box.top,
+                    line_box.left + crop_left + right,
+                    box.bottom,
+                ),
+                min(confidence, part.confidence),
+            )
+            for part_text, part, (left, right) in zip(
+                part_texts,
+                parts,
+                segments,
+                strict=True,
+            )
+        )
+    return recovered
+
+
 def _recover_confirmed_three_plus_five_splits(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -1403,6 +1510,12 @@ def _recover_word_boundaries(
     line_box: BoundingBox,
     recognizer: Any,
 ) -> list[tuple[str, BoundingBox, float]]:
+    words = _recover_confirmed_two_plus_four_splits(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
     words = _recover_confirmed_three_plus_three_splits(
         words,
         crop,

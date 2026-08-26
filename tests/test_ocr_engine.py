@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
+    _recover_confirmed_two_plus_four_splits,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -2137,6 +2138,120 @@ def test_confirmed_three_plus_three_split_requires_exact_parts() -> None:
             Image.new("RGB", (140, 17)),
             BoundingBox(0, 0, 140, 17),
             ConfirmedThreePlusThreeRecognizer("문화점"),
+        )
+        == words
+    )
+
+
+class ConfirmedTwoPlusFourRecognizer:
+    def __init__(
+        self,
+        first_text: str = "\uc0ac\ub78c",
+        second_text: str = "\ub4e4\uc5d0\uac8c\ub294",
+        first_confidence: float = 0.9999,
+        second_confidence: float = 0.8477,
+        segments: tuple[tuple[int, int], ...] = ((0, 33), (39, 107)),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_text, first_confidence),
+            RecognizedText(second_text, second_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.01
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_two_plus_four_split_recovers_low_ctc_space() -> None:
+    words = [
+        ("\uc55e\ub9d0", BoundingBox(0, 0, 15, 18), 0.999),
+        ("\uc0ac\ub78c\ub4e4\uc5d0\uac8c\ub294", BoundingBox(20, 0, 127, 18), 0.8735),
+        ("\ub4b7\ub9d0", BoundingBox(134, 0, 154, 18), 0.999),
+    ]
+
+    recovered = _recover_confirmed_two_plus_four_splits(
+        words,
+        Image.new("RGB", (165, 18)),
+        BoundingBox(0, 0, 165, 18),
+        ConfirmedTwoPlusFourRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uc0ac\ub78c", BoundingBox(20, 0, 53, 18), 0.8735),
+        ("\ub4e4\uc5d0\uac8c\ub294", BoundingBox(59, 0, 127, 18), 0.8477),
+        words[2],
+    ]
+
+
+def test_confirmed_two_plus_four_split_recovers_structured_identifier() -> None:
+    words = [("\uc791\ub1442026", BoundingBox(10, 0, 113, 25), 0.9986)]
+
+    recovered = _recover_confirmed_two_plus_four_splits(
+        words,
+        Image.new("RGB", (125, 25)),
+        BoundingBox(0, 0, 125, 25),
+        ConfirmedTwoPlusFourRecognizer(
+            first_text="\uc791\ub144",
+            second_text="2026",
+            first_confidence=0.9999,
+            second_confidence=0.9992,
+            segments=((0, 46), (54, 103)),
+        ),
+    )
+
+    assert recovered == [
+        ("\uc791\ub144", BoundingBox(10, 0, 56, 25), 0.9986),
+        ("2026", BoundingBox(64, 0, 113, 25), 0.9986),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedTwoPlusFourRecognizer(second_text="\ub4e4\uc5d0\uac8c\ub3c4"),
+        ConfirmedTwoPlusFourRecognizer(second_confidence=0.8399),
+        ConfirmedTwoPlusFourRecognizer(segments=((0, 33), (38, 106))),
+    ],
+)
+def test_confirmed_two_plus_four_split_requires_exact_strong_parts(
+    recognizer,
+) -> None:
+    words = [
+        ("\uc0ac\ub78c\ub4e4\uc5d0\uac8c\ub294", BoundingBox(20, 0, 127, 18), 0.8735),
+    ]
+
+    assert (
+        _recover_confirmed_two_plus_four_splits(
+            words,
+            Image.new("RGB", (140, 18)),
+            BoundingBox(0, 0, 140, 18),
+            recognizer,
+        )
+        == words
+    )
+
+
+def test_confirmed_two_plus_four_split_requires_detector_confidence_floor() -> None:
+    words = [
+        ("\uc0ac\ub78c\ub4e4\uc5d0\uac8c\ub294", BoundingBox(20, 0, 127, 18), 0.6499),
+    ]
+
+    assert (
+        _recover_confirmed_two_plus_four_splits(
+            words,
+            Image.new("RGB", (140, 18)),
+            BoundingBox(0, 0, 140, 18),
+            ConfirmedTwoPlusFourRecognizer(
+                second_confidence=0.9999,
+            ),
         )
         == words
     )

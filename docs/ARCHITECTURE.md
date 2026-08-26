@@ -146,6 +146,13 @@ CTC threshold retains one word but a 0.01 space probe returns exactly two crops.
 28% to 35% of line height, pitch must be compatible, the original and parts must meet separate
 high-confidence floors, and concatenating the two recognized parts must exactly reproduce the
 original word.
+A six-character word has separate two-plus-four CTC split profiles for pure Hangul and a
+two-Hangul-plus-four-digit structured identifier. Both require a 0.01 space probe with exactly
+two edge-complete crops, a narrow profile-specific gap, compatible character pitch, exact part
+types and lengths, separate whole/part confidence floors, and concatenation that exactly
+reproduces the original word. The pure-Hangul profile permits a lower detector-capped whole-word
+confidence only when one part is near-certain; the structured identifier profile retains high
+confidence floors for the word and both parts.
 An eight-syllable all-Hangul word has a distinct three-plus-five profile. A 0.02 CTC-space probe
 must return exactly three- and five-syllable crops separated by 30% to 33% of line height, their
 character pitch must agree within 3%, the original and both parts must meet separate
