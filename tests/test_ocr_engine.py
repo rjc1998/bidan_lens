@@ -1302,6 +1302,55 @@ def test_isolated_overlapping_final_syllable_requires_wide_following_gap() -> No
     )
 
 
+class IsolatedLeadingOverlapRecognizer:
+    def __init__(self, confidence: float = 0.9976) -> None:
+        self.confidence = confidence
+
+    def recognize(self, _image):
+        return RecognizedText("\ube44\ubc00\ud65c\ub3d9\uc744", self.confidence)
+
+
+def test_isolated_overlapping_pair_merges_exact_leading_syllable() -> None:
+    words = [
+        ("\ubbfc\uc911\uc6b4\ub3d9\uc740", BoundingBox(0, 0, 77, 20), 0.978),
+        ("\ube44", BoundingBox(86, 0, 103, 20), 0.83),
+        ("\ubc00\ud65c\ub3d9\uc744", BoundingBox(102, 0, 163, 20), 0.9976),
+        ("\uc911\uc2ec\uc73c\ub85c", BoundingBox(171, 0, 233, 20), 0.997),
+    ]
+
+    recovered = _recover_isolated_overlapping_word_pairs(
+        words,
+        Image.new("RGB", (240, 20)),
+        BoundingBox(0, 0, 240, 20),
+        IsolatedLeadingOverlapRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ube44\ubc00\ud65c\ub3d9\uc744", BoundingBox(86, 0, 163, 20), 0.83),
+        words[3],
+    ]
+
+
+def test_isolated_overlapping_leading_syllable_requires_exact_confidence() -> None:
+    words = [
+        ("\ubbfc\uc911\uc6b4\ub3d9\uc740", BoundingBox(0, 0, 77, 20), 0.978),
+        ("\ube44", BoundingBox(86, 0, 103, 20), 0.83),
+        ("\ubc00\ud65c\ub3d9\uc744", BoundingBox(102, 0, 163, 20), 0.9976),
+        ("\uc911\uc2ec\uc73c\ub85c", BoundingBox(171, 0, 233, 20), 0.997),
+    ]
+
+    assert (
+        _recover_isolated_overlapping_word_pairs(
+            words,
+            Image.new("RGB", (240, 20)),
+            BoundingBox(0, 0, 240, 20),
+            IsolatedLeadingOverlapRecognizer(0.9974),
+        )
+        == words
+    )
+
+
 def test_detector_normalization_converts_rgb_to_bgr() -> None:
     tensor = _normalize(Image.new("RGB", (1, 1), (255, 0, 0)))
 

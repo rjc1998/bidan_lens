@@ -776,10 +776,24 @@ def _recover_isolated_overlapping_word_pairs(
                 and following_gap >= line_box.height * 0.34
                 and pitch_ratio >= 0.7
             )
+            overlapping_leading_syllable_profile = (
+                len(first[0]) == 1
+                and len(last[0]) == 4
+                and first[2] >= 0.82
+                and last[2] >= 0.9975
+                and 0.035 <= overlap_ratio <= 0.055
+                and previous_gap >= line_box.height * 0.24
+                and following_gap >= line_box.height * 0.28
+                and pitch_ratio >= 0.69
+            )
             matches_geometry = (
                 contains_hangul(first[0])
                 and contains_hangul(last[0])
-                and (two_plus_three_profile or overlapping_final_syllable_profile)
+                and (
+                    two_plus_three_profile
+                    or overlapping_final_syllable_profile
+                    or overlapping_leading_syllable_profile
+                )
             )
             if matches_geometry:
                 combined_crop = crop.crop(
@@ -792,9 +806,12 @@ def _recover_isolated_overlapping_word_pairs(
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(' ', '')
-                required_confidence = (
-                    0.9997 if overlapping_final_syllable_profile else 0.995
-                )
+                if overlapping_final_syllable_profile:
+                    required_confidence = 0.9997
+                elif overlapping_leading_syllable_profile:
+                    required_confidence = 0.9975
+                else:
+                    required_confidence = 0.995
                 if (
                     combined.confidence >= required_confidence
                     and combined_text == first[0] + last[0]

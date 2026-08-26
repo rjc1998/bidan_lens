@@ -89,6 +89,9 @@ An internal two-plus-one-syllable pair has a separate shallow-overlap profile: b
 gaps must clearly separate it from neighboring words, character pitch must agree, the
 two-syllable fragment must be at least 99.7% confident, and recognizing the union at 99.97% or
 better must exactly return the concatenation.
+An internal one-plus-four-syllable pair has a separate profile for a one-pixel overlap between
+otherwise positive neighboring gaps. It additionally requires compatible pitch, at least 99.75%
+confidence for the four-syllable fragment, and exact combined recognition at 99.75% or better.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
