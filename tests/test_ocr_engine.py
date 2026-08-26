@@ -1166,6 +1166,55 @@ def test_isolated_touching_syllables_require_near_certain_combined_text() -> Non
     )
 
 
+class IsolatedOnePlusTwoRecognizer:
+    def __init__(self, confidence: float = 0.99991) -> None:
+        self.confidence = confidence
+
+    def recognize(self, _image):
+        return RecognizedText("\uac1c\uc778\uc744", self.confidence)
+
+
+def test_isolated_one_plus_two_pair_merges_with_exact_recognition() -> None:
+    words = [
+        ("\uc9d1\ub2e8\ub9cc", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uac1c", BoundingBox(46, 0, 63, 20), 0.9989),
+        ("\uc778\uc744", BoundingBox(67.2, 0, 108.2, 20), 0.99985),
+        ("\ubd80\uac01", BoundingBox(114.6, 0, 146.6, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (160, 20)),
+        BoundingBox(0, 0, 160, 20),
+        IsolatedOnePlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uac1c\uc778\uc744", BoundingBox(46, 0, 108.2, 20), 0.9989),
+        words[3],
+    ]
+
+
+def test_isolated_one_plus_two_pair_requires_wide_following_gap() -> None:
+    words = [
+        ("\uc9d1\ub2e8\ub9cc", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uac1c", BoundingBox(46, 0, 63, 20), 0.9989),
+        ("\uc778\uc744", BoundingBox(67.2, 0, 108.2, 20), 0.99985),
+        ("\ubd80\uac01", BoundingBox(114.5, 0, 146.5, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (160, 20)),
+            BoundingBox(0, 0, 160, 20),
+            IsolatedOnePlusTwoRecognizer(),
+        )
+        == words
+    )
+
+
 class TerminalOverlapRecognizer:
     def recognize(self, _image):
         return RecognizedText("\uc9c0\uc6d0\ud55c\ub2e4", 0.99995)

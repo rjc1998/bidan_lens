@@ -92,6 +92,9 @@ better must exactly return the concatenation.
 An internal one-plus-four-syllable pair has a separate profile for a one-pixel overlap between
 otherwise positive neighboring gaps. It additionally requires compatible pitch, at least 99.75%
 confidence for the four-syllable fragment, and exact combined recognition at 99.75% or better.
+An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
+wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
+character pitch is compatible, and exact combined recognition reaches 99.99%.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
