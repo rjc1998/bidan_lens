@@ -4,10 +4,12 @@ from PIL import Image
 
 from bidan_lens.models import BoundingBox, OcrEojeol, OcrLine
 from bidan_lens.ocr.base import DetectedRegion, RecognizedText
+from bidan_lens.ocr.hangul import make_line
 from bidan_lens.ocr.paddle import (
     PaddleOcrEngine,
     PaddleRecognizer,
     _discard_confirmed_overlapping_character_duplicates,
+    _merge_line_group,
     _normalize,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -378,6 +380,62 @@ def test_engine_deduplicates_punctuation_variants_only_for_overlapping_regions()
     document = engine.recognize(Image.new("RGB", (160, 60)))
 
     assert document.lines[0].text == "\ub610 \ub9cc\ub098\uc694"
+
+
+def test_exact_spatial_duplicate_line_reuses_existing_sentence_span() -> None:
+    complete = make_line(
+        '\uac00 \ub098\ub2e4',
+        BoundingBox(0, 0, 80, 20),
+        0.99,
+        (
+            BoundingBox(0, 0, 20, 20),
+            BoundingBox(20, 0, 30, 20),
+            BoundingBox(30, 0, 50, 20),
+            BoundingBox(50, 0, 70, 20),
+        ),
+    )
+    duplicate = make_line(
+        '\uac00',
+        BoundingBox(2, 1, 21, 19),
+        0.99,
+        (BoundingBox(2, 1, 21, 19),),
+    )
+
+    merged = _merge_line_group([complete, duplicate])
+
+    assert merged.text == '\uac00 \ub098\ub2e4'
+    assert [item.text for item in merged.eojeols] == ['\uac00', '\ub098\ub2e4', '\uac00']
+    assert [(item.sentence_start, item.sentence_end) for item in merged.eojeols] == [
+        (0, 1),
+        (2, 4),
+        (0, 1),
+    ]
+
+
+def test_spatial_duplicate_requires_strong_horizontal_overlap() -> None:
+    complete = make_line(
+        '\uac00 \ub098\ub2e4',
+        BoundingBox(0, 0, 80, 20),
+        0.99,
+        (
+            BoundingBox(0, 0, 20, 20),
+            BoundingBox(20, 0, 30, 20),
+            BoundingBox(30, 0, 50, 20),
+            BoundingBox(50, 0, 70, 20),
+        ),
+    )
+    separate = make_line(
+        '\uac00',
+        BoundingBox(15, 1, 34, 19),
+        0.99,
+        (BoundingBox(15, 1, 34, 19),),
+    )
+
+    merged = _merge_line_group([complete, separate])
+
+    assert merged.text == '\uac00 \ub098\ub2e4 \uac00'
+    assert merged.eojeols[-1].sentence_start == 5
+    assert merged.eojeols[-1].sentence_end == 6
 
 
 def test_tiny_contained_fragment_is_removed_and_spans_are_repaired() -> None:

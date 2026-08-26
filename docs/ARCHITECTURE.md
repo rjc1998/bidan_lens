@@ -65,7 +65,10 @@ numeric tokens and uppercase abbreviations remain in sentence context, as do com
 `K-YYYY/vN` identifiers at a conservative lower confidence threshold. Adjacent `K` and
 `-YYYY/vN` fragments may be rejoined. Collinear detector fragments are reconstructed in
 left-to-right reading order, and physically overlapping duplicate text is removed only after
-edge-punctuation normalization. These context tokens never become hover targets.
+edge-punctuation normalization. When every eojeol in a same-row detector fragment exactly matches
+an existing eojeol with at least 80% horizontal and vertical overlap, its geometry is retained but
+remapped to the existing sentence span instead of appending duplicate text. These context tokens
+never become hover targets.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word

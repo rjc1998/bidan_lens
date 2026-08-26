@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageEnhance, ImageOps
 
-from bidan_lens.models import BoundingBox, OcrDocument, OcrLine
+from bidan_lens.models import BoundingBox, OcrDocument, OcrEojeol, OcrLine
 from bidan_lens.ocr.base import DetectedRegion, OcrEngine, RecognizedText
 from bidan_lens.ocr.hangul import contains_hangul, make_line
 
@@ -988,6 +988,56 @@ def _merge_line_group(lines: list[OcrLine]) -> OcrLine:
         (source_order[id(eojeol)], eojeol) for eojeol in ordered[0].eojeols
     ]
     for line in ordered[1:]:
+        spatial_matches: list[OcrEojeol] = []
+        for item in line.eojeols:
+            match = next(
+                (
+                    existing
+                    for _, existing in eojeols
+                    if existing.text == item.text
+                    and (
+                        max(
+                            0.0,
+                            min(existing.box.right, item.box.right)
+                            - max(existing.box.left, item.box.left),
+                        )
+                        / max(1.0, min(existing.box.width, item.box.width))
+                        >= 0.8
+                    )
+                    and (
+                        max(
+                            0.0,
+                            min(existing.box.bottom, item.box.bottom)
+                            - max(existing.box.top, item.box.top),
+                        )
+                        / max(1.0, min(existing.box.height, item.box.height))
+                        >= 0.8
+                    )
+                ),
+                None,
+            )
+            if match is None:
+                spatial_matches = []
+                break
+            spatial_matches.append(match)
+        if spatial_matches:
+            covered_right = max(covered_right, line.box.right)
+            eojeols.extend(
+                (
+                    source_order[id(item)],
+                    replace(
+                        item,
+                        sentence_start=match.sentence_start,
+                        sentence_end=match.sentence_end,
+                    ),
+                )
+                for item, match in zip(
+                    line.eojeols,
+                    spatial_matches,
+                    strict=True,
+                )
+            )
+            continue
         removed_prefix_end = (
             _overlapping_prefix_end(text, line.text)
             if line.box.left < covered_right
