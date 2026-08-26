@@ -61,24 +61,24 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.15 200-case quick tier records 99.10% whole-eojeol OCR, 99.00% target
-selection, 94.00% functional context, 74.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.50% fully correct first popups, with 215.71 ms
-median / 317.82 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+selection, 94.50% functional context, 75.00% exact sentence transcription, 94.00% component
+accuracy, 95.00% exact KRDict fidelity, and 90.00% fully correct first popups, with 221.47 ms
+median / 334.34 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are nine analysis cases (five primary lemmas and
-four component roles), ten context cases, and two target cases. Aggregate and per-category negative
+four component roles), nine context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`cd49242801b953733a4ffecd6d188b11e0fd815d2c2989be62ba19406f4da20f`; the
+`d7022529e69438b81e19b0c5292b0918f5162d7b25c58bdef77ae35f5175de67`; the
 privacy-safe diagnostic SHA-256 is
-`02a50d54c4b1ca7ddac4aa371c227fa6c2aa8fc6b07046206ed160ad9a040122`.
+`df8c349cf0deba55407d19de785994b9a65c04e609314dfc10cb467e677a7ebf`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.06% whole-eojeol OCR, 97.10% target selection, 87.70%
-functional context, 70.80% exact sentence transcription, 92.35% component accuracy, 94.75% exact
-KRDict fidelity, 81.60% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 220.27 ms median / 325.70 ms p95. Privacy-safe
-diagnostics contain 58 target, 188 context, and 122 analysis failures; the analysis stages are 50 primary
+cleanup. Its 2,000 main cases record 98.08% whole-eojeol OCR, 97.10% target selection, 87.80%
+functional context, 70.90% exact sentence transcription, 92.35% component accuracy, 94.75% exact
+KRDict fidelity, 81.70% fully correct first popups, and 94.10% alternative recovery. False
+promotions remain zero and the accepted rerun is 225.46 ms median / 337.00 ms p95. Privacy-safe
+diagnostics contain 58 target, 186 context, and 122 analysis failures; the analysis stages are 50 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
@@ -98,9 +98,9 @@ punctuation or structured-text cases, 42 missed or merged OCR word boundaries, a
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 188 active context
+IDs, categorical decisions, and counts. The current full diagnostics have 186 active context
 cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
-17 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
+19 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
 review scope and every current stable ID. The decision report SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
 
@@ -214,7 +214,21 @@ Functional context rises to 87.70%, exact sentence transcription to 70.80%, and 
 correctness to 81.60%; quick diagnostics remain byte-identical. The audit has 188 active context
 cases, 17 resolved IDs, 30 active boundary cases, and no missing decisions.
 
-Compared with the earlier full report, the accepted cleanups resolve 38 context IDs without
+The eighth word-boundary batch groups all 30 active boundary cases by their minimal expected-to-
+actual token-length transformation. Two repeated 3+5-to-8 merges have independent CTC evidence:
+a 0.02 space probe splits the high-confidence eight-syllable Hangul token into exactly three and
+five syllables, the gap is 30% to 33% of line height, character pitch agrees within 3%, both parts
+are at least 99.88% confident, and concatenating them exactly reproduces the original token. The
+accepted profile removes only `dev-plain-0130` and `dev-plain-0499`, with no addition or stage
+change. The 2+4-to-6 group remains unchanged because it mixes a structured-ASCII case, a
+defensible compound-spacing interpretation, and a low-confidence proper noun. Whole-eojeol OCR,
+functional context, exact sentence transcription, and first-popup correctness rise to 98.08%,
+87.80%, 70.90%, and 81.70%. The quick tier removes only `dev-plain-0130`, raising quick OCR,
+context, exact transcription, and popup correctness to 99.19%, 94.50%, 75.00%, and 90.00%.
+The audit has 186 active context cases, 19 resolved IDs, 28 active boundary cases, and no missing
+decisions.
+
+Compared with the earlier full report, the accepted cleanups resolve 40 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
 two full-tier context cases while leaving the quick diagnostics byte-identical. The same profile
@@ -626,8 +640,8 @@ required render strata still block release evidence. Primary-lemma, component-su
 component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
 complete. Two line/sentence reconstruction cases remain active because their intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. The next development target is the 30 active reviewed missed-or-merged OCR
-word-boundary cases among the 188 active full-tier context disagreements, grouped by component
+implemented. The next development target is the 28 active reviewed missed-or-merged OCR
+word-boundary cases among the 186 active full-tier context disagreements, grouped by component
 length and isolation before any further recovery, followed by analysis failures whose
 target and context are already correct. Thresholds are not frozen, and
 neither the untouched release

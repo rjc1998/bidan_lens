@@ -109,6 +109,10 @@ CTC threshold retains one word but a 0.01 space probe returns exactly two crops.
 28% to 35% of line height, pitch must be compatible, the original and parts must meet separate
 high-confidence floors, and concatenating the two recognized parts must exactly reproduce the
 original word.
+An eight-syllable all-Hangul word has a distinct three-plus-five profile. A 0.02 CTC-space probe
+must return exactly three- and five-syllable crops separated by 30% to 33% of line height, their
+character pitch must agree within 3%, the original and both parts must meet separate
+high-confidence floors, and concatenating the parts must exactly reproduce the original word.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word

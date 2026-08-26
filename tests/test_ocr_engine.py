@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
@@ -1628,6 +1629,63 @@ def test_confirmed_three_plus_three_split_requires_exact_parts() -> None:
             Image.new("RGB", (140, 17)),
             BoundingBox(0, 0, 140, 17),
             ConfirmedThreePlusThreeRecognizer("문화점"),
+        )
+        == words
+    )
+
+
+class ConfirmedThreePlusFiveRecognizer:
+    def __init__(self, second_text: str = "서적상에게") -> None:
+        self.second_text = second_text
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.02
+        return ((0, 49), (54, 137))
+
+    def recognize(self, _image):
+        values = (
+            RecognizedText("필사해", 0.9997),
+            RecognizedText(self.second_text, 0.9989),
+        )
+        result = values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_three_plus_five_split_recovers_low_ctc_space() -> None:
+    words = [
+        ("앞말", BoundingBox(0, 0, 15, 16), 0.999),
+        ("필사해서적상에게", BoundingBox(20, 0, 157, 16), 0.9965),
+        ("뒷말", BoundingBox(164, 0, 184, 16), 0.999),
+    ]
+
+    recovered = _recover_confirmed_three_plus_five_splits(
+        words,
+        Image.new("RGB", (190, 16)),
+        BoundingBox(0, 0, 190, 16),
+        ConfirmedThreePlusFiveRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("필사해", BoundingBox(20, 0, 69, 16), 0.9965),
+        ("서적상에게", BoundingBox(74, 0, 157, 16), 0.9965),
+        words[2],
+    ]
+
+
+def test_confirmed_three_plus_five_split_requires_exact_parts() -> None:
+    words = [
+        ("필사해서적상에게", BoundingBox(20, 0, 157, 16), 0.9965),
+    ]
+
+    assert (
+        _recover_confirmed_three_plus_five_splits(
+            words,
+            Image.new("RGB", (175, 16)),
+            BoundingBox(0, 0, 175, 16),
+            ConfirmedThreePlusFiveRecognizer("문학상에게"),
         )
         == words
     )
