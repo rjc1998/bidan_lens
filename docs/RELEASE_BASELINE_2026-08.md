@@ -64,11 +64,12 @@ without a fresh review audit.
 
 The complete v4.14 development run against the current analyzer cleanup records 97.98%
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
-transcription, 92.10% component accuracy, 94.60% exact KRDict fidelity, 80.65% fully correct first
-popups, 94.00% alternative recovery, and zero false promotions across 2,000 main cases. Automated
-latency is 220.18 ms median / 326.49 ms p95. The privacy-safe stage totals are 58 target, 205
-context, and 124 analysis failures. The analysis failures comprise 48 primary lemmas, 62 component
-roles, six component counts, and eight grammar roles; no component-surface failures remain.
+transcription, 92.20% component accuracy, 94.70% exact KRDict fidelity, 80.75% fully correct first
+popups, 94.00% alternative recovery, and zero false promotions across 2,000 main cases. The
+accepted rerun is 228.63 ms median / 339.23 ms p95. The privacy-safe stage totals are 58 target,
+205 context, and 122 analysis failures. The analysis failures comprise 48 primary lemmas, 62
+component roles, four component counts, and eight grammar roles; no component-surface failures
+remain.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
 functional context, 93.60% component accuracy, and 63.20% fully correct first popups. The 400-case
@@ -80,8 +81,8 @@ punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The
 dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`4757c3be4173a0995f9fc21dc2248dd51251e2df54e5c55d1844ecd210a6644e` and
-`300e578f7ffc11a86b6fc28e9f31c57c6b9fd5609c71c487f0ccbe69f834b435`.
+`3da04aebe952ea9621e7c3ec828bd6b7a849032b5bc55067d73585a90c670e7d` and
+`fcf608311de92707c687e352311f9d74373ce8e06f19e6d4ad56846191f64d22`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -112,9 +113,11 @@ Kiwi-analysis errors, 32 annotation-convention differences, 34 equivalent learne
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then has 112 active decisions and SHA-256
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The fail-closed v4.14 migration carries 111 current decisions with matching stages, reports no
-stale or resolved IDs, and leaves 13 current cases explicitly missing. Its SHA-256 is
-`70e6851bc5088acd7cabbb090f595aea6293557bd3c23109ec148e304c2be5e3`.
+The current v4.14 history contains 117 decisions: 30 Kiwi-analysis errors, 38 annotation-
+convention differences, 35 equivalent learner interpretations, eight oracle defects, and six
+genuinely ambiguous cases. Its fail-closed audit finds 122 active cases, 115 active reviewed IDs,
+two resolved IDs, seven explicitly missing IDs, and no stale decision. Its SHA-256 is
+`7d36bf7b452e85038d682ca35e76a8339c1748d516b4e0ff943c1f7e2583b803`.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
@@ -231,6 +234,18 @@ one main component-role failure and adds none. Quick diagnostics are byte-identi
 held-out language remain unchanged, and main component accuracy rises to 92.10%, popup correctness
 to 80.65%, and alternative recovery to 94.00%. Component-role review is complete; the next target
 is six component-count cases followed by seven grammar-role cases.
+
+The eleventh batch completes those six component-count reviews as two Kiwi-analysis errors, two
+annotation-convention differences, and two equivalent learner interpretations. Isolated-eojeol
+evidence no longer promotes a decomposition containing a repeated lexical component. A separate
+3.25-point rule promotes a final one-syllable verb-ending interpretation only when it removes one
+terminal adverb component while preserving the same surface, primary lemma, complete predicate
+prefix, and dictionary-backed inflected analysis. The exact full comparison removes two
+component-count failures, adds no failure or stage change, and leaves quick diagnostics
+byte-identical. Main component accuracy rises to 92.20%, KRDict fidelity to 94.70%, and popup
+correctness to 80.75%; alternative recovery, stress, held-out language, upstream, promotion, and
+negative-pointer metrics remain unchanged. Component-count review is complete; the next target is
+the seven unreviewed grammar-role cases.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

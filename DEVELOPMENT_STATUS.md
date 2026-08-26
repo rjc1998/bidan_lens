@@ -72,11 +72,11 @@ The v4.14 quick diagnostics remain byte-identical to the accepted v4.12 primary-
 
 The complete v4.14 development evaluation has now run against the current analyzer cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 92.10% component accuracy, 94.60% exact KRDict
-fidelity, 80.65% fully correct first popups, and 94.00% alternative recovery. False promotions
-remain zero and automated latency is 220.18 ms median / 326.49 ms p95. Privacy-safe diagnostics
-contain 58 target, 205 context, and 124 analysis failures; the analysis stages are 48 primary
-lemmas, 62 component roles, six component counts, and eight grammar roles. No component-surface
+context, 70.00% exact sentence transcription, 92.20% component accuracy, 94.70% exact KRDict
+fidelity, 80.75% fully correct first popups, and 94.00% alternative recovery. False promotions
+remain zero and the accepted rerun is 228.63 ms median / 339.23 ms p95. Privacy-safe diagnostics
+contain 58 target, 205 context, and 122 analysis failures; the analysis stages are 48 primary
+lemmas, 62 component roles, four component counts, and eight grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
@@ -124,9 +124,11 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The fail-closed v4.14 migration carries 111 still-active matching decisions, reports no stale
-stages, and leaves 13 cases explicitly unreviewed. Its SHA-256 is
-`70e6851bc5088acd7cabbb090f595aea6293557bd3c23109ec148e304c2be5e3`.
+The current v4.14 history contains 117 decisions: 30 Kiwi-analysis errors, 38 annotation-
+convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
+and six genuinely ambiguous cases. Its fail-closed audit finds 122 active failures, 115 active
+reviewed IDs, two resolved IDs, seven explicitly unreviewed IDs, and no stale decision. Its
+SHA-256 is `7d36bf7b452e85038d682ca35e76a8339c1748d516b4e0ff943c1f7e2583b803`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
@@ -249,6 +251,19 @@ the adverb role. The v4.14 comparison removes exactly that main component-role f
 none. Quick diagnostics remain byte-identical, stress and held-out language are unchanged, and
 main component accuracy rises to 92.10%, popup correctness to 80.65%, and alternative recovery to
 94.00%.
+
+The eleventh batch completes the six component-count reviews as two Kiwi-analysis errors, two
+annotation-convention differences, and two equivalent learner interpretations. Isolated-eojeol
+evidence can no longer promote a decomposition that repeats an identical lexical component. A
+separately bounded 3.25-point rule treats a final one-syllable adverb component as a verb ending
+only when a same-surface, same-lemma alternative preserves the complete predicate prefix and is
+otherwise a dictionary-backed inflected predicate. The accepted comparison resolves exactly two
+main component-count failures, adds no failure or stage change, and leaves quick diagnostics
+byte-identical. Main component accuracy rises to 92.20%, KRDict fidelity to 94.70%, and popup
+correctness to 80.75%; alternative recovery, stress, held-out language, upstream, promotion, and
+negative-pointer results are unchanged. The aggregate and diagnostic report SHA-256 values are
+`3da04aebe952ea9621e7c3ec828bd6b7a849032b5bc55067d73585a90c670e7d` and
+`fcf608311de92707c687e352311f9d74373ce8e06f19e6d4ad56846191f64d22`.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -456,9 +471,9 @@ learner interpretations, and no review-supported general runtime correction.
 
 The historical v4.9 multi-lexical result passed, but the complete v4.14 development run now shows
 that main popup, functional context, required render strata, held-out multi-lexical analysis, and
-punctuation activation still block release evidence. Primary-lemma, component-surface, and
-component-role review is complete. The next review target is the six component-count cases; 13
-privacy-safe main analysis failures remain unreviewed in total, including seven grammar-role cases.
+punctuation activation still block release evidence. Primary-lemma, component-surface,
+component-role, and component-count review is complete. The next review target is the seven
+unreviewed grammar-role cases.
 General corrections supported by that review
 should be cross-validated against the quick, full, stress, and held-out tiers before returning to
 the nine punctuation activations. Thresholds are not frozen, and neither the untouched release

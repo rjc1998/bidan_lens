@@ -1745,6 +1745,194 @@ def test_isolated_auxiliary_decomposition_requires_a_connective() -> None:
     assert len(candidate.lexical_components) == 1
 
 
+def test_isolated_auxiliary_decomposition_rejects_duplicate_components() -> None:
+    hada_entries = (
+        DictionaryEntry(
+            '하다-verb',
+            '하다',
+            'verb',
+            None,
+            None,
+            (DictionarySense('definition'),),
+        ),
+    )
+    oda_entries = (
+        DictionaryEntry(
+            '오다-auxiliary',
+            '오다',
+            '보조 동사',
+            None,
+            None,
+            (DictionarySense('definition'),),
+        ),
+    )
+    action = LexicalComponent('하', '하다', 'action verb', hada_entries)
+    auxiliary = LexicalComponent('오', '오다', 'helping verb', oda_entries)
+    correct = AnalysisCandidate(
+        '해왔다는',
+        '하다',
+        -1.0,
+        lexical_components=(action, auxiliary),
+        dictionary_entries=hada_entries,
+    )
+    duplicate = AnalysisCandidate(
+        '해왔다는',
+        '하다',
+        -5.0,
+        morphemes=(
+            MorphemeExplanation('하', '하다', 'action verb'),
+            MorphemeExplanation('어', '어', 'verb ending'),
+            MorphemeExplanation('오', '오다', 'helping verb'),
+            MorphemeExplanation('다는', '다는', 'verb ending'),
+            MorphemeExplanation('하', '하다', 'action verb'),
+        ),
+        lexical_components=(action, auxiliary, action),
+        dictionary_entries=hada_entries,
+    )
+
+    class IsolatedEvidenceAnalyzer(KoreanAnalyzer):
+        def _analyze_candidates(self, sentence, target_span, max_candidates):
+            del target_span, max_candidates
+            return (duplicate,) if sentence == '해왔다는' else (correct, duplicate)
+
+    analyzer = IsolatedEvidenceAnalyzer(FakeDictionary(), FakeKiwi([]))
+    candidates = analyzer._promote_isolated_verb_role_candidate(
+        '역할을 해왔다는 점',
+        (4, 8),
+        '해왔다는',
+        (correct, duplicate),
+        5,
+    )
+
+    assert candidates[0] is correct
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_component_count'),
+    [(-4.2, 1), (-4.3, 2)],
+)
+def test_terminal_adverb_ending_promotion_is_score_bounded(
+    alternative_score: float,
+    expected_component_count: int,
+) -> None:
+    predicate_entries = (
+        DictionaryEntry(
+            '생각하다-verb',
+            '생각하다',
+            'verb',
+            None,
+            None,
+            (DictionarySense('definition'),),
+        ),
+    )
+    adverb_entries = (
+        DictionaryEntry(
+            '다-adverb',
+            '다',
+            'adverb',
+            None,
+            None,
+            (DictionarySense('definition'),),
+        ),
+    )
+    predicate = LexicalComponent(
+        '생각하',
+        '생각하다',
+        'action verb',
+        predicate_entries,
+    )
+    terminal_adverb = LexicalComponent('다', '다', 'adverb', adverb_entries)
+    shared_morphemes = (
+        MorphemeExplanation('생각', '생각', 'noun'),
+        MorphemeExplanation('하', '하다', 'word part'),
+        MorphemeExplanation('어서', '어서', 'verb ending'),
+    )
+    first = AnalysisCandidate(
+        '생각해서다',
+        '생각하다',
+        -1.0,
+        morphemes=(
+            *shared_morphemes,
+            MorphemeExplanation('다', '다', 'adverb'),
+        ),
+        lexical_components=(predicate, terminal_adverb),
+        dictionary_entries=predicate_entries,
+    )
+    alternative = AnalysisCandidate(
+        '생각해서다',
+        '생각하다',
+        alternative_score,
+        morphemes=(
+            *shared_morphemes,
+            MorphemeExplanation('다', '다', 'verb ending'),
+        ),
+        lexical_components=(predicate,),
+        dictionary_entries=predicate_entries,
+    )
+
+    candidates = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([]),
+    )._promote_terminal_adverb_ending_candidate([first, alternative])
+
+    assert len(candidates[0].lexical_components) == expected_component_count
+
+
+def test_terminal_adverb_ending_promotion_survives_candidate_ranking() -> None:
+    class EndingDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            roles = {
+                '생각하다': ('verb',),
+                '다': ('adverb',),
+            }.get(lemma, ())
+            if part_of_speech is not None:
+                roles = tuple(role for role in roles if role == part_of_speech)
+            return tuple(
+                DictionaryEntry(
+                    lemma + role,
+                    lemma,
+                    role,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                )
+                for role in roles[:limit]
+            )
+
+    analyses = [
+        (
+            [
+                Token('생각', 'NNG', 0, 2),
+                Token('하', 'XSV', 2, 1),
+                Token('어서', 'EC', 2, 2),
+                Token('다', 'MAG', 4, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('생각', 'NNG', 0, 2),
+                Token('하', 'XSV', 2, 1),
+                Token('어서', 'EC', 2, 2),
+                Token('하', 'VV', 4, 0),
+                Token('다', 'EF', 4, 1),
+            ],
+            -3.8,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        EndingDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('생각해서다', (0, 5))[0]
+
+    assert candidate.lemma == '생각하다'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '생각하다'
+    ]
+    assert candidate.morphemes[-1].learner_label == 'verb ending'
+
+
 def test_complete_dictionary_predicate_replaces_a_word_part_derivation() -> None:
     analyses = [
         (

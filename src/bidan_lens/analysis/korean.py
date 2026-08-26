@@ -55,6 +55,7 @@ _ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN = 1.0
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _COMPLETE_DERIVED_PREDICATE_SCORE_MARGIN = 5.0
 _COMPLETE_LEXICAL_ADVERB_SCORE_MARGIN = 5.0
+_TERMINAL_ADVERB_ENDING_SCORE_MARGIN = 3.25
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
 _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN = 2.7
 _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
@@ -477,6 +478,7 @@ class KoreanAnalyzer:
                 )
                 or not self._has_connective_before_helping_verb(evidence)
                 or self._has_unrepresented_word_part(evidence)
+                or self._has_duplicate_lexical_component(evidence)
             ):
                 continue
             evidence_labels = {feature.label for feature in evidence.features}
@@ -585,6 +587,14 @@ class KoreanAnalyzer:
             and morpheme.surface not in lexical_surface
             for morpheme in candidate.morphemes
         )
+
+    @staticmethod
+    def _has_duplicate_lexical_component(candidate: AnalysisCandidate) -> bool:
+        components = tuple(
+            (component.surface, component.lemma, component.learner_role)
+            for component in candidate.lexical_components
+        )
+        return len(set(components)) != len(components)
 
     @staticmethod
     def _has_only_unrepresented_copula(candidate: AnalysisCandidate) -> bool:
@@ -913,6 +923,7 @@ class KoreanAnalyzer:
         )
         candidates = self._promote_close_complete_inflected_word(candidates)
         candidates = self._promote_complete_lexical_adverb(candidates)
+        candidates = self._promote_terminal_adverb_ending_candidate(candidates)
         limited = candidates[:max_candidates]
         if len(limited) > 1:
             limited = [replace(candidate, uncertain=True) for candidate in limited]
@@ -1002,6 +1013,57 @@ class KoreanAnalyzer:
                     alternative.learner_role,
                 )
                 for current, alternative in differing
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    def _promote_terminal_adverb_ending_candidate(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or len(candidates[0].lexical_components) < 2:
+            return candidates
+        first = candidates[0]
+        terminal = first.lexical_components[-1]
+        prefix = first.lexical_components[:-1]
+        if (
+            terminal.learner_role != 'adverb'
+            or len(terminal.surface) != 1
+            or not first.surface.endswith(terminal.surface)
+            or not terminal.dictionary_entries
+            or not any(
+                component.learner_role
+                in {'action verb', 'descriptive verb', 'helping verb'}
+                for component in prefix
+            )
+            or not first.morphemes
+            or first.morphemes[-1].surface != terminal.surface
+            or first.morphemes[-1].learner_label != 'adverb'
+            or not any(
+                morpheme.learner_label == 'verb ending'
+                for morpheme in first.morphemes[:-1]
+            )
+        ):
+            return candidates
+        prefix_signature = tuple(
+            (component.surface, component.lemma, component.learner_role)
+            for component in prefix
+        )
+        for index, candidate in enumerate(candidates[1:], start=1):
+            candidate_signature = tuple(
+                (component.surface, component.lemma, component.learner_role)
+                for component in candidate.lexical_components
+            )
+            if (
+                first.score - candidate.score
+                <= _TERMINAL_ADVERB_ENDING_SCORE_MARGIN
+                and candidate.surface == first.surface
+                and candidate.lemma == first.lemma
+                and candidate_signature == prefix_signature
+                and candidate.morphemes
+                and candidate.morphemes[-1].surface == terminal.surface
+                and candidate.morphemes[-1].learner_label == 'verb ending'
+                and self._is_inflected_predicate_candidate(candidate)
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
