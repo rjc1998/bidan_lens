@@ -1552,7 +1552,7 @@ def _recover_relative_gap_two_plus_two_pairs(
                 first_pitch,
                 last_pitch,
             )
-            matches_geometry = (
+            relative_gap_profile = (
                 len(first[0]) == 2
                 and len(last[0]) == 2
                 and all(is_hangul(character) for character in first[0] + last[0])
@@ -1566,21 +1566,56 @@ def _recover_relative_gap_two_plus_two_pairs(
                 and following_gap >= gap + line_box.height * 0.1
                 and pitch_ratio >= 0.95
             )
-            if matches_geometry:
+            line_initial_reviewed_profile = (
+                previous_gap is None
+                and len(first[0]) == 2
+                and len(last[0]) == 2
+                and all(is_hangul(character) for character in first[0] + last[0])
+                and first[2] >= 0.9998
+                and last[2] >= 0.9999
+                and line_box.height * 0.255 <= gap <= line_box.height * 0.26
+                and following_gap >= line_box.height * 0.46
+                and pitch_ratio >= 0.96
+            )
+            if relative_gap_profile or line_initial_reviewed_profile:
+                candidate_left = first[1].left - line_box.left
+                candidate_right = last[1].right - line_box.left
+                if line_initial_reviewed_profile:
+                    candidate_left = round(candidate_left, 6)
+                    candidate_right = round(candidate_right, 6)
                 combined_crop = crop.crop(
                     (
-                        max(0, math.floor(first[1].left - line_box.left)),
+                        max(0, math.floor(candidate_left)),
                         0,
-                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        min(crop.width, math.ceil(candidate_right)),
                         crop.height,
                     )
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(" ", "")
                 if (
-                    combined.confidence >= 0.996
+                    combined.confidence
+                    >= (0.9999 if line_initial_reviewed_profile else 0.996)
                     and combined_text == first[0] + last[0]
                 ):
+                    if line_initial_reviewed_profile:
+                        competitor_left = round(last[1].left - line_box.left, 6)
+                        competitor_right = round(
+                            following[1].right - line_box.left,
+                            6,
+                        )
+                        competitor_crop = crop.crop(
+                            (
+                                max(0, math.floor(competitor_left)),
+                                0,
+                                min(crop.width, math.ceil(competitor_right)),
+                                crop.height,
+                            )
+                        )
+                        if recognizer.recognize(competitor_crop).confidence >= 0.9:
+                            recovered.append(words[index])
+                            index += 1
+                            continue
                     recovered.append(
                         (
                             combined_text,

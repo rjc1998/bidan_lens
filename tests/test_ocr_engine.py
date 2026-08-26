@@ -2546,6 +2546,78 @@ class RelativeGapTwoPlusTwoRecognizer:
         return RecognizedText("한계성에", self.confidence)
 
 
+class LineInitialTwoPlusTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        candidate_confidence: float = 0.99992,
+        competitor_confidence: float = 0.7,
+    ) -> None:
+        self.candidate_confidence = candidate_confidence
+        self.competitor_confidence = competitor_confidence
+
+    def recognize(self, image):
+        if image.width == 63:
+            return RecognizedText("\ud55c\uacc4\uc131\uc5d0", self.candidate_confidence)
+        return RecognizedText("competing", self.competitor_confidence)
+
+
+def test_line_initial_two_plus_two_pair_merges_exact_union() -> None:
+    words = [
+        ("\ud55c\uacc4", BoundingBox(50.2, 0, 78.2, 20), 0.99982),
+        ("\uc131\uc5d0", BoundingBox(83.36, 0, 112.36, 20), 0.99991),
+        ("\ub4b7\ub9d0", BoundingBox(121.66, 0, 141.66, 20), 0.999),
+    ]
+
+    recovered = _recover_relative_gap_two_plus_two_pairs(
+        words,
+        Image.new("RGB", (160, 20)),
+        BoundingBox(0, 0, 160, 20),
+        LineInitialTwoPlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        ("\ud55c\uacc4\uc131\uc5d0", BoundingBox(50.2, 0, 112.36, 20), 0.99982),
+        words[2],
+    ]
+
+
+def test_line_initial_two_plus_two_pair_rejects_weak_union() -> None:
+    words = [
+        ("\ud55c\uacc4", BoundingBox(50.2, 0, 78.2, 20), 0.99982),
+        ("\uc131\uc5d0", BoundingBox(83.36, 0, 112.36, 20), 0.99991),
+        ("\ub4b7\ub9d0", BoundingBox(121.66, 0, 141.66, 20), 0.999),
+    ]
+
+    assert (
+        _recover_relative_gap_two_plus_two_pairs(
+            words,
+            Image.new("RGB", (160, 20)),
+            BoundingBox(0, 0, 160, 20),
+            LineInitialTwoPlusTwoRecognizer(candidate_confidence=0.99989),
+        )
+        == words
+    )
+
+
+def test_line_initial_two_plus_two_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\ud55c\uacc4", BoundingBox(50.2, 0, 78.2, 20), 0.99982),
+        ("\uc131\uc5d0", BoundingBox(83.36, 0, 112.36, 20), 0.99991),
+        ("\ub4b7\ub9d0", BoundingBox(121.66, 0, 141.66, 20), 0.999),
+    ]
+
+    assert (
+        _recover_relative_gap_two_plus_two_pairs(
+            words,
+            Image.new("RGB", (160, 20)),
+            BoundingBox(0, 0, 160, 20),
+            LineInitialTwoPlusTwoRecognizer(competitor_confidence=0.9),
+        )
+        == words
+    )
+
+
 def test_relative_gap_two_plus_two_pair_merges_exact_union() -> None:
     words = [
         ("앞말", BoundingBox(0, 0, 30, 20), 0.999),
