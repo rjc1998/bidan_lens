@@ -99,6 +99,11 @@ confidence for the four-syllable fragment, and exact combined recognition at 99.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
+An isolated-wide pure-Hangul one-plus-two pair has a separately reviewed profile requiring
+fragment confidence of at least 83.5% and 99.88%, a gap of 36% to 36.5% of line height,
+preceding and following boundaries of at least 77% and 61%, pitch agreement within 27%, and exact
+combined recognition at 99.98% or better. Subpixel verification coordinates are normalized, and
+the pair is preserved when either available adjacent union reaches 98% confidence.
 A line-initial one-plus-two-syllable pair has a separate profile: fragment confidence must reach
 99.92% and 99.86%, their gap must be 36% to 36.5% of line height, the following boundary must be
 61% to 62.5%, character pitch must be compatible, and exact combined recognition must reach

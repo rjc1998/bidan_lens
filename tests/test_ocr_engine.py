@@ -1346,6 +1346,57 @@ class CompetitiveOnePlusTwoRecognizer:
         return RecognizedText("competing", self.competing_confidence)
 
 
+class ReviewedWideOnePlusTwoRecognizer:
+    def __init__(self, *, competing_confidence: float = 0.97) -> None:
+        self.competing_confidence = competing_confidence
+
+    def recognize(self, image):
+        if image.width == 60:
+            return RecognizedText("\uac1c\uc778\uc744", 0.99982)
+        return RecognizedText("competing", self.competing_confidence)
+
+
+def test_isolated_wide_one_plus_two_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uac1c", BoundingBox(55.5, 0, 69.5, 20), 0.836),
+        ("\uc778\uc744", BoundingBox(76.73, 0, 114.73, 20), 0.9989),
+        ("\ub2e4\uc74c", BoundingBox(126.95, 0, 166.95, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (180, 20)),
+        BoundingBox(0, 0, 180, 20),
+        ReviewedWideOnePlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uac1c\uc778\uc744", BoundingBox(55.5, 0, 114.73, 20), 0.836),
+        words[3],
+    ]
+
+
+def test_isolated_wide_one_plus_two_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uac1c", BoundingBox(55.5, 0, 69.5, 20), 0.836),
+        ("\uc778\uc744", BoundingBox(76.73, 0, 114.73, 20), 0.9989),
+        ("\ub2e4\uc74c", BoundingBox(126.95, 0, 166.95, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            ReviewedWideOnePlusTwoRecognizer(competing_confidence=0.98),
+        )
+        == words
+    )
+
+
 def test_line_initial_one_plus_two_pair_merges_with_weak_competing_union() -> None:
     words = [
         ("\uc774", BoundingBox(0, 0, 15, 20), 0.9993),
