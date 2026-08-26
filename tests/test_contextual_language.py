@@ -752,6 +752,50 @@ def test_close_complete_multi_component_analysis_is_promoted() -> None:
     ]
 
 
+def test_complete_multi_component_analysis_is_not_fragmented_further() -> None:
+    dictionary = RoleDictionary()
+    dictionary.values = {
+        **dictionary.values,
+        '이중': (_entry('double', '이중', 'noun', 'double'),),
+        '의도': (_entry('intention', '의도', 'noun', 'intention'),),
+        '이': (_entry('this', '이', 'determiner', 'this'),),
+        '중': (_entry('middle', '중', 'noun', 'middle'),),
+    }
+    analyses = {
+        '이중의도이다': [
+            (
+                [
+                    Token('이중', 'NNG', 0, 2),
+                    Token('의도', 'NNG', 2, 2),
+                    Token('이', 'VCP', 4, 1),
+                    Token('다', 'EF', 5, 1),
+                ],
+                -1.0,
+            ),
+            (
+                [
+                    Token('이', 'MM', 0, 1),
+                    Token('중', 'NNG', 1, 1),
+                    Token('의도', 'NNG', 2, 2),
+                    Token('이', 'VCP', 4, 1),
+                    Token('다', 'EF', 5, 1),
+                ],
+                -2.5,
+            ),
+        ]
+    }
+
+    candidate = KoreanAnalyzer(dictionary, ContextKiwi(analyses)).analyze(
+        '이중의도이다', (0, 6)
+    )[0]
+
+    assert candidate.lemma == '이중'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '이중',
+        '의도',
+    ]
+
+
 def test_distant_multi_component_analysis_is_not_promoted() -> None:
     analyses = {
         '갔다오다': [

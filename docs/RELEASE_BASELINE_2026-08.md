@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.15 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
 functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 89.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted rerun is 213.08 ms median / 331.10 ms p95. There
+false promotions. The accepted rerun is 214.89 ms median / 332.66 ms p95. There
 are eight analysis, 12 context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,7 +57,7 @@ gate pass.
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`0cc9b87444d03d1ac217bfa0afafe488328fcabb9a173f1c711eb2f9c21e927f` and
+`b3ea52d81a73328aea768cd358f7f19004b574e87dd2977bf9f247eecb97452e` and
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
@@ -66,22 +66,21 @@ The complete v4.15 development run against the current analyzer cleanup records 
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
 transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 80.85% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 221.83 ms median / 330.12 ms p95. The privacy-safe stage totals are 58 target,
+accepted rerun is 224.04 ms median / 331.63 ms p95. The privacy-safe stage totals are 58 target,
 205 context, and 120 analysis failures. The analysis failures comprise 48 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
 functional context, 93.60% component accuracy, and 63.20% fully correct first popups. The 400-case
-held-out language tier is 91.50% overall and 96.00% for auxiliary cases, but its 87.00%
-multi-lexical result is below the
-exceptional floor; direct KRDict conformance remains 100%. Aggregate main negative activation is
+held-out language tier is 92.00% overall, 96.00% for auxiliary cases, and the required 88.00%
+for multi-lexical cases; direct KRDict conformance remains 100%. Aggregate main negative activation is
 0.11%. Blank, English, and near-miss remain at zero, whitespace is four of 1,931 (0.21%), and
 punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`ec0f004dc6c68cca531bbf364d7ef388d848f25264c18bb57fb653bc51aaf5e7` and
+`cafbd7f7defbb44a123239cc5c7fe3a10527a138e864373da13c07602323bb25` and
 `41194b9c0e2b607293c2fa5f0b9394c6091a323766b96cec8aa6192f1f186e85`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
@@ -273,8 +272,22 @@ punctuation-only IDs, with no addition or stage change. Punctuation activation f
 1,582 (0.57%) to six (0.38%), while target selection remains 97.10% and quick target selection
 remains 99.00%. Every OCR, context, popup, stress, language, promotion, and quick negative result
 is unchanged, so the aggregate/per-category negative gate now passes. The next target is the
-held-out multi-lexical tier, where two recoveries restore its 88% exceptional floor before the
-larger rendered context and popup deficits are revisited.
+held-out multi-lexical tier.
+
+The thirteenth analyzer batch classifies all 26 v4.15 multi-lexical disagreements as three
+Kiwi-analysis errors, five annotation-convention differences, 17 equivalent learner
+interpretations, and one genuinely ambiguous case. Its ID-only report contains no corpus text,
+expected or analyzed values, dictionary data, or pixels. Review found that the existing
+multi-component promotion could replace an already complete dictionary-backed two-part leader
+with a lower-ranked three-part fragmentation. The accepted guard limits that promotion to an
+incomplete leader. It resolves exactly two reviewed Kiwi errors, leaves 24 active cases with no
+missing or stale decisions, and raises multi-lexical accuracy from 87.00% to 88.00% and overall
+held-out language from 91.50% to 92.00%. Auxiliary stays at 96.00%, stress is unchanged, and the
+full main and quick diagnostics remain byte-identical to their accepted baselines. The language
+review SHA-256 is
+`2534d28a3bf9650f8a61120a6577e7e3397fc5a3e87f1c8b8544772d38913765`.
+The next target is the 205 active full-tier context disagreements, followed by analysis failures
+whose target and context are already correct.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

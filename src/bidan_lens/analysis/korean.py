@@ -1442,6 +1442,14 @@ class KoreanAnalyzer:
             'adverb',
         }
         if (
+            len(first.lexical_components) >= 2
+            and all(
+                component.dictionary_entries
+                for component in first.lexical_components
+            )
+        ):
+            return candidates
+        if (
             len(first.lexical_components) == 1
             and first.lexical_components[0].learner_role in noun_roles
             and first.lexical_components[0].dictionary_entries

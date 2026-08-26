@@ -62,8 +62,8 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 213.08 ms
-median / 331.10 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.89 ms
+median / 332.66 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
@@ -74,14 +74,14 @@ The complete v4.15 development evaluation has now run against the current analyz
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
 context, 70.00% exact sentence transcription, 92.35% component accuracy, 94.75% exact KRDict
 fidelity, 80.85% fully correct first popups, and 94.10% alternative recovery. False promotions
-remain zero and the accepted rerun is 221.83 ms median / 330.12 ms p95. Privacy-safe diagnostics
+remain zero and the accepted rerun is 224.04 ms median / 331.63 ms p95. Privacy-safe diagnostics
 contain 58 target, 205 context, and 120 analysis failures; the analysis stages are 48 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
 functional context, 93.60% component accuracy, and 63.20% fully correct first popups. The 400-case
-held-out language tier records 91.50% overall, 96.00% auxiliary, 87.00% multi-lexical, and 100%
+held-out language tier records 92.00% overall, 96.00% auxiliary, 88.00% multi-lexical, and 100%
 direct KRDict conformance. Aggregate main negative activation is 0.11%; blank, English, and
 near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctuation is six of
 1,582 (0.38%). The correction, dictionary-conformance, latency, and aggregate/per-category
@@ -504,13 +504,23 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The historical v4.9 multi-lexical result passed, but the complete v4.15 development run now shows
-that main popup, functional context, required render strata, and held-out multi-lexical analysis
-still block release evidence. Primary-lemma, component-surface, component-role, component-count,
-grammar-role, and negative-activation review is complete. The next development target is the
-held-out multi-lexical tier, where recovering two of the remaining 26 cases will restore the 88%
-exceptional floor before returning to the larger rendered context and popup deficits. Thresholds
-are not frozen, and neither the untouched release
+The held-out multi-lexical review contains 26 stable-ID categorical decisions: three Kiwi-analysis
+errors, five annotation-convention differences, 17 equivalent learner interpretations, and one
+genuinely ambiguous case. It contains no sentence, expected, analyzed, dictionary, or pixel data.
+The accepted analyzer guard prevents a lower-ranked, more fragmented nominal analysis from
+displacing an already complete dictionary-backed multi-component leader. It resolves exactly two
+reviewed Kiwi errors, leaves 24 active cases with no missing or stale decisions, and raises
+multi-lexical accuracy from 87.00% to the required 88.00%. The full main diagnostics and quick
+diagnostics remain byte-identical to their accepted baselines, stress and auxiliary results are
+unchanged, and overall held-out language rises from 91.50% to 92.00%. The language-review report
+SHA-256 is `2534d28a3bf9650f8a61120a6577e7e3397fc5a3e87f1c8b8544772d38913765`.
+
+The complete v4.15 development run now shows that main popup correctness, functional context, and
+required render strata still block release evidence. Primary-lemma, component-surface,
+component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
+complete. The next development target is the 205 active full-tier context disagreements, followed
+by analysis failures whose target and context are already correct. Thresholds are not frozen, and
+neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
@@ -523,8 +533,8 @@ split nor the 500-attempt foreground benchmark has been run. See
 - meet the aggregate and every size/punctuation exceptional floor, the false-promotion
   gate, and the primary OCR/fully-correct-popup targets (or explicitly approve a documented
   exceptional release);
-- preserve the passing quick and negative-activation gates while improving full first-popup
-  correctness, functional context, held-out multi-lexical analysis, and required render strata;
+- preserve the passing quick, held-out multi-lexical, and negative-activation gates while
+  improving full first-popup correctness, functional context, and required render strata;
 - run the opt-in foreground benchmark with five warmups plus 500 fixed attempts, meeting
   correctness and latency targets with zero safety violations;
 - complete clean-VM tests on multi-monitor mixed-DPI systems and packaged Windows 10;

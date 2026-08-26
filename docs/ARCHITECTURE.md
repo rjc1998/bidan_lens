@@ -34,7 +34,8 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     adjective groups while retaining other homographs in source order. The adapter examines ten
     Kiwi analyses while exposing at most five popup candidates. A richer multi-component analysis
     may lead only when every component has a local definition, its adjusted Kiwi score is within
-    1.5 of the leader, and it does not displace a contextual auxiliary. When the first Kiwi
+    2 points of the leader, it does not displace a contextual auxiliary, and the leader is not
+    already a complete dictionary-backed multi-component analysis. When the first Kiwi
     analysis has no local definition, a known particle suffix may produce a promoted candidate
     only when its remaining stem has a local dictionary entry; an already segmented sequence of
     dictionary-backed nouns may also recover a missing particle feature when its remaining suffix
