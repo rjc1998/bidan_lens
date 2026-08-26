@@ -1010,6 +1010,27 @@ class ShortPairRecognizer:
         return RecognizedText("\ucd08\uae30", self.confidence)
 
 
+class ReviewedThreePlusOneRecognizer:
+    def __init__(
+        self,
+        candidate_width: int,
+        candidate_text: str,
+        confidence: float,
+        *,
+        strong_competitor_width: int | None = None,
+    ) -> None:
+        self.candidate_width = candidate_width
+        self.candidate_text = candidate_text
+        self.confidence = confidence
+        self.strong_competitor_width = strong_competitor_width
+
+    def recognize(self, image):
+        if image.width == self.candidate_width:
+            return RecognizedText(self.candidate_text, self.confidence)
+        competitor = 0.99 if image.width == self.strong_competitor_width else 0.98
+        return RecognizedText("competing", competitor)
+
+
 def test_isolated_close_pair_merges_only_with_matching_pitch_and_wide_neighbors() -> None:
     words = [
         ("\uc624\ub298", BoundingBox(0, 0, 50, 30), 0.999),
@@ -1106,6 +1127,93 @@ def test_isolated_close_pair_preserves_lower_confidence_final_syllable() -> None
             Image.new("RGB", (160, 20)),
             BoundingBox(0, 0, 160, 20),
             FinalSyllablePairRecognizer(),
+        )
+        == words
+    )
+
+
+def test_isolated_three_plus_one_pair_merges_with_exact_weakly_competed_union() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ube44\ud310\ud574", BoundingBox(49.1, 0, 109.1, 20), 0.9999),
+        ("\uc57c", BoundingBox(114.78, 0, 131.18, 20), 0.9989),
+        ("\ub2e4\uc74c", BoundingBox(142.4, 0, 182.4, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (195, 20)),
+        BoundingBox(0, 0, 195, 20),
+        ReviewedThreePlusOneRecognizer(83, "\ube44\ud310\ud574\uc57c", 0.99985),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ube44\ud310\ud574\uc57c", BoundingBox(49.1, 0, 131.18, 20), 0.9989),
+        words[3],
+    ]
+
+
+def test_isolated_three_plus_one_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ube44\ud310\ud574", BoundingBox(49.1, 0, 109.1, 20), 0.9999),
+        ("\uc57c", BoundingBox(114.78, 0, 131.18, 20), 0.9989),
+        ("\ub2e4\uc74c", BoundingBox(142.4, 0, 182.4, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (195, 20)),
+            BoundingBox(0, 0, 195, 20),
+            ReviewedThreePlusOneRecognizer(
+                83,
+                "\ube44\ud310\ud574\uc57c",
+                0.99985,
+                strong_competitor_width=69,
+            ),
+        )
+        == words
+    )
+
+
+def test_overlapping_three_plus_one_pair_accepts_one_union_substitution() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 37.6, 20), 0.999),
+        ("\ube44\ud310\ud788", BoundingBox(50.1, 0, 110.1, 20), 0.9986),
+        ("\uc57c", BoundingBox(108.96, 0, 120.76, 20), 0.912),
+        ("\ub2e4\uc74c", BoundingBox(126.46, 0, 166.46, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (180, 20)),
+        BoundingBox(0, 0, 180, 20),
+        ReviewedThreePlusOneRecognizer(71, "\ube44\ud310\ud574\uc57c", 0.9996),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ube44\ud310\ud574\uc57c", BoundingBox(50.1, 0, 120.76, 20), 0.912),
+        words[3],
+    ]
+
+
+def test_overlapping_three_plus_one_pair_rejects_two_union_substitutions() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 37.6, 20), 0.999),
+        ("\ube44\ud310\ud788", BoundingBox(50.1, 0, 110.1, 20), 0.9986),
+        ("\uc57c", BoundingBox(108.96, 0, 120.76, 20), 0.912),
+        ("\ub2e4\uc74c", BoundingBox(126.46, 0, 166.46, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            ReviewedThreePlusOneRecognizer(71, "\ube44\ud3c9\ud574\uc57c", 0.9996),
         )
         == words
     )

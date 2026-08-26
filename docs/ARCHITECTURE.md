@@ -132,6 +132,14 @@ profile requires fragment confidence of 99.89% and 96.06%, an overlap of 5% to 5
 and following boundaries of at least 36% and 41%, pitch agreement within 15%, and exact combined
 recognition at 99.93% or better. Both normalize subpixel verification coordinates and reject the
 candidate when either available adjacent union reaches 98.5% confidence.
+Two internal three-plus-one-syllable pure-Hangul profiles cover independently reviewed false
+splits. The positive-gap profile requires high fragment confidence, a gap of 28% to 28.5% of
+line height, wide neighboring boundaries, compatible pitch, exact union recognition at 99.96%
+or better, and no adjacent union at 99% or better. The shallow-overlap correction permits the
+union to repair exactly one internal character only when the four-character union remains pure
+Hangul, preserves the first two characters and final fragment, reaches 99.95% confidence, and
+both adjacent unions remain below 98.5%. Its fragment confidence, overlap, isolation, and pitch
+checks are separate from the positive-gap profile.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character

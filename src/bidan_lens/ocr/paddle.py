@@ -643,6 +643,30 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.38
                 and pitch_ratio >= 0.85
             )
+            isolated_three_plus_one_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 3
+                and len(last[0]) == 1
+                and first[2] >= 0.9998
+                and last[2] >= 0.9988
+                and 0.28 <= gap_ratio <= 0.285
+                and previous_gap >= line_box.height * 0.45
+                and following_gap >= line_box.height * 0.56
+                and pitch_ratio >= 0.81
+            )
+            corrected_overlapping_three_plus_one_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 3
+                and len(last[0]) == 1
+                and first[2] >= 0.9985
+                and last[2] >= 0.91
+                and -0.06 <= gap_ratio <= -0.055
+                and previous_gap >= line_box.height * 0.62
+                and following_gap >= line_box.height * 0.28
+                and pitch_ratio >= 0.58
+            )
             isolated_two_syllable_profile = (
                 previous is not None
                 and len(first[0]) == 1
@@ -776,6 +800,8 @@ def _recover_isolated_close_word_pairs(
                 and (
                     long_suffix_profile
                     or isolated_final_syllable_profile
+                    or isolated_three_plus_one_profile
+                    or corrected_overlapping_three_plus_one_profile
                     or isolated_two_syllable_profile
                     or isolated_one_plus_two_profile
                     or narrow_three_plus_two_profile
@@ -801,6 +827,8 @@ def _recover_isolated_close_word_pairs(
                     or isolated_wide_three_plus_two_profile
                     or positive_gap_four_plus_two_profile
                     or overlapping_four_plus_two_profile
+                    or isolated_three_plus_one_profile
+                    or corrected_overlapping_three_plus_one_profile
                 ):
                     candidate_left = round(candidate_left, 6)
                     candidate_right = round(candidate_right, 6)
@@ -833,15 +861,35 @@ def _recover_isolated_close_word_pairs(
                     required_confidence = 0.997
                 elif overlapping_four_plus_two_profile:
                     required_confidence = 0.9993
+                elif isolated_three_plus_one_profile:
+                    required_confidence = 0.9996
+                elif corrected_overlapping_three_plus_one_profile:
+                    required_confidence = 0.9995
                 elif narrow_three_plus_two_profile:
                     required_confidence = 0.9998
                 elif isolated_final_syllable_profile:
                     required_confidence = 0.9995
                 else:
                     required_confidence = 0.998
-                if (
-                    combined.confidence >= required_confidence
-                    and combined_text == first[0] + last[0]
+                concatenated_text = first[0] + last[0]
+                corrected_overlap = (
+                    corrected_overlapping_three_plus_one_profile
+                    and len(combined_text) == len(concatenated_text)
+                    and all(is_hangul(character) for character in combined_text)
+                    and combined_text[:2] == concatenated_text[:2]
+                    and combined_text[-1] == concatenated_text[-1]
+                    and sum(
+                        left != right
+                        for left, right in zip(
+                            combined_text,
+                            concatenated_text,
+                            strict=True,
+                        )
+                    )
+                    == 1
+                )
+                if combined.confidence >= required_confidence and (
+                    combined_text == concatenated_text or corrected_overlap
                 ):
                     if (
                         line_initial_one_plus_two_profile
@@ -874,6 +922,8 @@ def _recover_isolated_close_word_pairs(
                         or isolated_wide_three_plus_two_profile
                         or positive_gap_four_plus_two_profile
                         or overlapping_four_plus_two_profile
+                        or isolated_three_plus_one_profile
+                        or corrected_overlapping_three_plus_one_profile
                     ):
                         competing_spans = [(last[1].left, following[1].right)]
                         if previous is not None:
@@ -899,9 +949,13 @@ def _recover_isolated_close_word_pairs(
                             if (
                                 overlapping_four_plus_two_profile
                                 or positive_gap_four_plus_two_profile
+                                or corrected_overlapping_three_plus_one_profile
                             ):
                                 competing_limit = 0.985
-                            elif narrow_gap_three_plus_two_profile:
+                            elif (
+                                isolated_three_plus_one_profile
+                                or narrow_gap_three_plus_two_profile
+                            ):
                                 competing_limit = 0.99
                             else:
                                 competing_limit = 0.995
