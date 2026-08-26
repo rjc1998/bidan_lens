@@ -997,6 +997,14 @@ class FinalSyllablePairRecognizer:
         return RecognizedText("\uc0ac\uc6a9\ud558\ub294", 0.9998)
 
 
+class ShortPairRecognizer:
+    def __init__(self, confidence: float = 0.99995) -> None:
+        self.confidence = confidence
+
+    def recognize(self, _image):
+        return RecognizedText("\ucd08\uae30", self.confidence)
+
+
 def test_isolated_close_pair_merges_only_with_matching_pitch_and_wide_neighbors() -> None:
     words = [
         ("\uc624\ub298", BoundingBox(0, 0, 50, 30), 0.999),
@@ -1093,6 +1101,66 @@ def test_isolated_close_pair_preserves_lower_confidence_final_syllable() -> None
             Image.new("RGB", (160, 20)),
             BoundingBox(0, 0, 160, 20),
             FinalSyllablePairRecognizer(),
+        )
+        == words
+    )
+
+
+def test_isolated_touching_syllables_merge_with_wide_neighbors() -> None:
+    words = [
+        ("\uc774\ubbf8", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ucd08", BoundingBox(50, 0, 69, 20), 0.99),
+        ("\uae30", BoundingBox(69, 0, 81, 20), 0.997),
+        ("\uc790\ubcf8\uc8fc\uc758", BoundingBox(90, 0, 170, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (180, 20)),
+        BoundingBox(0, 0, 180, 20),
+        ShortPairRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\ucd08\uae30", BoundingBox(50, 0, 81, 20), 0.99),
+        words[3],
+    ]
+
+
+def test_isolated_touching_syllables_require_wide_following_gap() -> None:
+    words = [
+        ("\uc774\ubbf8", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ucd08", BoundingBox(50, 0, 69, 20), 0.99),
+        ("\uae30", BoundingBox(69, 0, 81, 20), 0.997),
+        ("\uc790\ubcf8\uc8fc\uc758", BoundingBox(89.5, 0, 169.5, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            ShortPairRecognizer(),
+        )
+        == words
+    )
+
+
+def test_isolated_touching_syllables_require_near_certain_combined_text() -> None:
+    words = [
+        ("\uc774\ubbf8", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\ucd08", BoundingBox(50, 0, 69, 20), 0.99),
+        ("\uae30", BoundingBox(69, 0, 81, 20), 0.997),
+        ("\uc790\ubcf8\uc8fc\uc758", BoundingBox(90, 0, 170, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            ShortPairRecognizer(0.9998),
         )
         == words
     )

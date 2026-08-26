@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.15 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
 functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 89.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 219.02 ms median / 330.30 ms p95. There
+false promotions. The accepted current rerun is 220.96 ms median / 330.15 ms p95. There
 are eight analysis, 12 context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,17 +57,17 @@ gate pass.
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`4ac11ae5fd95b2c395699a8249d48d1ca13987061c55098b5502d55d958f86aa` and
+`e4add8f5efa2133dc50ce4762be80ae477bbdb728da8138d1044cc89efa65064` and
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
 The complete v4.15 development run against the current OCR and analyzer cleanup records 98.00%
-whole-eojeol OCR, 97.10% target selection, 87.10% functional context, 70.25% exact sentence
-transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 81.10% fully correct first
+whole-eojeol OCR, 97.10% target selection, 87.15% functional context, 70.30% exact sentence
+transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 81.15% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 224.87 ms median / 335.06 ms p95. The privacy-safe stage totals are 58 target,
-200 context, and 120 analysis failures. The analysis failures comprise 48 primary lemmas, 62
+accepted rerun is 224.68 ms median / 332.24 ms p95. The privacy-safe stage totals are 58 target,
+199 context, and 120 analysis failures. The analysis failures comprise 48 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,15 +80,15 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`87bae1aa8df0e30d8d0bdb7590a4aff8a95463dc07392dd96bc6517a03326058` and
-`2ffd4f5e1c0255bb7610454c062b0fb7ac64ffeeb47cd124cda9dac4e7b77eb0`.
+`7dd549eec0cd4f90e795f2633c649c56548124e6a332dc4458f529785d0d6074` and
+`7e5feb6e1ab25ca2964777d58a9fd186fcffcfad1061e0a2c598ee96ffd72f3e`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
 main image. The complete 222-case review is 89 non-target OCR transcription errors, 69 punctuation
 or structured-text cases, 42 missed or merged OCR word boundaries, and 22 incorrect line/sentence
-reconstructions. The current full diagnostics have 200 active context cases; the v4.15 fail-closed
-audit finds every active ID reviewed with no missing decisions and five resolved IDs. Cross-lock
+reconstructions. The current full diagnostics have 199 active context cases; the v4.15 fail-closed
+audit finds every active ID reviewed with no missing decisions and six resolved IDs. Cross-lock
 carry-forward accepts a prior corpus ID while still requiring the same review scope and every
 current stable ID.
 The additional
@@ -99,7 +99,7 @@ normalized suffix. The accepted contained-suffix cleanup resolves all three and 
 protected unrelated-character regression. The decision report persists no corpus text, recognized
 text, definitions, or pixels. Its SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
-The current full run resolves 26 context IDs from the earlier report without adding a new context
+The current full run resolves 27 context IDs from the earlier report without adding a new context
 failure: three from the contained-suffix cleanup, 11 from the confirmed leading-sliver cleanup,
 two from the exact-confirmed suffix-overlap cleanup, and two from permitting one-pixel overlap up
 to 7.5% of a small line under the same exact combined-recognition duplicate profile. That profile
@@ -329,6 +329,17 @@ context rises to 87.10%, exact sentence transcription to 70.25%, and first-popup
 81.10%; quick diagnostics remain byte-identical. The audit has 200 active cases, five resolved
 IDs, and no missing decisions. The two remaining reconstruction cases lack independent runtime
 evidence for their intended punctuation or English text and are left unchanged.
+
+The eighteenth batch begins the 42-case missed-or-merged boundary review. Ten stable-target cases
+insert exactly one space inside an expected word; two are defensible spacing interpretations, and
+the wider component-length profiles also fit legitimate Korean word boundaries. One case has a
+distinct isolated 1+1-syllable profile: zero measured gap, gaps of at least 50% and 44% of line
+height on either side, compatible character pitch, strong component confidence, and at least
+99.99% combined recognition of the exact concatenation. The accepted recovery removes only
+`dev-plain-1420` from full diagnostics, with no added or changed record. Functional
+context rises to 87.15%, exact sentence transcription to 70.30%, and first-popup correctness to
+81.15%; quick diagnostics remain byte-identical. The audit has 199 active context cases, six
+resolved IDs, 41 active boundary cases, and no missing decisions.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

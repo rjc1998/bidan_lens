@@ -82,6 +82,9 @@ left fragment ends with an identifier followed by one copied Hangul syllable, th
 starts with the identifier's repeated final digit and a complete word beginning with that
 syllable, both Hangul boxes are at least 99% confident, and their leading-edge and vertical
 geometry agree. Neither artifact is removed independently.
+An interior pair of one-syllable Hangul fragments can be rejoined only when their measured gap is
+effectively zero, gaps on both sides are wide, character pitch agrees, each fragment has strong
+confidence, and recognizing their union at 99.99% or better exactly returns their concatenation.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word

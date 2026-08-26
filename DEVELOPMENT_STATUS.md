@@ -62,23 +62,23 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 219.02 ms
-median / 330.30 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 220.96 ms
+median / 330.15 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`4ac11ae5fd95b2c395699a8249d48d1ca13987061c55098b5502d55d958f86aa`; its
+`e4add8f5efa2133dc50ce4762be80ae477bbdb728da8138d1044cc89efa65064`; its
 privacy-safe diagnostics remain byte-identical to the accepted v4.12 primary-lemma rerun at
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.00% whole-eojeol OCR, 97.10% target selection, 87.10%
-functional context, 70.25% exact sentence transcription, 92.35% component accuracy, 94.75% exact
-KRDict fidelity, 81.10% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 224.87 ms median / 335.06 ms p95. Privacy-safe
-diagnostics contain 58 target, 200 context, and 120 analysis failures; the analysis stages are 48 primary
+cleanup. Its 2,000 main cases record 98.00% whole-eojeol OCR, 97.10% target selection, 87.15%
+functional context, 70.30% exact sentence transcription, 92.35% component accuracy, 94.75% exact
+KRDict fidelity, 81.15% fully correct first popups, and 94.10% alternative recovery. False
+promotions remain zero and the accepted rerun is 224.68 ms median / 332.24 ms p95. Privacy-safe
+diagnostics contain 58 target, 199 context, and 120 analysis failures; the analysis stages are 48 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
@@ -98,9 +98,9 @@ punctuation or structured-text cases, 42 missed or merged OCR word boundaries, a
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 200 active context
+IDs, categorical decisions, and counts. The current full diagnostics have 199 active context
 cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
-five resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
+six resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
 review scope and every current stable ID. The decision report SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
 
@@ -140,7 +140,15 @@ when the identifier suffix, word prefix, confidence, and geometry all agree. The
 removes only `dev-plain-1316`; functional context, exact sentence transcription, and
 first-popup correctness rise to 87.10%, 70.25%, and 81.10%.
 
-Compared with the earlier full report, the nine accepted cleanups resolve 26 context IDs without
+The first word-boundary batch reviews ten stable-target cases where OCR inserted one space inside
+an expected word. Two are defensible spacing interpretations and several others lack reliable
+spacing evidence. One case has a uniquely isolated pair of one-syllable fragments with zero gap,
+wide gaps on both sides, compatible pitch, strong component confidence, and at least 99.99%
+combined recognition of their exact concatenation. The accepted profile removes only
+`dev-plain-1420`; functional context, exact sentence transcription, and first-popup
+correctness rise to 87.15%, 70.30%, and 81.15%.
+
+Compared with the earlier full report, the ten accepted cleanups resolve 27 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
 two full-tier context cases while leaving the quick diagnostics byte-identical. The same profile
@@ -552,8 +560,9 @@ required render strata still block release evidence. Primary-lemma, component-su
 component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
 complete. Two line/sentence reconstruction cases remain active because their intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. The next development target is the 42 reviewed missed-or-merged OCR word-boundary
-cases among the 200 active full-tier context disagreements, followed by analysis failures whose
+implemented. The next development target is the 41 active reviewed missed-or-merged OCR
+word-boundary cases among the 199 active full-tier context disagreements, grouped by component
+length and isolation before any further recovery, followed by analysis failures whose
 target and context are already correct. Thresholds are not frozen, and
 neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
