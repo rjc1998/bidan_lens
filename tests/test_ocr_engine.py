@@ -1256,6 +1256,52 @@ def test_isolated_overlapping_pair_preserves_pair_near_following_word() -> None:
     )
 
 
+class IsolatedFinalOverlapRecognizer:
+    def recognize(self, _image):
+        return RecognizedText("\uae30\uc5c5\uc740", 0.9998)
+
+
+def test_isolated_overlapping_pair_merges_exact_final_syllable() -> None:
+    words = [
+        ("\ud604\uc0c1\uc740", BoundingBox(0, 0, 44, 20), 0.999),
+        ("\uae30\uc5c5", BoundingBox(49, 0, 89, 20), 0.9975),
+        ("\uc740", BoundingBox(88.1, 0, 102.1, 20), 0.8),
+        ("\uc9d1\uc911", BoundingBox(109, 0, 139, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_overlapping_word_pairs(
+        words,
+        Image.new("RGB", (150, 20)),
+        BoundingBox(0, 0, 150, 20),
+        IsolatedFinalOverlapRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uae30\uc5c5\uc740", BoundingBox(49, 0, 102.1, 20), 0.8),
+        words[3],
+    ]
+
+
+def test_isolated_overlapping_final_syllable_requires_wide_following_gap() -> None:
+    words = [
+        ("\ud604\uc0c1\uc740", BoundingBox(0, 0, 44, 20), 0.999),
+        ("\uae30\uc5c5", BoundingBox(49, 0, 89, 20), 0.9975),
+        ("\uc740", BoundingBox(88.1, 0, 102.1, 20), 0.8),
+        ("\uc9d1\uc911", BoundingBox(108.8, 0, 138.8, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_overlapping_word_pairs(
+            words,
+            Image.new("RGB", (150, 20)),
+            BoundingBox(0, 0, 150, 20),
+            IsolatedFinalOverlapRecognizer(),
+        )
+        == words
+    )
+
+
 def test_detector_normalization_converts_rgb_to_bgr() -> None:
     tensor = _normalize(Image.new("RGB", (1, 1), (255, 0, 0)))
 

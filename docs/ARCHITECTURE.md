@@ -85,6 +85,10 @@ geometry agree. Neither artifact is removed independently.
 An interior pair of one-syllable Hangul fragments can be rejoined only when their measured gap is
 effectively zero, gaps on both sides are wide, character pitch agrees, each fragment has strong
 confidence, and recognizing their union at 99.99% or better exactly returns their concatenation.
+An internal two-plus-one-syllable pair has a separate shallow-overlap profile: both surrounding
+gaps must clearly separate it from neighboring words, character pitch must agree, the
+two-syllable fragment must be at least 99.7% confident, and recognizing the union at 99.97% or
+better must exactly return the concatenation.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word

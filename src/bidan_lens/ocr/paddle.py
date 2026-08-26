@@ -756,17 +756,30 @@ def _recover_isolated_overlapping_word_pairs(
             first_pitch = first[1].width / len(first[0])
             last_pitch = last[1].width / len(last[0])
             pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
-            matches_geometry = (
+            two_plus_three_profile = (
                 len(first[0]) == 2
                 and len(last[0]) == 3
-                and contains_hangul(first[0])
-                and contains_hangul(last[0])
                 and first[2] >= 0.9988
                 and last[2] >= 0.9993
                 and 0.05 <= overlap_ratio <= 0.065
                 and previous_gap >= line_box.height * 0.45
                 and following_gap >= line_box.height * 0.39
                 and pitch_ratio >= 0.89
+            )
+            overlapping_final_syllable_profile = (
+                len(first[0]) == 2
+                and len(last[0]) == 1
+                and first[2] >= 0.997
+                and last[2] >= 0.78
+                and 0.035 <= overlap_ratio <= 0.06
+                and previous_gap >= line_box.height * 0.22
+                and following_gap >= line_box.height * 0.34
+                and pitch_ratio >= 0.7
+            )
+            matches_geometry = (
+                contains_hangul(first[0])
+                and contains_hangul(last[0])
+                and (two_plus_three_profile or overlapping_final_syllable_profile)
             )
             if matches_geometry:
                 combined_crop = crop.crop(
@@ -779,8 +792,11 @@ def _recover_isolated_overlapping_word_pairs(
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(' ', '')
+                required_confidence = (
+                    0.9997 if overlapping_final_syllable_profile else 0.995
+                )
                 if (
-                    combined.confidence >= 0.995
+                    combined.confidence >= required_confidence
                     and combined_text == first[0] + last[0]
                 ):
                     recovered.append(
