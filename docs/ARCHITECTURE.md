@@ -99,6 +99,15 @@ confidence for the four-syllable fragment, and exact combined recognition at 99.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
+A line-initial one-plus-two-syllable pair has a separate profile: fragment confidence must reach
+99.92% and 99.86%, their gap must be 36% to 36.5% of line height, the following boundary must be
+61% to 62.5%, character pitch must be compatible, and exact combined recognition must reach
+99.975%. An internal touching-following variant instead requires fragment confidence of 99.99%
+and 99.93%, a gap of 6% to 6.5%, a preceding boundary of at least 37%, a following boundary
+within 0.5% of touching, and compatible pitch. It uses the same combined-recognition floor.
+Both variants reject recovery when recognizing the two-syllable fragment with its following
+neighbor reaches 90% confidence. Only these two verification paths normalize subpixel crop
+coordinates before integer rounding.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character

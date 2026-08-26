@@ -1219,6 +1219,138 @@ def test_isolated_one_plus_two_pair_requires_wide_following_gap() -> None:
     )
 
 
+class CompetitiveOnePlusTwoRecognizer:
+    def __init__(
+        self,
+        candidate_width: int,
+        candidate_text: str,
+        *,
+        competing_confidence: float = 0.7,
+    ) -> None:
+        self.candidate_width = candidate_width
+        self.candidate_text = candidate_text
+        self.competing_confidence = competing_confidence
+
+    def recognize(self, image):
+        if image.width == self.candidate_width:
+            return RecognizedText(self.candidate_text, 0.9998)
+        return RecognizedText("competing", self.competing_confidence)
+
+
+def test_line_initial_one_plus_two_pair_merges_with_weak_competing_union() -> None:
+    words = [
+        ("\uc774", BoundingBox(0, 0, 15, 20), 0.9993),
+        ("\ub7ec\ud55c", BoundingBox(22.2, 0, 60.2, 20), 0.9987),
+        ("\uc77c\ubcf8\uc778\ub4e4\uc758", BoundingBox(72.4, 0, 140, 20), 0.9993),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (150, 20)),
+        BoundingBox(0, 0, 150, 20),
+        CompetitiveOnePlusTwoRecognizer(61, "\uc774\ub7ec\ud55c"),
+    )
+
+    assert recovered == [
+        ("\uc774\ub7ec\ud55c", BoundingBox(0, 0, 60.2, 20), 0.9987),
+        words[2],
+    ]
+
+
+def test_line_initial_one_plus_two_pair_rejects_strong_competing_union() -> None:
+    words = [
+        ("\uc774", BoundingBox(0, 0, 15, 20), 0.9993),
+        ("\ub7ec\ud55c", BoundingBox(22.2, 0, 60.2, 20), 0.9987),
+        ("\uc77c\ubcf8\uc778\ub4e4\uc758", BoundingBox(72.4, 0, 140, 20), 0.9993),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (150, 20)),
+            BoundingBox(0, 0, 150, 20),
+            CompetitiveOnePlusTwoRecognizer(
+                61,
+                "\uc774\ub7ec\ud55c",
+                competing_confidence=0.9,
+            ),
+        )
+        == words
+    )
+
+
+def test_touching_following_one_plus_two_pair_merges_with_weak_competing_union() -> None:
+    words = [
+        ("\ubcf4\ub2c8", BoundingBox(161.64, 0, 184.64, 15.85), 0.9953),
+        ("\uac1c", BoundingBox(190.64, 0, 201.64, 15.85), 0.99995),
+        ("\uc778\uc744", BoundingBox(202.64, 0, 225.64, 15.85), 0.9994),
+        (
+            "\ubd80\uac01\uc2dc\ud0a4\uae30\ub97c",
+            BoundingBox(225.64, 0, 302.64, 15.85),
+            0.999,
+        ),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (543, 16)),
+        BoundingBox(85.64, 0, 627.36, 15.85),
+        CompetitiveOnePlusTwoRecognizer(35, "\uac1c\uc778\uc744"),
+    )
+
+    assert recovered == [
+        words[0],
+        ("\uac1c\uc778\uc744", BoundingBox(190.64, 0, 225.64, 15.85), 0.9994),
+        words[3],
+    ]
+
+
+def test_touching_following_one_plus_two_pair_rejects_strong_competing_union() -> None:
+    words = [
+        ("\ubcf4\ub2c8", BoundingBox(161.64, 0, 184.64, 15.85), 0.9953),
+        ("\uac1c", BoundingBox(190.64, 0, 201.64, 15.85), 0.99995),
+        ("\uc778\uc744", BoundingBox(202.64, 0, 225.64, 15.85), 0.9994),
+        (
+            "\ubd80\uac01\uc2dc\ud0a4\uae30\ub97c",
+            BoundingBox(225.64, 0, 302.64, 15.85),
+            0.999,
+        ),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (543, 16)),
+            BoundingBox(85.64, 0, 627.36, 15.85),
+            CompetitiveOnePlusTwoRecognizer(
+                35,
+                "\uac1c\uc778\uc744",
+                competing_confidence=0.9,
+            ),
+        )
+        == words
+    )
+
+
+def test_low_confidence_overlapping_one_plus_two_pair_is_not_recovered() -> None:
+    words = [
+        ("\ub9d0\uc740", BoundingBox(0, 0, 26, 18), 0.9999),
+        ("\uc2dc", BoundingBox(25, 0, 42, 18), 0.923),
+        ("\uc6d0\uc740", BoundingBox(45, 0, 71, 18), 0.9997),
+        ("\ud558\uc9c0\ub9cc", BoundingBox(70, 0, 117, 18), 0.9866),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (120, 18)),
+            BoundingBox(0, 0, 120, 18),
+            CompetitiveOnePlusTwoRecognizer(1, "unused"),
+        )
+        == words
+    )
+
+
 class NarrowThreePlusTwoRecognizer:
     def recognize(self, _image):
         return RecognizedText("이론에서는", 0.99985)

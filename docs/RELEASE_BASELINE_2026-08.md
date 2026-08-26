@@ -46,28 +46,28 @@ shifts only targets outside the 1280 by 720 image into a 10 px safe band and rem
 from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
-The v4.15 quick tier records 99.19% whole-eojeol OCR, 99.00% target selection, 94.50%
-functional context, 75.00% exact sentence transcription, 94.00% component accuracy, 95.00%
-exact KRDict fidelity, 90.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 215.75 ms median / 320.77 ms p95. There
-are nine analysis, nine context, and two target failures. Aggregate and every negative category are
+The v4.15 quick tier records 99.23% whole-eojeol OCR, 99.00% target selection, 95.00%
+functional context, 75.50% exact sentence transcription, 94.00% component accuracy, 95.00%
+exact KRDict fidelity, 90.50% fully correct first popups, 96.50% alternative recovery, and zero
+false promotions. The accepted current rerun is 219.71 ms median / 333.37 ms p95. There
+are nine analysis, eight context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
 
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`3b8fe1879034338b76a36d0b7daa570c6d0f91df80f73b9968fc71c4cbbfb427` and
-`df8c349cf0deba55407d19de785994b9a65c04e609314dfc10cb467e677a7ebf`.
+`ac4006b7335d5eb90dac7850d5663efde8d280c08bd2ee283643d2cf6e90be40` and
+`de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
-The complete v4.15 development run against the current OCR and analyzer cleanup records 98.08%
-whole-eojeol OCR, 97.10% target selection, 87.85% functional context, 70.95% exact sentence
-transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 81.75% fully correct first
+The complete v4.15 development run against the current OCR and analyzer cleanup records 98.09%
+whole-eojeol OCR, 97.10% target selection, 87.95% functional context, 71.05% exact sentence
+transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 81.85% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 223.96 ms median / 332.23 ms p95. The privacy-safe stage totals are 58 target,
-185 context, and 122 analysis failures. The analysis failures comprise 50 primary lemmas, 62
+accepted rerun is 225.34 ms median / 337.42 ms p95. The privacy-safe stage totals are 58 target,
+183 context, and 122 analysis failures. The analysis failures comprise 50 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,15 +80,15 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`5674082af135ffaf20491a7cde2024f1d5e30d3fd13bc4249dfa47bf1262acb9` and
-`fb66aae26c63a8b75257d6e1d36c92bb8e25b99ca1bffa53841d54b8892d8707`.
+`194dbd1d01ed75c6bc96df23b6558e05656256f68d634ce6237d08ab27980e4d` and
+`188e9f018269df8c1f94dcbe03de501a8773a2dc315d1e1994bfdc5d9a244ab8`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
 main image. The current 205-decision review is 88 non-target OCR transcription errors, 68 punctuation
 or structured-text cases, 42 missed or merged OCR word boundaries, and seven incorrect line/sentence
-reconstructions. The current full diagnostics have 185 active context cases; the v4.15 fail-closed
-audit finds every active ID reviewed with no missing decisions and 20 resolved IDs. Cross-lock
+reconstructions. The current full diagnostics have 183 active context cases; the v4.15 fail-closed
+audit finds every active ID reviewed with no missing decisions and 22 resolved IDs. Cross-lock
 carry-forward accepts a prior corpus ID while still requiring the same review scope and every
 current stable ID.
 The additional
@@ -99,7 +99,7 @@ normalized suffix. The accepted contained-suffix cleanup resolves all three and 
 protected unrelated-character regression. The decision report persists no corpus text, recognized
 text, definitions, or pixels. Its SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
-The current full run resolves 41 context IDs from the earlier report without adding a new context
+The current full run resolves 43 context IDs from the earlier report without adding a new context
 failure: three from the contained-suffix cleanup, 11 from the confirmed leading-sliver cleanup,
 two from the exact-confirmed suffix-overlap cleanup, and two from permitting one-pixel overlap up
 to 7.5% of a small line under the same exact combined-recognition duplicate profile. That profile
@@ -428,6 +428,21 @@ addition or stage change; `dev-plain-1353` remains as the spacing control. Funct
 exact transcription, and popup correctness rise to 87.85%, 70.95%, and 81.75%. Quick diagnostics
 remain byte-identical. The audit has 185 active context cases, 20 resolved IDs, 27 active boundary
 cases, and no missing decisions.
+
+The twenty-seventh batch reviews the three repeated 3-to-1+2 false splits as separate geometries.
+The line-initial profile requires fragment confidence of at least 99.92% and 99.86%, a gap of
+36% to 36.5% of line height, a following boundary of 61% to 62.5%, compatible pitch, and exact
+union recognition at 99.975% or better. The internal touching-following profile requires fragment
+confidence of at least 99.99% and 99.93%, a gap of 6% to 6.5%, a preceding boundary of at least
+37%, a following boundary within 0.5% of touching, compatible pitch, and the same union floor.
+Both reject recovery when the second fragment joined to its following neighbor recognizes at 90%
+confidence or better; their verification crops normalize subpixel coordinates before integer
+rounding. The low-confidence, overlapping control remains unchanged. The full diagnostic
+comparison removes only `dev-plain-0155` and `dev-plain-1185`, with no new or changed record;
+the quick comparison removes only `dev-plain-0155`. Full OCR, context, exact transcription, and
+popup correctness rise to 98.09%, 87.95%, 71.05%, and 81.85%. Quick OCR, context, exact
+transcription, and popup correctness rise to 99.23%, 95.00%, 75.50%, and 90.50%. The audit has
+183 active context cases, 22 resolved IDs, 25 active boundary cases, and no missing decisions.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

@@ -605,18 +605,21 @@ def _recover_isolated_close_word_pairs(
     recovered: list[tuple[str, BoundingBox, float]] = []
     index = 0
     while index < len(words):
-        if index > 0 and index + 2 < len(words):
+        if index + 2 < len(words):
             first, last = words[index : index + 2]
-            previous = words[index - 1]
+            previous = words[index - 1] if index > 0 else None
             following = words[index + 2]
             gap_ratio = (last[1].left - first[1].right) / line_box.height
-            previous_gap = first[1].left - previous[1].right
+            previous_gap = (
+                first[1].left - previous[1].right if previous is not None else 0.0
+            )
             following_gap = following[1].left - last[1].right
             first_pitch = first[1].width / len(first[0])
             last_pitch = last[1].width / len(last[0])
             pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
             long_suffix_profile = (
-                len(first[0]) == 2
+                previous is not None
+                and len(first[0]) == 2
                 and len(last[0]) == 3
                 and first[2] >= 0.999
                 and last[2] >= 0.999
@@ -626,7 +629,8 @@ def _recover_isolated_close_word_pairs(
                 and pitch_ratio >= 0.95
             )
             isolated_final_syllable_profile = (
-                len(first[0]) == 3
+                previous is not None
+                and len(first[0]) == 3
                 and len(last[0]) == 1
                 and first[2] >= 0.9998
                 and last[2] >= 0.9994
@@ -636,7 +640,8 @@ def _recover_isolated_close_word_pairs(
                 and pitch_ratio >= 0.85
             )
             isolated_two_syllable_profile = (
-                len(first[0]) == 1
+                previous is not None
+                and len(first[0]) == 1
                 and len(last[0]) == 1
                 and first[2] >= 0.989
                 and last[2] >= 0.996
@@ -646,7 +651,8 @@ def _recover_isolated_close_word_pairs(
                 and pitch_ratio >= 0.63
             )
             isolated_one_plus_two_profile = (
-                len(first[0]) == 1
+                previous is not None
+                and len(first[0]) == 1
                 and len(last[0]) == 2
                 and first[2] >= 0.9988
                 and last[2] >= 0.9998
@@ -656,7 +662,8 @@ def _recover_isolated_close_word_pairs(
                 and pitch_ratio >= 0.82
             )
             narrow_three_plus_two_profile = (
-                len(first[0]) == 3
+                previous is not None
+                and len(first[0]) == 3
                 and len(last[0]) == 2
                 and first[2] >= 0.9997
                 and last[2] >= 0.9998
@@ -664,6 +671,29 @@ def _recover_isolated_close_word_pairs(
                 and previous_gap >= line_box.height * 0.25
                 and -line_box.height * 0.055 <= following_gap < 0
                 and pitch_ratio >= 0.98
+            )
+            line_initial_one_plus_two_profile = (
+                previous is None
+                and len(first[0]) == 1
+                and len(last[0]) == 2
+                and first[2] >= 0.9992
+                and last[2] >= 0.9986
+                and 0.36 <= gap_ratio <= 0.365
+                and 0.61 <= following_gap / line_box.height <= 0.625
+                and pitch_ratio >= 0.78
+            )
+            touching_following_one_plus_two_profile = (
+                previous is not None
+                and len(first[0]) == 1
+                and len(last[0]) == 2
+                and first[2] >= 0.9999
+                and last[2] >= 0.9993
+                and 0.06 <= gap_ratio <= 0.065
+                and previous_gap >= line_box.height * 0.37
+                and -line_box.height * 0.005
+                <= following_gap
+                <= line_box.height * 0.005
+                and pitch_ratio >= 0.95
             )
             matches_geometry = (
                 contains_hangul(first[0])
@@ -674,14 +704,24 @@ def _recover_isolated_close_word_pairs(
                     or isolated_two_syllable_profile
                     or isolated_one_plus_two_profile
                     or narrow_three_plus_two_profile
+                    or line_initial_one_plus_two_profile
+                    or touching_following_one_plus_two_profile
                 )
             )
             if matches_geometry:
+                candidate_left = first[1].left - line_box.left
+                candidate_right = last[1].right - line_box.left
+                if (
+                    line_initial_one_plus_two_profile
+                    or touching_following_one_plus_two_profile
+                ):
+                    candidate_left = round(candidate_left, 6)
+                    candidate_right = round(candidate_right, 6)
                 combined_crop = crop.crop(
                     (
-                        max(0, math.floor(first[1].left - line_box.left)),
+                        max(0, math.floor(candidate_left)),
                         0,
-                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        min(crop.width, math.ceil(candidate_right)),
                         crop.height,
                     )
                 )
@@ -689,6 +729,11 @@ def _recover_isolated_close_word_pairs(
                 combined_text = combined.text.replace(' ', '')
                 if isolated_two_syllable_profile or isolated_one_plus_two_profile:
                     required_confidence = 0.9999
+                elif (
+                    line_initial_one_plus_two_profile
+                    or touching_following_one_plus_two_profile
+                ):
+                    required_confidence = 0.99975
                 elif narrow_three_plus_two_profile:
                     required_confidence = 0.9998
                 elif isolated_final_syllable_profile:
@@ -699,6 +744,30 @@ def _recover_isolated_close_word_pairs(
                     combined.confidence >= required_confidence
                     and combined_text == first[0] + last[0]
                 ):
+                    if (
+                        line_initial_one_plus_two_profile
+                        or touching_following_one_plus_two_profile
+                    ):
+                        competing_left = round(last[1].left - line_box.left, 6)
+                        competing_right = round(
+                            following[1].right - line_box.left,
+                            6,
+                        )
+                        competing_crop = crop.crop(
+                            (
+                                max(0, math.floor(competing_left)),
+                                0,
+                                min(
+                                    crop.width,
+                                    math.ceil(competing_right),
+                                ),
+                                crop.height,
+                            )
+                        )
+                        if recognizer.recognize(competing_crop).confidence >= 0.9:
+                            recovered.append(words[index])
+                            index += 1
+                            continue
                     recovered.append(
                         (
                             combined_text,
