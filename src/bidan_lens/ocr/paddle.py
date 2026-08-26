@@ -1019,6 +1019,73 @@ def _recover_confirmed_three_plus_three_splits(
     return recovered
 
 
+def _recover_relative_gap_two_plus_two_pairs(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index + 2 < len(words):
+            first, last, following = words[index : index + 3]
+            gap = last[1].left - first[1].right
+            following_gap = following[1].left - last[1].right
+            previous_gap = (
+                None
+                if index == 0
+                else first[1].left - words[index - 1][1].right
+            )
+            first_pitch = first[1].width / len(first[0])
+            last_pitch = last[1].width / len(last[0])
+            pitch_ratio = min(first_pitch, last_pitch) / max(
+                first_pitch,
+                last_pitch,
+            )
+            matches_geometry = (
+                len(first[0]) == 2
+                and len(last[0]) == 2
+                and all(is_hangul(character) for character in first[0] + last[0])
+                and first[2] >= 0.996
+                and last[2] >= 0.996
+                and line_box.height * 0.15 <= gap <= line_box.height * 0.24
+                and (
+                    previous_gap is None
+                    or previous_gap >= gap + line_box.height * 0.1
+                )
+                and following_gap >= gap + line_box.height * 0.1
+                and pitch_ratio >= 0.95
+            )
+            if matches_geometry:
+                combined_crop = crop.crop(
+                    (
+                        max(0, math.floor(first[1].left - line_box.left)),
+                        0,
+                        min(crop.width, math.ceil(last[1].right - line_box.left)),
+                        crop.height,
+                    )
+                )
+                combined = recognizer.recognize(combined_crop)
+                combined_text = combined.text.replace(" ", "")
+                if (
+                    combined.confidence >= 0.996
+                    and combined_text == first[0] + last[0]
+                ):
+                    recovered.append(
+                        (
+                            combined_text,
+                            BoundingBox.union((first[1], last[1])),
+                            min(first[2], last[2], combined.confidence),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
 def _recover_word_boundaries(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -1052,6 +1119,12 @@ def _recover_word_boundaries(
         recognizer,
     )
     words = _recover_isolated_overlapping_word_pairs(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_relative_gap_two_plus_two_pairs(
         words,
         crop,
         line_box,

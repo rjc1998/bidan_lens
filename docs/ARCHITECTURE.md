@@ -99,6 +99,11 @@ confidence for the four-syllable fragment, and exact combined recognition at 99.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
+An internal two-plus-two-syllable pair has a separate relative-gap profile: both fragments must
+be pure Hangul and at least 99.6% confident, their gap must be 15% to 24% of line height, each
+available neighboring boundary must be at least ten percentage points wider, character pitch
+must agree within 5%, and recognizing the union at 99.6% or better must exactly return their
+concatenation. A following word is required, which prevents this profile from acting at line end.
 A six-syllable all-Hangul word can be split into two three-syllable eojeols only when the normal
 CTC threshold retains one word but a 0.01 space probe returns exactly two crops. Their gap must be
 28% to 35% of line height, pitch must be compatible, the original and parts must meet separate

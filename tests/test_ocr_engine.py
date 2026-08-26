@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_isolated_overlapping_word_pairs,
     _recover_overlapping_suffix_pairs,
     _recover_overlapping_word_triplets,
+    _recover_relative_gap_two_plus_two_pairs,
     _recover_terminal_overlapping_word_pair,
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
@@ -1627,6 +1628,73 @@ def test_confirmed_three_plus_three_split_requires_exact_parts() -> None:
             Image.new("RGB", (140, 17)),
             BoundingBox(0, 0, 140, 17),
             ConfirmedThreePlusThreeRecognizer("문화점"),
+        )
+        == words
+    )
+
+
+class RelativeGapTwoPlusTwoRecognizer:
+    def __init__(self, confidence: float = 0.999) -> None:
+        self.confidence = confidence
+
+    def recognize(self, _image):
+        return RecognizedText("한계성에", self.confidence)
+
+
+def test_relative_gap_two_plus_two_pair_merges_exact_union() -> None:
+    words = [
+        ("앞말", BoundingBox(0, 0, 30, 20), 0.999),
+        ("한계", BoundingBox(40, 0, 72, 20), 0.9994),
+        ("성에", BoundingBox(75.2, 0, 108, 20), 0.9998),
+        ("뒷말", BoundingBox(115.2, 0, 147.2, 20), 0.999),
+    ]
+
+    recovered = _recover_relative_gap_two_plus_two_pairs(
+        words,
+        Image.new("RGB", (160, 20)),
+        BoundingBox(0, 0, 160, 20),
+        RelativeGapTwoPlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("한계성에", BoundingBox(40, 0, 108, 20), 0.999),
+        words[3],
+    ]
+
+
+def test_relative_gap_two_plus_two_pair_requires_wider_following_gap() -> None:
+    words = [
+        ("한계", BoundingBox(0, 0, 32, 20), 0.9994),
+        ("성에", BoundingBox(35.2, 0, 68, 20), 0.9998),
+        ("뒷말", BoundingBox(73.1, 0, 105.1, 20), 0.999),
+    ]
+
+    assert (
+        _recover_relative_gap_two_plus_two_pairs(
+            words,
+            Image.new("RGB", (120, 20)),
+            BoundingBox(0, 0, 120, 20),
+            RelativeGapTwoPlusTwoRecognizer(),
+        )
+        == words
+    )
+
+
+def test_relative_gap_two_plus_two_pair_rejects_ordinary_space() -> None:
+    words = [
+        ("앞말", BoundingBox(0, 0, 32, 20), 0.999),
+        ("없다", BoundingBox(40, 0, 65, 20), 0.9992),
+        ("보니", BoundingBox(70, 0, 95, 20), 0.9991),
+        ("뒷말", BoundingBox(102, 0, 134, 20), 0.999),
+    ]
+
+    assert (
+        _recover_relative_gap_two_plus_two_pairs(
+            words,
+            Image.new("RGB", (145, 20)),
+            BoundingBox(0, 0, 145, 20),
+            RelativeGapTwoPlusTwoRecognizer(),
         )
         == words
     )
