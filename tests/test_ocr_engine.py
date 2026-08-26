@@ -1552,6 +1552,135 @@ def test_three_plus_two_spacing_control_is_not_recovered() -> None:
     assert recognizer.calls == 0
 
 
+class CompetitiveFourPlusTwoRecognizer:
+    def __init__(
+        self,
+        candidate_width: int,
+        candidate_text: str,
+        candidate_confidence: float,
+        *,
+        strong_competitor_width: int | None = None,
+    ) -> None:
+        self.candidate_width = candidate_width
+        self.candidate_text = candidate_text
+        self.candidate_confidence = candidate_confidence
+        self.strong_competitor_width = strong_competitor_width
+
+    def recognize(self, image):
+        if image.width == self.candidate_width:
+            return RecognizedText(self.candidate_text, self.candidate_confidence)
+        confidence = 0.99 if image.width == self.strong_competitor_width else 0.98
+        return RecognizedText("competing", confidence)
+
+
+def test_positive_gap_four_plus_two_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uae40\ub300\uc911\uc528", BoundingBox(50.2, 0, 130.2, 20), 0.9988),
+        ("\uc870\ucc28", BoundingBox(134.74, 0, 174.74, 20), 0.9998),
+        ("\ub2e4\uc74c", BoundingBox(183.74, 0, 223.74, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (230, 20)),
+        BoundingBox(0, 0, 230, 20),
+        CompetitiveFourPlusTwoRecognizer(
+            125,
+            "\uae40\ub300\uc911\uc528\uc870\ucc28",
+            0.9971,
+        ),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            "\uae40\ub300\uc911\uc528\uc870\ucc28",
+            BoundingBox(50.2, 0, 174.74, 20),
+            0.9971,
+        ),
+        words[3],
+    ]
+
+
+def test_overlapping_four_plus_two_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uc911\uc18c\uae30\uc5c5", BoundingBox(47.2, 0, 127.2, 20), 0.99895),
+        ("\uc5d0\uc11c", BoundingBox(126.16, 0, 166.16, 20), 0.9607),
+        ("\ub2e4\uc74c", BoundingBox(174.36, 0, 214.36, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (220, 20)),
+        BoundingBox(0, 0, 220, 20),
+        CompetitiveFourPlusTwoRecognizer(
+            120,
+            "\uc911\uc18c\uae30\uc5c5\uc5d0\uc11c",
+            0.9994,
+        ),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            "\uc911\uc18c\uae30\uc5c5\uc5d0\uc11c",
+            BoundingBox(47.2, 0, 166.16, 20),
+            0.9607,
+        ),
+        words[3],
+    ]
+
+
+def test_positive_gap_four_plus_two_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uae40\ub300\uc911\uc528", BoundingBox(50.2, 0, 130.2, 20), 0.9988),
+        ("\uc870\ucc28", BoundingBox(134.74, 0, 174.74, 20), 0.9998),
+        ("\ub2e4\uc74c", BoundingBox(183.74, 0, 223.74, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (230, 20)),
+            BoundingBox(0, 0, 230, 20),
+            CompetitiveFourPlusTwoRecognizer(
+                125,
+                "\uae40\ub300\uc911\uc528\uc870\ucc28",
+                0.9971,
+                strong_competitor_width=131,
+            ),
+        )
+        == words
+    )
+
+
+def test_overlapping_four_plus_two_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("\uc911\uc18c\uae30\uc5c5", BoundingBox(47.2, 0, 127.2, 20), 0.99895),
+        ("\uc5d0\uc11c", BoundingBox(126.16, 0, 166.16, 20), 0.9607),
+        ("\ub2e4\uc74c", BoundingBox(174.36, 0, 214.36, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (220, 20)),
+            BoundingBox(0, 0, 220, 20),
+            CompetitiveFourPlusTwoRecognizer(
+                120,
+                "\uc911\uc18c\uae30\uc5c5\uc5d0\uc11c",
+                0.9994,
+                strong_competitor_width=89,
+            ),
+        )
+        == words
+    )
+
+
 class NarrowThreePlusTwoRecognizer:
     def recognize(self, _image):
         return RecognizedText("이론에서는", 0.99985)

@@ -124,6 +124,14 @@ profile requires fragment confidence of 99.81% and 99.94%, a gap of 36% to 36.5%
 neighboring boundaries of at least 61%, pitch agreement within 4%, and exact combined recognition
 at 99.77% or better. Both normalize subpixel verification coordinates and reject the candidate
 when an available adjacent union reaches 99% for the narrow profile or 99.5% for the wide one.
+Two internal four-plus-two-syllable pure-Hangul profiles recover independently reviewed false
+splits. The positive-gap profile requires fragment confidence of 99.87% and 99.97%, a gap of
+22.5% to 23% of line height, preceding and following boundaries of at least 51% and 45%, pitch
+agreement within 2%, and exact combined recognition at 99.70% or better. The slight-overlap
+profile requires fragment confidence of 99.89% and 96.06%, an overlap of 5% to 5.5%, preceding
+and following boundaries of at least 36% and 41%, pitch agreement within 15%, and exact combined
+recognition at 99.93% or better. Both normalize subpixel verification coordinates and reject the
+candidate when either available adjacent union reaches 98.5% confidence.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character
