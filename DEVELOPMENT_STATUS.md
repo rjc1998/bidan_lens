@@ -53,30 +53,30 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.14\dev`; the untouched v4.2 release corpus remains under
+`F:\bidan-lens-eval-ud218-v4.15\dev`; the untouched v4.2 release corpus remains under
 `F:\bidan-lens-eval-ud218-v4.2\release` and has not been evaluated. Earlier roots remain
-preserved. The v4.14 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
+preserved. The v4.15 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
 quick cases, is hash-locked, and passes corpus validation. It uses the current corpus builder and
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.14 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
+The accepted v4.15 200-case quick tier records 98.96% whole-eojeol OCR, 99.00% target
 selection, 93.00% functional context, 73.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 214.35 ms
-median / 317.74 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 89.00% fully correct first popups, with 222.26 ms
+median / 324.74 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), 12 context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
-The v4.14 quick diagnostics remain byte-identical to the accepted v4.12 primary-lemma rerun.
+The v4.15 quick diagnostics remain byte-identical to the accepted v4.12 primary-lemma rerun.
 
-The complete v4.14 development evaluation has now run against the current analyzer cleanup.
+The complete v4.15 development evaluation has now run against the current analyzer cleanup.
 Its 2,000 main cases record 97.98% whole-eojeol OCR, 97.10% target selection, 86.85% functional
-context, 70.00% exact sentence transcription, 92.20% component accuracy, 94.70% exact KRDict
-fidelity, 80.75% fully correct first popups, and 94.00% alternative recovery. False promotions
-remain zero and the accepted rerun is 228.63 ms median / 339.23 ms p95. Privacy-safe diagnostics
-contain 58 target, 205 context, and 122 analysis failures; the analysis stages are 48 primary
-lemmas, 62 component roles, four component counts, and eight grammar roles. No component-surface
+context, 70.00% exact sentence transcription, 92.35% component accuracy, 94.75% exact KRDict
+fidelity, 80.85% fully correct first popups, and 94.10% alternative recovery. False promotions
+remain zero and the accepted rerun is 224.66 ms median / 333.62 ms p95. Privacy-safe diagnostics
+contain 58 target, 205 context, and 120 analysis failures; the analysis stages are 48 primary
+lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
 The nonblocking 250-case stress tier records 94.19% OCR, 96.00% target selection, 67.20%
@@ -96,9 +96,10 @@ line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
 IDs, categorical decisions, and counts. The current full diagnostics have 205 active context
-cases; the fail-closed audit finds 17 resolved reviewed IDs, all 205 active IDs reviewed, and no
-missing decisions. The decision report SHA-256 is
-`a4c0f528cd6e2b945c8eb0600af8797b0666d96709641551ed5fd3aa8e88ba66`.
+cases; the v4.15 fail-closed audit finds all 205 active IDs reviewed with no missing or resolved
+IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same review
+scope and every current stable ID. The decision report SHA-256 is
+`34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
 
 Three independently reviewed reconstruction cases contained a one-character eojeol centered
 inside a two-character eojeol while exactly repeating its punctuation-normalized suffix. The
@@ -124,11 +125,11 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.14 history contains 117 decisions: 30 Kiwi-analysis errors, 38 annotation-
+The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and six genuinely ambiguous cases. Its fail-closed audit finds 122 active failures, 115 active
-reviewed IDs, two resolved IDs, seven explicitly unreviewed IDs, and no stale decision. Its
-SHA-256 is `7d36bf7b452e85038d682ca35e76a8339c1748d516b4e0ff943c1f7e2583b803`.
+and seven genuinely ambiguous cases. Its fail-closed audit finds all 120 active failures reviewed
+with no missing, resolved, or stale ID. Its SHA-256 is
+`d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
@@ -264,6 +265,23 @@ correctness to 80.75%; alternative recovery, stress, held-out language, upstream
 negative-pointer results are unchanged. The aggregate and diagnostic report SHA-256 values are
 `3da04aebe952ea9621e7c3ec828bd6b7a849032b5bc55067d73585a90c670e7d` and
 `fcf608311de92707c687e352311f9d74373ce8e06f19e6d4ad56846191f64d22`.
+
+The twelfth batch completes the seven grammar-role reviews as four annotation-convention
+differences, two Kiwi-analysis errors, and one corpus-oracle defect. Four KAIST reported-speech
+`jcr` tags are learner-equivalent connective endings and do not support a runtime particle
+promotion. The oracle now maps an ADP token with particle XPOS to its first annotated particle
+morpheme and orders particle homographs first. Wrapper-free sentence context can recover a
+dictionary-backed standalone particle or a copular adnominal before a dependent noun under
+bounded structural checks. The v4.15 comparison resolves two main grammar-role failures and adds
+none: component accuracy rises to 92.35%, KRDict fidelity to 94.75%, popup correctness to 80.85%,
+and alternative recovery to 94.10%. Quick accuracy remains unchanged, false promotions stay zero,
+and stress, held-out language, upstream, and negative-pointer metrics do not regress. The corrected
+particle case remains genuinely ambiguous after OCR omits its adjacent percent sign. The v4.15
+corpus lock SHA-256 is
+`5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`;
+the aggregate and diagnostic report SHA-256 values are
+`f1a3e25371ae46a3b40cff4fc1bbd909e1c1a1a17a415a9277accd5f67662685` and
+`0a46fd97070dda3606d9311b39a31b8eb651ab4d223eff5bef5cb600d7662484`.
 
 Geometry-only review showed that the two former near-miss points were inside real words on the
 line adjacent to their targets. Probe construction now tests lower, upper, right, and left
@@ -469,14 +487,13 @@ The four remaining primary-lemma cases were rechecked against the pinned annotat
 local KRDict entries. Their decisions are one annotation-convention difference, three equivalent
 learner interpretations, and no review-supported general runtime correction.
 
-The historical v4.9 multi-lexical result passed, but the complete v4.14 development run now shows
+The historical v4.9 multi-lexical result passed, but the complete v4.15 development run now shows
 that main popup, functional context, required render strata, held-out multi-lexical analysis, and
 punctuation activation still block release evidence. Primary-lemma, component-surface,
-component-role, and component-count review is complete. The next review target is the seven
-unreviewed grammar-role cases.
-General corrections supported by that review
-should be cross-validated against the quick, full, stress, and held-out tiers before returning to
-the nine punctuation activations. Thresholds are not frozen, and neither the untouched release
+component-role, component-count, and grammar-role review is complete. The next development target
+is the nine punctuation activations, using geometry-only inspection and bounded hover hit-testing
+changes that preserve OCR, target selection, and the passing quick negative categories. Thresholds
+are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 

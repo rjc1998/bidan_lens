@@ -188,6 +188,23 @@ def test_source_components_cover_adverbs_and_terminal_noun_suffixes() -> None:
     assert noun.lemma == "\ub9c8\ud53c\uc544\ub07c\ub9ac"
 
 
+def test_particle_only_oracle_component_uses_first_annotated_particle() -> None:
+    token = UdToken("14", "\ub9cc\uc774", "\ub9cc+\uc774", "ADP", "jxc+jcs", "", "case")
+    oracle = {
+        "\ub9cc": (
+            OracleEntry("number", "\ub9cc", ((1, "ten thousand"),), "numeral"),
+            OracleEntry("particle", "\ub9cc", ((1, "only"),), "particle"),
+        )
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.surface == "\ub9cc"
+    assert component.lemma == "\ub9cc"
+    assert component.learner_role == "particle"
+    assert component.entries[0].entry_id == "particle"
+
+
 def test_oracle_noun_suffix_before_copula_remains_unattached() -> None:
     token = UdToken(
         "1",

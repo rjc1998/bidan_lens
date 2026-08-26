@@ -284,9 +284,62 @@ class KoreanAnalyzer:
             unwrapped_span,
             max_candidates,
         )
-        if not contextual or not contextual[0].dictionary_entries:
+        if not contextual:
             return candidates
-        signature = self._candidate_signature(contextual[0])
+        first = candidates[0]
+        alternative = contextual[0]
+        alternative_labels = {feature.label for feature in alternative.features}
+        alternative_labels.update(
+            morpheme.learner_label for morpheme in alternative.morphemes
+        )
+        surface = sentence[start:end]
+        if (
+            not alternative.lexical_components
+            and 'particle' in alternative_labels
+            and self._is_whole_surface_nominal_candidate(first)
+            and self.dictionary.lookup(surface, 'particle', 1)
+        ):
+            particle_entries = self._ordered_entries(surface, 'JKG')
+            promoted = replace(
+                alternative,
+                score=first.score,
+                dictionary_entries=particle_entries,
+                lexical_components=(
+                    LexicalComponent(
+                        surface,
+                        surface,
+                        'particle',
+                        particle_entries,
+                    ),
+                ),
+                uncertain=True,
+            )
+            return (promoted, *candidates)[:max_candidates]
+        if not alternative.dictionary_entries:
+            return candidates
+        first_components = first.lexical_components
+        alternative_components = alternative.lexical_components
+        nominal_roles = {
+            'noun',
+            'name or proper noun',
+            'pronoun',
+            'number',
+            'dependent noun',
+        }
+        if (
+            len(first_components) == len(alternative_components) + 1
+            and alternative_components
+            and first_components[:-1] == alternative_components
+            and first_components[-1].surface == '일'
+            and first_components[-1].lemma == '일'
+            and first_components[-1].learner_role in nominal_roles
+            and alternative.lemma == first.lemma
+            and 'verb ending' in alternative_labels
+            and self._has_only_unrepresented_copula(alternative)
+        ):
+            promoted = replace(alternative, score=first.score, uncertain=True)
+            return (promoted, *candidates)[:max_candidates]
+        signature = self._candidate_signature(alternative)
         if self._candidate_signature(candidates[0]) == signature:
             return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
@@ -316,8 +369,6 @@ class KoreanAnalyzer:
             for candidate in candidates[1:]
         ):
             return candidates
-        first = candidates[0]
-        alternative = contextual[0]
         if (
             alternative.surface != first.surface
             or alternative.lemma != first.lemma
@@ -1615,6 +1666,8 @@ class KoreanAnalyzer:
             roles = ('adverb',)
         elif tag == 'MM':
             roles = ('determiner',)
+        elif tag.startswith('J'):
+            roles = ('particle',)
         elif tag.startswith('N'):
             roles = ('noun',)
         else:

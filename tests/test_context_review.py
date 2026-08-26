@@ -77,6 +77,11 @@ def test_full_context_review_is_separately_scoped(tmp_path: Path) -> None:
         'corpus-v4',
         FULL_CONTEXT_REVIEW_KIND,
     ) == decisions
+    assert load_context_review(
+        path,
+        None,
+        FULL_CONTEXT_REVIEW_KIND,
+    ) == decisions
     with pytest.raises(CorpusError, match='do not match'):
         load_context_review(path, 'corpus-v4')
     value = json.loads(path.read_text(encoding='utf-8'))

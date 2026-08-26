@@ -982,7 +982,11 @@ def main() -> None:
             parser.error(f'unknown {scope} sample ID: {missing[0]}')
     cases = collect_context_review_cases(engine, case_samples)
     if arguments.carry_forward:
-        prior = load_context_review(arguments.carry_forward, corpus_id, None)
+        prior = load_context_review(
+            arguments.carry_forward,
+            None,
+            review_kind,
+        )
         decisions = carry_forward_context_decisions(cases, prior)
         write_context_review(
             arguments.decisions,

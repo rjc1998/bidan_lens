@@ -454,6 +454,10 @@ def load_krdict_oracle(source: Path) -> dict[str, tuple[OracleEntry, ...]]:
 
 def _expected_dictionary_pos(token: UdToken) -> str | None:
     tags = _morph_parts(token)[1]
+    if token.upos == 'ADP' and any(
+        tag.startswith('j') and tag != 'jp' for tag in tags
+    ):
+        return 'particle'
     if any(tag in {"px", "vx"} for tag in tags):
         return "보조 동사"
     if any(tag == "pvg" for tag in tags) or token.upos == "VERB":
@@ -617,6 +621,19 @@ def _expected_components(
         entries = _ordered_oracle_entries(oracle, lemma, _component_positions(component_tag, role))
         components.append(OracleComponent(surface, lemma, role, entries))
         index += 1
+    if not components and token.upos == 'ADP':
+        for form, tag in zip(forms, tags, strict=False):
+            if tag.startswith('j') and tag != 'jp':
+                particle = _normalized(form)
+                components.append(
+                    OracleComponent(
+                        particle,
+                        particle,
+                        'particle',
+                        _oracle_lookup(oracle, particle, 'particle'),
+                    )
+                )
+                break
     return tuple(components)
 
 

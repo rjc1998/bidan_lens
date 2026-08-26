@@ -1498,6 +1498,146 @@ def test_wrapper_context_can_replace_learner_identical_candidates() -> None:
     assert candidate.lexical_components[0].learner_role == 'helping verb'
 
 
+class WrapperGrammarDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '경우': ('noun',),
+            '일': ('noun',),
+            '의': ('noun', 'particle'),
+        }.get(lemma, ())
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+def test_wrapper_context_recovers_a_dictionary_backed_standalone_particle() -> None:
+    wrapped = '대부 [의] 요체'
+    unwrapped = '대부 의 요체'
+    wrapped_analyses = [
+        (
+            [
+                Token('대부', 'NNG', 0, 2),
+                Token('[', 'SSO', 3, 1),
+                Token('의', 'NNG', 4, 1),
+                Token(']', 'SSC', 5, 1),
+                Token('요체', 'NNG', 7, 2),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('대부', 'NNG', 0, 2),
+                Token('[', 'SSO', 3, 1),
+                Token('의', 'JKG', 4, 1),
+                Token(']', 'SSC', 5, 1),
+                Token('요체', 'NNG', 7, 2),
+            ],
+            -6.0,
+        ),
+    ]
+    unwrapped_analyses = [
+        (
+            [
+                Token('대부', 'NNG', 0, 2),
+                Token('의', 'JKG', 3, 1),
+                Token('요체', 'NNG', 5, 2),
+            ],
+            -1.0,
+        )
+    ]
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                values = unwrapped_analyses
+            elif text == '의':
+                values = [([Token('의', 'NNG', 0, 1)], -1.0)]
+            else:
+                values = wrapped_analyses
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        WrapperGrammarDictionary(),
+        WrapperKiwi([]),
+    ).analyze(wrapped, (4, 5))[0]
+
+    assert candidate.lemma == '의'
+    assert candidate.lexical_components[0].learner_role == 'particle'
+    assert candidate.dictionary_entries[0].part_of_speech == 'particle'
+    assert [entry.part_of_speech for entry in candidate.dictionary_entries] == [
+        'particle',
+        'noun',
+    ]
+
+
+def test_wrapper_context_recovers_a_copular_adnominal_before_a_dependent_noun() -> None:
+    wrapped = '전자의 /경우일/ 터'
+    unwrapped = '전자의 경우일 터'
+    wrapped_analyses = [
+        (
+            [
+                Token('전자', 'NNG', 0, 2),
+                Token('의', 'JKG', 2, 1),
+                Token('/', 'SP', 4, 1),
+                Token('경우', 'NNG', 5, 2),
+                Token('일', 'NNG', 7, 1),
+                Token('/', 'SP', 8, 1),
+                Token('터', 'NNB', 10, 1),
+            ],
+            -1.0,
+        )
+    ]
+    unwrapped_analyses = [
+        (
+            [
+                Token('전자', 'NNG', 0, 2),
+                Token('의', 'JKG', 2, 1),
+                Token('경우', 'NNG', 4, 2),
+                Token('이', 'VCP', 6, 1),
+                Token('ㄹ', 'ETM', 6, 1),
+                Token('터', 'NNB', 8, 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                values = unwrapped_analyses
+            elif text == '경우일':
+                values = [
+                    (
+                        [Token('경우', 'NNG', 0, 2), Token('일', 'NNG', 2, 1)],
+                        -1.0,
+                    )
+                ]
+            else:
+                values = wrapped_analyses
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        WrapperGrammarDictionary(),
+        WrapperKiwi([]),
+    ).analyze(wrapped, (5, 8))[0]
+
+    assert candidate.lemma == '경우'
+    assert [component.lemma for component in candidate.lexical_components] == [
+        '경우'
+    ]
+    assert 'verb ending' in {feature.label for feature in candidate.features}
+
+
 def test_contracted_hayaman_context_promotes_auxiliary_hada() -> None:
     analyses = [
         (
