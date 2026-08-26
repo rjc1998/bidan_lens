@@ -25,7 +25,9 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
 - `ocr` owns pixel preprocessing, local ONNX inference, line text, and geometry.
 - `pipeline.hit_test` selects a complete whitespace-delimited eojeol only when the pointer
   is inside a conservative inner region and over Hangul glyph geometry. Punctuation, ASCII
-  context, eojeol edges, and blank space do not create targets.
+  context, eojeol edges, and blank space do not create targets. A single-Hangul box whose width
+  is at least 1.5 times its height uses a slightly larger right inset to reject swallowed
+  trailing punctuation without changing its left or vertical target area.
 - `analysis` receives the full OCR line plus the selected span. Raw morphology tags are
   internal and are translated into ordered lexical components with surface, lemma, and a
   beginner-facing contextual role. Auxiliary tags prioritize KRDict helping-verb/helping-

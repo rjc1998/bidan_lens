@@ -63,3 +63,18 @@ def test_hit_test_requires_pointer_over_hangul_glyph() -> None:
 
     assert hit_test(document, 5, 10) is not None
     assert hit_test(document, 15, 10) is None
+
+
+def test_hit_test_trims_only_the_right_edge_of_an_abnormally_wide_glyph() -> None:
+    wide = OcrDocument(
+        (make_line("\ud55c", BoundingBox(0, 0, 40, 20), 0.9),),
+        1.0,
+    )
+    normal = OcrDocument(
+        (make_line("\ud55c", BoundingBox(0, 0, 20, 20), 0.9),),
+        1.0,
+    )
+
+    assert hit_test(wide, 9, 10) is not None
+    assert hit_test(wide, 31, 10) is None
+    assert hit_test(normal, 15.5, 10) is not None

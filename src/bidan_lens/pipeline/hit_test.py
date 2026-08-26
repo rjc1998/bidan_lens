@@ -4,17 +4,29 @@ from bidan_lens.models import HoverTarget, OcrDocument, OcrEojeol
 from bidan_lens.ocr.hangul import is_hangul
 
 _HIT_INSET_RATIO = 0.2
+_WIDE_SINGLE_GLYPH_ASPECT_RATIO = 1.5
+_WIDE_SINGLE_GLYPH_RIGHT_INSET_RATIO = 0.25
 
 
 def _contains_hover_target(
     eojeol: OcrEojeol, x: float, y: float, padding: float
 ) -> bool:
     inset_x = eojeol.box.width * _HIT_INSET_RATIO
+    right_inset_x = inset_x
+    if (
+        len(eojeol.glyphs) == 1
+        and is_hangul(eojeol.glyphs[0].text)
+        and eojeol.box.width
+        >= eojeol.box.height * _WIDE_SINGLE_GLYPH_ASPECT_RATIO
+    ):
+        right_inset_x = (
+            eojeol.box.width * _WIDE_SINGLE_GLYPH_RIGHT_INSET_RATIO
+        )
     inset_y = eojeol.box.height * _HIT_INSET_RATIO
     if not (
         eojeol.box.left + inset_x - padding
         <= x
-        <= eojeol.box.right - inset_x + padding
+        <= eojeol.box.right - right_inset_x + padding
         and eojeol.box.top + inset_y - padding
         <= y
         <= eojeol.box.bottom - inset_y + padding

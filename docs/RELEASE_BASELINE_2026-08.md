@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.15 quick tier records 98.96% whole-eojeol OCR, 99.00% target selection, 93.00%
 functional context, 73.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 89.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted rerun is 222.26 ms median / 324.74 ms p95. There
+false promotions. The accepted rerun is 213.08 ms median / 331.10 ms p95. There
 are eight analysis, 12 context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,7 +57,7 @@ gate pass.
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`c23d56c00494b468c33f333cab9e70b16b2ee64115927e993bbfed3b6e08f4f6` and
+`0cc9b87444d03d1ac217bfa0afafe488328fcabb9a173f1c711eb2f9c21e927f` and
 `147ca29fc83a6aeaf6f4b04b1bb69eb9cd23926f27ffb9ca7e9e4d194a867c60`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
@@ -66,7 +66,7 @@ The complete v4.15 development run against the current analyzer cleanup records 
 whole-eojeol OCR, 97.10% target selection, 86.85% functional context, 70.00% exact sentence
 transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 80.85% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 224.66 ms median / 333.62 ms p95. The privacy-safe stage totals are 58 target,
+accepted rerun is 221.83 ms median / 330.12 ms p95. The privacy-safe stage totals are 58 target,
 205 context, and 120 analysis failures. The analysis failures comprise 48 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
@@ -76,13 +76,13 @@ functional context, 93.60% component accuracy, and 63.20% fully correct first po
 held-out language tier is 91.50% overall and 96.00% for auxiliary cases, but its 87.00%
 multi-lexical result is below the
 exceptional floor; direct KRDict conformance remains 100%. Aggregate main negative activation is
-0.14%. Blank, English, and near-miss remain at zero, whitespace is four of 1,931 (0.21%), and
-punctuation is nine of 1,582 (0.57%), so the strict per-category gate fails. The correction,
-dictionary-conformance, and latency gates pass; the primary and exceptional floors do not.
+0.11%. Blank, English, and near-miss remain at zero, whitespace is four of 1,931 (0.21%), and
+punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, latency, and strict
+aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`f1a3e25371ae46a3b40cff4fc1bbd909e1c1a1a17a415a9277accd5f67662685` and
-`0a46fd97070dda3606d9311b39a31b8eb651ab4d223eff5bef5cb600d7662484`.
+`ec0f004dc6c68cca531bbf364d7ef388d848f25264c18bb57fb653bc51aaf5e7` and
+`41194b9c0e2b607293c2fa5f0b9394c6091a323766b96cec8aa6192f1f186e85`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -260,8 +260,21 @@ failures and adds none. Component accuracy rises to 92.35%, KRDict fidelity to 9
 correctness to 80.85%, and alternative recovery to 94.10%; quick accuracy is unchanged, false
 promotions stay zero, and stress, held-out language, upstream, and negative-pointer metrics do not
 regress. The corrected particle case remains genuinely ambiguous after OCR omits its adjacent
-percent sign. Grammar-role review is complete; the next development target is the nine full-tier
-punctuation activations.
+percent sign. Grammar-role review is complete; at that point the next development target was the
+nine full-tier punctuation activations.
+
+Geometry-only review finds three punctuation activations in single-Hangul OCR boxes whose width is
+1.53 to 1.99 times their height after trailing punctuation is swallowed. Their valid target points
+remain in the left interior while the punctuation probes occupy the rightmost 21.7% to 23.4% of the
+abnormally wide box. Hit testing now uses a 25% right inset, instead of 20%, only for a one-glyph
+Hangul eojeol at least 1.5 times as wide as it is tall. Other edges, normal glyphs, and multi-glyph
+eojeols are unchanged. The exact full diagnostic comparison removes only the three
+punctuation-only IDs, with no addition or stage change. Punctuation activation falls from nine of
+1,582 (0.57%) to six (0.38%), while target selection remains 97.10% and quick target selection
+remains 99.00%. Every OCR, context, popup, stress, language, promotion, and quick negative result
+is unchanged, so the aggregate/per-category negative gate now passes. The next target is the
+held-out multi-lexical tier, where two recoveries restore its 88% exceptional floor before the
+larger rendered context and popup deficits are revisited.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects
