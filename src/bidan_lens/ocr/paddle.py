@@ -879,6 +879,73 @@ def _overlapping_prefix_end(left: str, right: str) -> int:
     return 0
 
 
+def _structured_overlap_artifacts(
+    left_text: str,
+    existing_eojeols: list[tuple[int, OcrEojeol]],
+    right_line: OcrLine,
+) -> tuple[int, int, OcrEojeol] | None:
+    left_matches = tuple(re.finditer(r'\S+', left_text))
+    right_matches = tuple(re.finditer(r'\S+', right_line.text))
+    if len(left_matches) < 2 or len(right_matches) < 2:
+        return None
+
+    structured = left_matches[-2].group()
+    fragment = left_matches[-1].group()
+    repeated_suffix = right_matches[0].group()
+    complete_word = right_matches[1].group()
+    if (
+        not _structured_ascii_context(structured)
+        or re.fullmatch(r'\d', repeated_suffix) is None
+        or not structured.endswith(repeated_suffix)
+        or len(fragment) != 1
+        or not contains_hangul(fragment)
+        or len(complete_word) < 3
+        or not contains_hangul(complete_word)
+        or not complete_word.startswith(fragment)
+    ):
+        return None
+
+    existing = next(
+        (
+            item
+            for _, item in existing_eojeols
+            if item.sentence_start == left_matches[-1].start()
+            and item.sentence_end == left_matches[-1].end()
+            and item.text == fragment
+        ),
+        None,
+    )
+    incoming = next(
+        (
+            item
+            for item in right_line.eojeols
+            if item.sentence_start == right_matches[1].start()
+            and item.sentence_end == right_matches[1].end()
+            and item.text == complete_word
+        ),
+        None,
+    )
+    if existing is None or incoming is None:
+        return None
+
+    vertical_overlap = max(
+        0.0,
+        min(existing.box.bottom, incoming.box.bottom)
+        - max(existing.box.top, incoming.box.top),
+    ) / max(1.0, min(existing.box.height, incoming.box.height))
+    character_pitch = incoming.box.width / len(incoming.text)
+    if (
+        existing.confidence < 0.99
+        or incoming.confidence < 0.99
+        or abs(existing.box.left - incoming.box.left) > 1.0
+        or existing.box.right > incoming.box.right
+        or existing.box.width > character_pitch * 1.25
+        or vertical_overlap < 0.8
+    ):
+        return None
+    return right_matches[0].end(), left_matches[-1].start(), existing
+
+
 def _remove_tiny_contained_fragments(line: OcrLine) -> OcrLine:
     def fragment_key(value: str) -> str:
         start = 0
@@ -1056,11 +1123,24 @@ def _merge_line_group(lines: list[OcrLine]) -> OcrLine:
                 )
             )
             continue
-        removed_prefix_end = (
-            _overlapping_prefix_end(text, line.text)
-            if line.box.left < covered_right
-            else 0
+        overlaps_existing = line.box.left < covered_right
+        artifacts = (
+            _structured_overlap_artifacts(text, eojeols, line)
+            if overlaps_existing
+            else None
         )
+        if artifacts is None:
+            removed_prefix_end = (
+                _overlapping_prefix_end(text, line.text)
+                if overlaps_existing
+                else 0
+            )
+        else:
+            removed_prefix_end, left_fragment_start, existing_fragment = artifacts
+            text = text[:left_fragment_start].rstrip()
+            eojeols = [
+                item for item in eojeols if item[1] is not existing_fragment
+            ]
         covered_right = max(covered_right, line.box.right)
         remainder_start = removed_prefix_end
         while remainder_start < len(line.text) and line.text[remainder_start].isspace():

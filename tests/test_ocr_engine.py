@@ -438,6 +438,85 @@ def test_spatial_duplicate_requires_strong_horizontal_overlap() -> None:
     assert merged.eojeols[-1].sentence_end == 6
 
 
+def test_structured_suffix_and_leading_word_artifacts_are_removed_together() -> None:
+    complete = OcrLine(
+        "\uac00 K-2025/v0 \ud6c4",
+        BoundingBox(0, 0, 130, 20),
+        0.99,
+        (
+            OcrEojeol("\uac00", BoundingBox(0, 0, 20, 20), 0.999, 0, 1),
+            OcrEojeol("\ud6c4", BoundingBox(100, 0, 120, 20), 0.999, 12, 13),
+        ),
+    )
+    overlapping = OcrLine(
+        "0 \ud6c4\ubcf4\ub77c \ub098\ub2e4",
+        BoundingBox(90, 0, 210, 20),
+        0.99,
+        (
+            OcrEojeol("\ud6c4\ubcf4\ub77c", BoundingBox(100.5, 0, 160, 20), 0.999, 2, 5),
+            OcrEojeol("\ub098\ub2e4", BoundingBox(170, 0, 210, 20), 0.999, 6, 8),
+        ),
+    )
+
+    merged = _merge_line_group([complete, overlapping])
+
+    assert merged.text == "\uac00 K-2025/v0 \ud6c4\ubcf4\ub77c \ub098\ub2e4"
+    assert [item.text for item in merged.eojeols] == [
+        "\uac00",
+        "\ud6c4\ubcf4\ub77c",
+        "\ub098\ub2e4",
+    ]
+    assert [(item.sentence_start, item.sentence_end) for item in merged.eojeols] == [
+        (0, 1),
+        (12, 15),
+        (16, 18),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("structured", "fragment_box", "fragment_confidence"),
+    [
+        ("K-2025/v1", BoundingBox(100, 0, 120, 20), 0.999),
+        ("K-2025/v0", BoundingBox(98.9, 0, 118.9, 20), 0.999),
+        ("K-2025/v0", BoundingBox(100, 0, 120, 20), 0.989),
+    ],
+)
+def test_structured_overlap_artifacts_require_exact_suffix_and_geometry(
+    structured: str,
+    fragment_box: BoundingBox,
+    fragment_confidence: float,
+) -> None:
+    complete_text = f"\uac00 {structured} \ud6c4"
+    complete = OcrLine(
+        complete_text,
+        BoundingBox(0, 0, 130, 20),
+        0.99,
+        (
+            OcrEojeol("\uac00", BoundingBox(0, 0, 20, 20), 0.999, 0, 1),
+            OcrEojeol(
+                "\ud6c4",
+                fragment_box,
+                fragment_confidence,
+                len(complete_text) - 1,
+                len(complete_text),
+            ),
+        ),
+    )
+    overlapping = OcrLine(
+        "0 \ud6c4\ubcf4\ub77c \ub098\ub2e4",
+        BoundingBox(90, 0, 210, 20),
+        0.99,
+        (
+            OcrEojeol("\ud6c4\ubcf4\ub77c", BoundingBox(100.5, 0, 160, 20), 0.999, 2, 5),
+            OcrEojeol("\ub098\ub2e4", BoundingBox(170, 0, 210, 20), 0.999, 6, 8),
+        ),
+    )
+
+    merged = _merge_line_group([complete, overlapping])
+
+    assert merged.text == f"{complete_text} 0 \ud6c4\ubcf4\ub77c \ub098\ub2e4"
+
+
 def test_tiny_contained_fragment_is_removed_and_spans_are_repaired() -> None:
     line = OcrLine(
         "\ud559\uad50 \uc544 \ud559\uad50\uc5d0\uc11c",

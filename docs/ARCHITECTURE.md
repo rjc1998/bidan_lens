@@ -77,6 +77,11 @@ A one-character leading artifact over a two-character word has a separate strict
 confidence must be below 50%, the word must be at least 99.9% confident, their leading edges must
 be within one pixel, the artifact must be no wider than 25% of the word, and vertical overlap must
 be at least 80%.
+Overlapping detector fragments can also remove a paired structured-text artifact only when the
+left fragment ends with an identifier followed by one copied Hangul syllable, the right fragment
+starts with the identifier's repeated final digit and a complete word beginning with that
+syllable, both Hangul boxes are at least 99% confident, and their leading-edge and vertical
+geometry agree. Neither artifact is removed independently.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
