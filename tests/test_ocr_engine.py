@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_confirmed_three_plus_three_splits,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -1569,6 +1570,63 @@ def test_initial_overlapping_pair_requires_exact_combined_recognition() -> None:
             Image.new("RGB", (100, 20)),
             BoundingBox(0, 0, 100, 20),
             InitialFinalOverlapRecognizer(text="신기업"),
+        )
+        == words
+    )
+
+
+class ConfirmedThreePlusThreeRecognizer:
+    def __init__(self, second_text: str = "백화점") -> None:
+        self.second_text = second_text
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.01
+        return ((0, 49), (54, 103))
+
+    def recognize(self, _image):
+        values = (
+            RecognizedText("신세계", 0.9992),
+            RecognizedText(self.second_text, 0.9998),
+        )
+        result = values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_three_plus_three_split_recovers_low_ctc_space() -> None:
+    words = [
+        ("앞말", BoundingBox(0, 0, 15, 17), 0.999),
+        ("신세계백화점", BoundingBox(20, 0, 123, 17), 0.9993),
+        ("뒷말", BoundingBox(130, 0, 150, 17), 0.999),
+    ]
+
+    recovered = _recover_confirmed_three_plus_three_splits(
+        words,
+        Image.new("RGB", (160, 17)),
+        BoundingBox(0, 0, 160, 17),
+        ConfirmedThreePlusThreeRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ("신세계", BoundingBox(20, 0, 69, 17), 0.9992),
+        ("백화점", BoundingBox(74, 0, 123, 17), 0.9993),
+        words[2],
+    ]
+
+
+def test_confirmed_three_plus_three_split_requires_exact_parts() -> None:
+    words = [
+        ("신세계백화점", BoundingBox(20, 0, 123, 17), 0.9993),
+    ]
+
+    assert (
+        _recover_confirmed_three_plus_three_splits(
+            words,
+            Image.new("RGB", (140, 17)),
+            BoundingBox(0, 0, 140, 17),
+            ConfirmedThreePlusThreeRecognizer("문화점"),
         )
         == words
     )

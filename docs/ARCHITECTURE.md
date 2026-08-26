@@ -99,6 +99,11 @@ confidence for the four-syllable fragment, and exact combined recognition at 99.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
+A six-syllable all-Hangul word can be split into two three-syllable eojeols only when the normal
+CTC threshold retains one word but a 0.01 space probe returns exactly two crops. Their gap must be
+28% to 35% of line height, pitch must be compatible, the original and parts must meet separate
+high-confidence floors, and concatenating the two recognized parts must exactly reproduce the
+original word.
 Matched slash, dash, quote, or bracket wrappers can restore adjacent boundaries only when every
 resulting part contains Hangul; quote and bracket wrappers preserve a directly attached
 one-syllable particle. Terminal `:`, `?`, or `!` punctuation can delimit a following Hangul word
