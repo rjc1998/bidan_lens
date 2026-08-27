@@ -2605,3 +2605,106 @@ def test_wrapper_context_keeps_a_pronoun_over_dictionary_order() -> None:
     ).analyze(sentence, (1, 2))[0]
 
     assert candidate.lexical_components[0].learner_role == 'pronoun'
+
+
+def test_isolated_action_role_does_not_override_wrapped_hayaman_auxiliary() -> None:
+    sentence = '기울여야만 /할/'
+    contextual = [
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('여야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VV', 7, 1),
+                Token('ㄹ', 'ETM', 7, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('기울이', 'VV', 0, 3),
+                Token('여야', 'EC', 2, 2),
+                Token('만', 'JX', 4, 1),
+                Token('하', 'VX', 7, 1),
+                Token('ㄹ', 'ETM', 7, 1),
+            ],
+            -1.8,
+        ),
+    ]
+    isolated = [
+        ([Token('하', 'VV', 0, 1), Token('ㄹ', 'ETM', 0, 1)], -1.0),
+        ([Token('하', 'VX', 0, 1), Token('ㄹ', 'ETM', 0, 1)], -2.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '할' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (7, 8))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
+
+
+@pytest.mark.parametrize(
+    ('isolated_tag', 'expected_role'),
+    [('MAG', 'adverb'), ('NNG', 'noun')],
+)
+def test_wrapper_adverb_requires_isolated_and_unwrapped_support(
+    isolated_tag: str,
+    expected_role: str,
+) -> None:
+    sentence = "'깊이' 다룬다"
+    wrapped = [
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('깊이', 'NNG', 1, 2),
+                Token("'", 'SS', 3, 1),
+                Token('다루', 'VV', 5, 2),
+                Token('ㄴ다', 'EF', 6, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('깊이', 'MAG', 1, 2),
+                Token("'", 'SS', 3, 1),
+                Token('다루', 'VV', 5, 2),
+                Token('ㄴ다', 'EF', 6, 1),
+            ],
+            -5.0,
+        ),
+    ]
+    unwrapped = [
+        (
+            [
+                Token('깊이', 'MAG', 0, 2),
+                Token('다루', 'VV', 3, 2),
+                Token('ㄴ다', 'EF', 4, 1),
+            ],
+            -1.0,
+        ),
+    ]
+    isolated = [([Token('깊이', isolated_tag, 0, 2)], -1.0)]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == '깊이':
+                values = isolated
+            elif text == '깊이 다룬다':
+                values = unwrapped
+            else:
+                values = wrapped
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        AdverbNounRoleDictionary('noun'),
+        ContextKiwi([]),
+    ).analyze(sentence, (1, 3))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role

@@ -46,6 +46,7 @@ _MULTI_COMPONENT_SCORE_MARGIN = 2.0
 _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
+_WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
 _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
@@ -365,6 +366,33 @@ class KoreanAnalyzer:
                 <= _WRAPPER_CONTEXT_SCORE_MARGIN
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
+            first_component = first.lexical_components
+            alternative_component = candidate.lexical_components
+            if (
+                first.score - candidate.score
+                <= _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN
+                and len(first_component) == 1
+                and len(alternative_component) == 1
+                and first_component[0].learner_role == 'noun'
+                and alternative_component[0].learner_role == 'adverb'
+                and first_component[0].surface == alternative_component[0].surface
+                and first_component[0].lemma == alternative_component[0].lemma
+                and candidate.dictionary_entries
+            ):
+                isolated = self._analyze_candidates(
+                    surface,
+                    (0, len(surface)),
+                    max_candidates,
+                )
+                if (
+                    isolated
+                    and self._candidate_signature(isolated[0]) == signature
+                ):
+                    return (
+                        candidate,
+                        *candidates[:index],
+                        *candidates[index + 1 :],
+                    )
             return candidates
         if (
             len(candidates) >= 2
@@ -466,6 +494,17 @@ class KoreanAnalyzer:
         signature = self._candidate_signature(isolated[0])
         verb_roles = {'action verb', 'descriptive verb', 'helping verb'}
         first = candidates[0]
+        prefix = sentence[:start].rstrip()
+        while prefix and unicodedata.category(prefix[-1]).startswith('P'):
+            prefix = prefix[:-1].rstrip()
+        if (
+            prefix.endswith(('아야만', '어야만', '여야만'))
+            and any(
+                component.learner_role == 'helping verb'
+                for component in first.lexical_components
+            )
+        ):
+            return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
                 self._candidate_signature(candidate) != signature
