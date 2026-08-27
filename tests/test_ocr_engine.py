@@ -1908,6 +1908,110 @@ def test_overlapping_four_plus_two_pair_rejects_strong_competitor() -> None:
     )
 
 
+def test_overlapping_four_plus_one_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 30, 20), 0.999),
+        ("\uac00\ub098\ub2e4\ub77c", BoundingBox(36, 0, 107, 20), 0.9997),
+        ("\ub9c8", BoundingBox(106.05, 0, 128.05, 20), 0.9141),
+        ("\ub2e4\uc74c", BoundingBox(136, 0, 196, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (205, 20)),
+        BoundingBox(0, 0, 205, 20),
+        CompetitiveOnePlusTwoRecognizer(
+            93,
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+        ),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(36, 0, 128.05, 20),
+            0.9141,
+        ),
+        words[3],
+    ]
+
+
+def test_overlapping_four_plus_one_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 30, 20), 0.999),
+        ("\uac00\ub098\ub2e4\ub77c", BoundingBox(36, 0, 107, 20), 0.9997),
+        ("\ub9c8", BoundingBox(106.05, 0, 128.05, 20), 0.9141),
+        ("\ub2e4\uc74c", BoundingBox(136, 0, 196, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (205, 20)),
+            BoundingBox(0, 0, 205, 20),
+            CompetitiveOnePlusTwoRecognizer(
+                93,
+                "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                competing_confidence=0.98,
+            ),
+        )
+        == words
+    )
+
+
+def test_isolated_one_plus_four_pair_merges_with_weak_competitors() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 80, 20), 0.999),
+        ("\uac00", BoundingBox(91, 0, 109, 20), 0.9985),
+        ("\ub098\ub2e4\ub77c\ub9c8", BoundingBox(116, 0, 196, 20), 0.9998),
+        ("\ub2e4\uc74c", BoundingBox(210, 0, 250, 20), 0.999),
+    ]
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (260, 20)),
+        BoundingBox(0, 0, 260, 20),
+        CompetitiveOnePlusTwoRecognizer(
+            105,
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+        ),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(91, 0, 196, 20),
+            0.9985,
+        ),
+        words[3],
+    ]
+
+
+def test_isolated_one_plus_four_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 80, 20), 0.999),
+        ("\uac00", BoundingBox(91, 0, 109, 20), 0.9985),
+        ("\ub098\ub2e4\ub77c\ub9c8", BoundingBox(116, 0, 196, 20), 0.9998),
+        ("\ub2e4\uc74c", BoundingBox(210, 0, 250, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (260, 20)),
+            BoundingBox(0, 0, 260, 20),
+            CompetitiveOnePlusTwoRecognizer(
+                105,
+                "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                competing_confidence=0.998,
+            ),
+        )
+        == words
+    )
+
+
 class NarrowThreePlusTwoRecognizer:
     def recognize(self, _image):
         return RecognizedText("이론에서는", 0.99985)

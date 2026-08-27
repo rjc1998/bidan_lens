@@ -818,6 +818,30 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.41
                 and pitch_ratio >= 0.85
             )
+            overlapping_four_plus_one_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 4
+                and len(last[0]) == 1
+                and first[2] >= 0.9996
+                and last[2] >= 0.914
+                and -0.05 <= gap_ratio <= -0.045
+                and previous_gap >= line_box.height * 0.28
+                and following_gap >= line_box.height * 0.37
+                and pitch_ratio >= 0.8
+            )
+            isolated_one_plus_four_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 1
+                and len(last[0]) == 4
+                and first[2] >= 0.9984
+                and last[2] >= 0.9997
+                and 0.35 <= gap_ratio <= 0.355
+                and previous_gap >= line_box.height * 0.54
+                and following_gap >= line_box.height * 0.67
+                and pitch_ratio >= 0.9
+            )
             matches_geometry = (
                 contains_hangul(first[0])
                 and contains_hangul(last[0])
@@ -839,6 +863,8 @@ def _recover_isolated_close_word_pairs(
                     or isolated_wide_three_plus_two_profile
                     or positive_gap_four_plus_two_profile
                     or overlapping_four_plus_two_profile
+                    or overlapping_four_plus_one_profile
+                    or isolated_one_plus_four_profile
                 )
             )
             if matches_geometry:
@@ -857,6 +883,8 @@ def _recover_isolated_close_word_pairs(
                     or isolated_wide_three_plus_one_profile
                     or corrected_overlapping_three_plus_one_profile
                     or isolated_wide_one_plus_two_profile
+                    or overlapping_four_plus_one_profile
+                    or isolated_one_plus_four_profile
                 ):
                     candidate_left = round(candidate_left, 6)
                     candidate_right = round(candidate_right, 6)
@@ -889,7 +917,9 @@ def _recover_isolated_close_word_pairs(
                     required_confidence = 0.997
                 elif overlapping_four_plus_two_profile:
                     required_confidence = 0.9993
-                elif isolated_three_plus_one_profile:
+                elif overlapping_four_plus_one_profile:
+                    required_confidence = 0.9997
+                elif isolated_one_plus_four_profile or isolated_three_plus_one_profile:
                     required_confidence = 0.9996
                 elif isolated_wide_three_plus_one_profile:
                     required_confidence = 0.9997
@@ -956,6 +986,8 @@ def _recover_isolated_close_word_pairs(
                         or isolated_wide_three_plus_one_profile
                         or corrected_overlapping_three_plus_one_profile
                         or isolated_wide_one_plus_two_profile
+                        or overlapping_four_plus_one_profile
+                        or isolated_one_plus_four_profile
                     ):
                         competing_spans = [(last[1].left, following[1].right)]
                         if previous is not None:
@@ -988,6 +1020,10 @@ def _recover_isolated_close_word_pairs(
                                 or corrected_overlapping_three_plus_one_profile
                             ):
                                 competing_limit = 0.985
+                            elif overlapping_four_plus_one_profile:
+                                competing_limit = 0.98
+                            elif isolated_one_plus_four_profile:
+                                competing_limit = 0.998
                             elif (
                                 isolated_three_plus_one_profile
                                 or isolated_wide_three_plus_one_profile

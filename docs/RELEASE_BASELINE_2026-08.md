@@ -62,12 +62,12 @@ The aggregate quick report and privacy-safe diagnostic SHA-256 values are
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
-The complete v4.15 development run against the current OCR and analyzer cleanup records 98.19%
-whole-eojeol OCR, 97.10% target selection, 88.60% functional context, 71.55% exact sentence
-transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 82.50% fully correct first
+The complete v4.15 development run against the current OCR and analyzer cleanup records 98.20%
+whole-eojeol OCR, 97.10% target selection, 88.70% functional context, 71.65% exact sentence
+transcription, 92.35% component accuracy, 94.75% exact KRDict fidelity, 82.60% fully correct first
 popups, 94.10% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 233.89 ms median / 347.67 ms p95. The privacy-safe stage totals are 58 target,
-170 context, and 122 analysis failures. The analysis failures comprise 50 primary lemmas, 62
+accepted rerun is 226.90 ms median / 340.13 ms p95. The privacy-safe stage totals are 58 target,
+168 context, and 122 analysis failures. The analysis failures comprise 50 primary lemmas, 62
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,15 +80,15 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`90bda3d114303918502ed01b6207aaced811a9c5503ba582a2776caf20960d80` and
-`32099fb736d09c4737d8993b857176268a53b763cce296d08dc5985b26326c6d`.
+`7ce5bb238ce404905918e6714ff0635c6e7eda49e2e575f841f9dd5e04fba85a` and
+`b67186617e2d89747579324d90d9c0ecdaca17086be224c566a6525d7c968f77`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
 main image. The current 205-decision review is 88 non-target OCR transcription errors, 68 punctuation
 or structured-text cases, 42 missed or merged OCR word boundaries, and seven incorrect line/sentence
-reconstructions. The current full diagnostics have 170 active context cases; the v4.15 fail-closed
-audit finds every active ID reviewed with no missing decisions and 35 resolved IDs. Cross-lock
+reconstructions. The current full diagnostics have 168 active context cases; the v4.15 fail-closed
+audit finds every active ID reviewed with no missing decisions and 37 resolved IDs. Cross-lock
 carry-forward accepts a prior corpus ID while still requiring the same review scope and every
 current stable ID.
 The additional
@@ -581,6 +581,23 @@ cases, and no missing decisions. `dev-plain-0450` remains unchanged because its 
 appears only below the 0.01 CTC threshold, which is unsafe for ordinary two-syllable words;
 `dev-plain-0977` remains unchanged because its 2+1 candidate appears only at 0.001 and the crops
 overlap instead of exposing a whitespace boundary.
+
+The thirty-eighth batch reviews the remaining 4+1, 1+3, and 1+4 pure-Hangul false splits as
+separate profiles. The accepted overlapping 4+1 profile requires fragment confidence of at least
+99.96% and 91.4%, a 4.5% to 5% overlap, preceding and following boundaries of at least 28% and
+37% of line height, pitch agreement within 20%, exact union recognition at 99.97%, and no adjacent
+union reaching 98%. The accepted isolated 1+4 profile requires fragment confidence of at least
+99.84% and 99.97%, a gap of 35% to 35.5%, surrounding boundaries of at least 54% and 67%, pitch
+agreement within 10%, exact union recognition at 99.96%, and no adjacent union reaching 99.8%.
+Subpixel verification coordinates are normalized for both profiles. The exact full comparison
+removes only `dev-plain-0219` and `dev-plain-1437`, with no addition or stage change. Full OCR,
+context, exact transcription, and popup correctness rise to 98.20%, 88.70%, 71.65%, and 82.60%;
+the 16 px and 20 px OCR strata rise from 98.76% and 99.22% to 98.80% and 99.26%. Quick aggregate
+metrics are unchanged and its privacy-safe diagnostics remain byte-identical. Target, analysis,
+component, dictionary, alternative, stress, language, promotion, negative-pointer, and latency
+gates do not regress. The audit has 168 active context cases, 37 resolved IDs, ten active boundary
+cases, and no missing decisions. The line-initial 1+3 case `dev-plain-1435` remains unchanged
+because its union is only 86.2% confident while the following union reaches 99.4%.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

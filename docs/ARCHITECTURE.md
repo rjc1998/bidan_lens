@@ -96,6 +96,11 @@ least 99.96%.
 An internal one-plus-four-syllable pair has a separate profile for a one-pixel overlap between
 otherwise positive neighboring gaps. It additionally requires compatible pitch, at least 99.75%
 confidence for the four-syllable fragment, and exact combined recognition at 99.75% or better.
+An isolated internal one-plus-four pair has a distinct positive-gap profile requiring fragment
+confidence of at least 99.84% and 99.97%, a gap of 35% to 35.5% of line height, surrounding
+boundaries of at least 54% and 67%, pitch agreement within 10%, and exact combined recognition at
+99.96% or better. Subpixel verification coordinates are normalized, and either adjacent union at
+99.8% preserves the original pair.
 An internal one-plus-two-syllable close pair can be rejoined only when both neighboring gaps are
 wider, the one- and two-syllable fragments are at least 99.88% and 99.98% confident respectively,
 character pitch is compatible, and exact combined recognition reaches 99.99%.
@@ -150,6 +155,11 @@ and 99.91%, a gap of 36% to 36.5% of line height, preceding and following bounda
 51% and 56%, pitch agreement within 13%, and exact union recognition at 99.97% or better. It
 normalizes subpixel verification coordinates and preserves the pair when either available
 adjacent union reaches 99% confidence.
+An internal overlapping four-plus-one profile requires fragment confidence of at least 99.96%
+and 91.4%, an overlap of 4.5% to 5% of line height, preceding and following boundaries of at least
+28% and 37%, pitch agreement within 20%, and exact combined recognition at 99.97% or better.
+Subpixel verification coordinates are normalized, and either adjacent union at 98% preserves the
+original pair.
 An internal three-plus-two-syllable pair has a separate narrow-gap profile: fragment confidence
 must reach 99.97% and 99.98%, the candidate gap must be 10% to 10.5% of line height, the preceding
 boundary at least 25%, and the following boundary a shallow overlap of at most 5.5%. Character

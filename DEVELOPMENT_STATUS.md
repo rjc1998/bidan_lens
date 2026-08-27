@@ -74,11 +74,11 @@ privacy-safe diagnostic SHA-256 is
 `de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.19% whole-eojeol OCR, 97.10% target selection, 88.60%
-functional context, 71.55% exact sentence transcription, 92.35% component accuracy, 94.75% exact
-KRDict fidelity, 82.50% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 233.89 ms median / 347.67 ms p95. Privacy-safe
-diagnostics contain 58 target, 170 context, and 122 analysis failures; the analysis stages are 50 primary
+cleanup. Its 2,000 main cases record 98.20% whole-eojeol OCR, 97.10% target selection, 88.70%
+functional context, 71.65% exact sentence transcription, 92.35% component accuracy, 94.75% exact
+KRDict fidelity, 82.60% fully correct first popups, and 94.10% alternative recovery. False
+promotions remain zero and the accepted rerun is 226.90 ms median / 340.13 ms p95. Privacy-safe
+diagnostics contain 58 target, 168 context, and 122 analysis failures; the analysis stages are 50 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
@@ -91,9 +91,9 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`90bda3d114303918502ed01b6207aaced811a9c5503ba582a2776caf20960d80`; the
+`7ce5bb238ce404905918e6714ff0635c6e7eda49e2e575f841f9dd5e04fba85a`; the
 privacy-safe diagnostic SHA-256 is
-`32099fb736d09c4737d8993b857176268a53b763cce296d08dc5985b26326c6d`.
+`b67186617e2d89747579324d90d9c0ecdaca17086be224c566a6525d7c968f77`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -103,9 +103,9 @@ punctuation or structured-text cases, 42 missed or merged OCR word boundaries, a
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 170 active context
+IDs, categorical decisions, and counts. The current full diagnostics have 168 active context
 cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
-35 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
+37 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
 review scope and every current stable ID. The decision report SHA-256 is
 `34e4bc6e5981dfba10f48b2478884c8def1ffb8c626f3307527d3d34a42def30`.
 
@@ -399,6 +399,23 @@ cases, and no missing decisions. `dev-plain-0450` remains unchanged because its 
 appears only below the 0.01 CTC threshold, which is unsafe for ordinary two-syllable words;
 `dev-plain-0977` remains unchanged because its 2+1 candidate appears only at 0.001 and the crops
 overlap instead of exposing a whitespace boundary.
+
+The twenty-first word-boundary batch reviews the remaining 4+1, 1+3, and 1+4 pure-Hangul false
+splits as separate profiles. The accepted overlapping 4+1 profile requires fragment confidence of
+at least 99.96% and 91.4%, a 4.5% to 5% overlap, preceding and following boundaries of at least
+28% and 37% of line height, pitch agreement within 20%, exact union recognition at 99.97%, and no
+adjacent union reaching 98%. The accepted isolated 1+4 profile requires fragment confidence of at
+least 99.84% and 99.97%, a gap of 35% to 35.5%, surrounding boundaries of at least 54% and 67%,
+pitch agreement within 10%, exact union recognition at 99.96%, and no adjacent union reaching
+99.8%. Subpixel verification coordinates are normalized for both profiles. The exact full
+comparison removes only `dev-plain-0219` and `dev-plain-1437`, with no addition or stage change.
+Full OCR, context, exact transcription, and popup correctness rise to 98.20%, 88.70%, 71.65%, and
+82.60%; the 16 px and 20 px OCR strata rise from 98.76% and 99.22% to 98.80% and 99.26%. Quick
+aggregate metrics are unchanged and its privacy-safe diagnostics remain byte-identical. Target,
+analysis, component, dictionary, alternative, stress, language, promotion, negative-pointer, and
+latency gates do not regress. The audit has 168 active context cases, 37 resolved IDs, ten active
+boundary cases, and no missing decisions. The line-initial 1+3 case `dev-plain-1435` remains
+unchanged because its union is only 86.2% confident while the following union reaches 99.4%.
 
 Compared with the earlier full report, the accepted cleanups resolve 53 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
@@ -812,10 +829,10 @@ main popup correctness and required render strata still block release evidence. 
 component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
 complete. Two line/sentence reconstruction cases remain active because their intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. The next development target is the 12 active reviewed missed-or-merged OCR
-word-boundary cases among the 170 active full-tier context disagreements, returning to the
-remaining 4+1, 1+3, and 1+4 false-split families with exact union and adjacent-competitor evidence,
-followed by analysis failures whose
+implemented. The next development target is the ten active reviewed missed-or-merged OCR
+word-boundary cases among the 168 active full-tier context disagreements, beginning with the
+remaining structured digit/Hangul and complex-layout cases while preserving the documented weak
+or ambiguous controls, followed by analysis failures whose
 target and context are already correct. Thresholds are not frozen, and
 neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
