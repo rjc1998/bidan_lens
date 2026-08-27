@@ -959,6 +959,61 @@ def test_dictionary_noun_entry_can_disambiguate_a_proper_noun_tag() -> None:
     assert candidate.lexical_components[0].learner_role == 'noun'
 
 
+class PrenominalRoleDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '\uba87': ('numeral', 'determiner'),
+        }.get(lemma, ())
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-4.9, 'determiner'), (-5.0, 'number')],
+)
+def test_prenominal_determiner_promotion_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('\uba87', 'NR', 0, 1),
+                Token('?', 'SF', 1, 1),
+                Token('\ub144', 'NNB', 3, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uba87', 'MM', 0, 1),
+                Token('?', 'SF', 1, 1),
+                Token('\ub144', 'NNB', 3, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        PrenominalRoleDictionary(),
+        FakeKiwi(analyses),
+    )._analyze_candidates('\uba87? \ub144', (0, 1), 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
 class AdverbNounRoleDictionary(DictionaryStore):
     def __init__(self, preferred_role: str) -> None:
         self.preferred_role = preferred_role
@@ -1226,6 +1281,59 @@ class ReviewedRoleDictionary(DictionaryStore):
             )
             for role in roles[:limit]
         )
+
+
+@pytest.mark.parametrize(
+    ('sentence', 'target_span', 'tokens'),
+    [
+        (
+            '\ub9e1\uc544 \ud558\ub294',
+            (3, 5),
+            [
+                Token('\ub9e1', 'VV', 0, 1),
+                Token('\uc5b4', 'EC', 1, 1),
+                Token('\ud558', 'VV', 3, 1),
+                Token('\ub294', 'ETM', 4, 1),
+            ],
+        ),
+        (
+            '\uadf8\ub807\uac8c \ud558\uc9c0',
+            (4, 6),
+            [
+                Token('\uadf8\ub807', 'VA', 0, 2),
+                Token('\uac8c', 'EC', 2, 1),
+                Token('\ud558', 'VV', 4, 1),
+                Token('\uc9c0', 'EC', 5, 1),
+            ],
+        ),
+    ],
+)
+def test_lexical_hada_is_not_promoted_by_plain_connective_context(
+    sentence: str,
+    target_span: tuple[int, int],
+    tokens: list[Token],
+) -> None:
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    )._analyze_candidates(sentence, target_span, 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == 'action verb'
+
+
+def test_obligative_connective_still_promotes_hada_to_auxiliary() -> None:
+    tokens = [
+        Token('\uc5b4\uc57c', 'EC', 0, 2),
+        Token('\ud558', 'VV', 3, 1),
+        Token('\u11af', 'ETM', 3, 1),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi([(tokens, -1.0)]),
+    )._analyze_candidates('\uc5b4\uc57c \ud560', (3, 4), 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == 'helping verb'
 
 
 @pytest.mark.parametrize(

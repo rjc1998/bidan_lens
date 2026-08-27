@@ -75,12 +75,13 @@ privacy-safe diagnostic SHA-256 is
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.20% whole-eojeol OCR, 97.10% target selection, 88.75%
-functional context, 71.70% exact sentence transcription, 92.45% component accuracy, 94.85% exact
-KRDict fidelity, 82.80% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 236.12 ms median / 350.35 ms p95. Privacy-safe
-diagnostics contain 58 target, 167 context, and 119 analysis failures; the analysis stages are 47 primary
-lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
-failures remain. Three additional records fail only a negative-pointer category.
+functional context, 71.70% exact sentence transcription, 92.65% component accuracy, 95.00% exact
+KRDict fidelity, 83.00% fully correct first popups, and 94.20% alternative recovery. False
+promotions remain zero and the accepted follow-up is 244.09 ms median /
+361.35 ms p95. Privacy-safe diagnostics contain 58 target, 167 context, and 115 analysis failures;
+the analysis stages are 47 primary lemmas, 58 component roles, four component counts, and six
+grammar roles. No component-surface failures remain. The nine stable IDs with negative
+activations also fail target selection; one contains both punctuation and whitespace activation.
 
 The nonblocking 250-case stress tier records 94.15% OCR, 96.00% target selection, 67.20%
 functional context, 93.60% component accuracy, and 63.20% fully correct first popups. The 400-case
@@ -91,9 +92,9 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`a0b14818e4bb09a41303c67652d595f58a2c6fd996cf1d798f861499c103874f`; the
+`9164e8fa85b9c78adce2cb04204d8bf0c71741a98a03f850264f2897fb5d5f81`; the
 privacy-safe diagnostic SHA-256 is
-`670fe0c8218c5ed2ea13dea8fe8911fcbdc70da4130a1742f05d324b281bae56`.
+`afca1044b0b3803537e2ec5dba5475654c8b20d9eb1263fcfa5592b97ac85df0`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -453,6 +454,17 @@ Component accuracy rises to 92.45%, exact KRDict fidelity to 94.85%, and popup c
 92.00% overall / 96.00% auxiliary / 88.00% multi-lexical, and every upstream, promotion,
 negative-pointer, and latency gate is preserved.
 
+The following component-role batch narrows two context-sensitive role decisions. A lexical
+`hada` candidate is not rewritten as a helping verb solely because it follows a plain connective
+ending or the demonstrative-adverb pattern; explicit obligative context remains eligible for the
+established helping-verb promotion. When punctuation occurs
+immediately after a target and the next non-punctuation token is nominal, an already-present
+same-lemma determiner candidate may lead within 4.0 score points. The exact comparison removes
+only `dev-plain-1006`, `dev-plain-1496`, `dev-plain-1528`, and `dev-plain-1560`, with no addition
+or stage change. Component accuracy rises to 92.65%, exact KRDict fidelity to 95.00%, popup
+correctness to 83.00%, and alternative recovery to 94.20%. Quick diagnostics remain
+byte-identical; stress and held-out language are unchanged.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
@@ -472,7 +484,7 @@ The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
 The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. The current evidence leaves 117 active cases and three
+and seven genuinely ambiguous cases. The current evidence leaves 113 active cases and seven
 resolved IDs, with no missing or stale decision. Its SHA-256 is
 `d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
 
@@ -868,8 +880,9 @@ or English text cannot be inferred from reliable runtime evidence; no speculativ
 implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
 complex for another safe general rule. Five reviewed primary-lemma Kiwi errors likewise lack a
-safe complete candidate or bounded general promotion. The next development target is the 20
-reviewed component-role Kiwi errors among cases whose target and context are already correct.
+safe complete candidate or bounded general promotion. Four of the 20 reviewed component-role
+Kiwi errors are now resolved without a regression; the next development target is the remaining
+16 cases whose target and context are already correct.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.

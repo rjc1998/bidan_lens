@@ -62,6 +62,7 @@ _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
 _CONTEXTUAL_SIK_NOUN_SCORE_MARGIN = 5.1
 _COMPOUND_TERMINAL_NOUN_SCORE_MARGIN = 6.0
 _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN = 1.0
+_PRENOMINAL_DETERMINER_SCORE_MARGIN = 4.0
 _LOCATIVE_ITDA_SCORE_MARGIN = 7.0
 _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
 _NOUN_PARTICLE_SCORE_MARGIN = 3.2
@@ -830,6 +831,7 @@ class KoreanAnalyzer:
         )
         candidates: list[AnalysisCandidate] = []
         contextual_auxiliary_ids: set[int] = set()
+        prenominal_determiner_ids: set[int] = set()
         locative_itda_ids: set[int] = set()
         post_particle_inflected_verb_ids: set[int] = set()
         adnominal_dependent_noun_ids: set[int] = set()
@@ -893,10 +895,24 @@ class KoreanAnalyzer:
                 and preceding_context_tokens[-1].form == '만'
                 and _base_tag(preceding_context_tokens[-1].tag) == 'JX'
             )
+            lexical_hada_context = bool(
+                preceding_context_token is not None
+                and preceding_context_tag == 'EC'
+                and (
+                    preceding_context_form in {'\uc544', '\uc5b4'}
+                    or (
+                        preceding_context_form == '\uac8c'
+                        and len(preceding_context_tokens) >= 2
+                        and preceding_context_tokens[-2].form == '\uadf8\ub807'
+                        and _base_tag(preceding_context_tokens[-2].tag) == 'VA'
+                    )
+                )
+            )
             components = self._lexical_components(
                 target_tokens,
                 preceding_context_tag,
                 preceding_context_form,
+                lexical_hada_context=lexical_hada_context,
             )
             if components:
                 lemma = components[0].lemma
@@ -918,6 +934,15 @@ class KoreanAnalyzer:
                 uncertain=not bool(entries),
             )
             candidates.append(candidate)
+            if (
+                end < len(sentence)
+                and unicodedata.category(sentence[end]).startswith('P')
+                and following_context_tag is not None
+                and following_context_tag.startswith('N')
+                and len(components) == 1
+                and components[0].learner_role == 'determiner'
+            ):
+                prenominal_determiner_ids.add(id(candidate))
             if (
                 preceding_context_tag == 'EC'
                 or nominalized_gido_context
@@ -955,6 +980,10 @@ class KoreanAnalyzer:
                 adnominal_dependent_noun_ids.add(id(candidate))
         candidates.sort(key=lambda candidate: candidate.score, reverse=True)
         candidates = self._promote_dictionary_preferred_nominal_role(candidates)
+        candidates = self._promote_prenominal_determiner(
+            candidates,
+            prenominal_determiner_ids,
+        )
         candidates = self._promote_dictionary_preferred_predicate_role(candidates)
         candidates = self._promote_contextual_auxiliary(
             candidates, contextual_auxiliary_ids
@@ -1066,6 +1095,37 @@ class KoreanAnalyzer:
                     alternative.learner_role,
                 )
                 for current, alternative in differing
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    @staticmethod
+    def _promote_prenominal_determiner(
+        candidates: list[AnalysisCandidate],
+        prenominal_determiner_ids: set[int],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or id(candidates[0]) in prenominal_determiner_ids:
+            return candidates
+        first = candidates[0]
+        if len(first.lexical_components) != 1:
+            return candidates
+        current = first.lexical_components[0]
+        if current.learner_role not in {'noun', 'pronoun', 'number'}:
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if id(candidate) not in prenominal_determiner_ids:
+                continue
+            if (
+                first.score - candidate.score
+                > _PRENOMINAL_DETERMINER_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                current.surface == alternative.surface
+                and current.lemma == alternative.lemma
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
@@ -1563,6 +1623,8 @@ class KoreanAnalyzer:
         tokens: list[_Token],
         preceding_tag: str | None = None,
         preceding_form: str | None = None,
+        *,
+        lexical_hada_context: bool = False,
     ) -> tuple[LexicalComponent, ...]:
         components: list[LexicalComponent] = []
         index = 0
@@ -1690,6 +1752,7 @@ class KoreanAnalyzer:
                     previous_tag == 'EC'
                     and not _is_non_auxiliary_connective(previous_form)
                     and self._has_auxiliary_entry(lemma)
+                    and not (lexical_hada_context and lemma == '\ud558\ub2e4')
                 )
             ):
                 lookup_tag = 'VX'

@@ -50,8 +50,11 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     isolated-eojeol analysis may lead only when it supplies more lexical components, every
     component has a local definition, and no derivational word part is left unrepresented.
     A close inflected-verb alternative may outrank a noun homograph after a particle; intervening
-    punctuation is ignored for that context check while immediate-tag auxiliary logic is
-    unchanged. Dictionary-backed noun prefixes can be restored to the
+    punctuation is ignored for that context check. A plain connective ending and the
+    demonstrative-adverb pattern do not alone turn lexical `hada` into a helping verb; explicit
+    obligative context retains its dedicated promotion. When immediate punctuation
+    separates a target from the following nominal, a close same-lemma determiner interpretation
+    may lead without changing the displayed context. Dictionary-backed noun prefixes can be restored to the
     following lexical component, and a terminal noun suffix can extend that component only in
     conservative end/particle contexts; plural `들`, between-noun suffixes, and copular
     contexts are not rewritten.
