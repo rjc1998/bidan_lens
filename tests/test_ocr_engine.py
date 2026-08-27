@@ -22,6 +22,7 @@ from bidan_lens.ocr.paddle import (
     _recover_overlapping_suffix_pairs,
     _recover_overlapping_word_triplets,
     _recover_relative_gap_two_plus_two_pairs,
+    _recover_terminal_digit_hangul_pair,
     _recover_terminal_overlapping_word_pair,
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
@@ -2097,6 +2098,52 @@ def test_terminal_overlapping_pair_preserves_internal_pair() -> None:
             Image.new("RGB", (280, 30)),
             BoundingBox(0, 0, 280, 30),
             TerminalOverlapRecognizer(),
+        )
+        == words
+    )
+
+
+class TerminalDigitHangulRecognizer:
+    def __init__(self, *, competing_confidence: float = 0.5) -> None:
+        self.competing_confidence = competing_confidence
+
+    def recognize(self, image):
+        if image.width == 88:
+            return RecognizedText("12\ub144\ub9d0", 0.99925)
+        return RecognizedText("competing", self.competing_confidence)
+
+
+def test_terminal_digit_hangul_pair_merges_with_weak_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("12\ub144", BoundingBox(52.5, 0, 112.5, 20), 0.9962),
+        ("\ub9d0", BoundingBox(119.53, 0, 139.53, 20), 0.9997),
+    ]
+
+    assert _recover_terminal_digit_hangul_pair(
+        words,
+        Image.new("RGB", (150, 20)),
+        BoundingBox(0, 0, 150, 20),
+        TerminalDigitHangulRecognizer(),
+    ) == [
+        words[0],
+        ("12\ub144\ub9d0", BoundingBox(52.5, 0, 139.53, 20), 0.9962),
+    ]
+
+
+def test_terminal_digit_hangul_pair_rejects_strong_competitor() -> None:
+    words = [
+        ("\uc774\uc804", BoundingBox(0, 0, 40, 20), 0.999),
+        ("12\ub144", BoundingBox(52.5, 0, 112.5, 20), 0.9962),
+        ("\ub9d0", BoundingBox(119.53, 0, 139.53, 20), 0.9997),
+    ]
+
+    assert (
+        _recover_terminal_digit_hangul_pair(
+            words,
+            Image.new("RGB", (150, 20)),
+            BoundingBox(0, 0, 150, 20),
+            TerminalDigitHangulRecognizer(competing_confidence=0.99),
         )
         == words
     )

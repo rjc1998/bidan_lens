@@ -1105,6 +1105,71 @@ def _recover_terminal_overlapping_word_pair(
     ]
 
 
+def _recover_terminal_digit_hangul_pair(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    if len(words) < 3:
+        return words
+    previous, first, last = words[-3:]
+    gap_ratio = (last[1].left - first[1].right) / line_box.height
+    previous_gap = first[1].left - previous[1].right
+    first_pitch = first[1].width / len(first[0])
+    last_pitch = last[1].width / len(last[0])
+    pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+    matches_geometry = (
+        re.fullmatch(r'\d{2}[\uac00-\ud7a3]', first[0]) is not None
+        and len(last[0]) == 1
+        and is_hangul(last[0])
+        and first[2] >= 0.9961
+        and last[2] >= 0.9996
+        and 0.35 <= gap_ratio <= 0.355
+        and previous_gap >= line_box.height * 0.62
+        and pitch_ratio >= 0.88
+    )
+    if not matches_geometry:
+        return words
+    candidate_left = round(first[1].left - line_box.left, 6)
+    candidate_right = round(last[1].right - line_box.left, 6)
+    combined = recognizer.recognize(
+        crop.crop(
+            (
+                max(0, math.floor(candidate_left)),
+                0,
+                min(crop.width, math.ceil(candidate_right)),
+                crop.height,
+            )
+        )
+    )
+    combined_text = combined.text.replace(' ', '')
+    if combined.confidence < 0.9992 or combined_text != first[0] + last[0]:
+        return words
+    competing_left = round(previous[1].left - line_box.left, 6)
+    competing_right = round(first[1].right - line_box.left, 6)
+    competing = recognizer.recognize(
+        crop.crop(
+            (
+                max(0, math.floor(competing_left)),
+                0,
+                min(crop.width, math.ceil(competing_right)),
+                crop.height,
+            )
+        )
+    )
+    if competing.confidence >= 0.99:
+        return words
+    return [
+        *words[:-2],
+        (
+            combined_text,
+            BoundingBox.union((first[1], last[1])),
+            min(first[2], last[2], combined.confidence),
+        ),
+    ]
+
+
 def _recover_isolated_overlapping_word_pairs(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -1877,6 +1942,12 @@ def _recover_word_boundaries(
         recognizer,
     )
     words = _recover_overlapping_suffix_pairs(words, crop, line_box, recognizer)
+    words = _recover_terminal_digit_hangul_pair(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
     words = _recover_terminal_overlapping_word_pair(
         words,
         crop,

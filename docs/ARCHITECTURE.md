@@ -82,6 +82,12 @@ left fragment ends with an identifier followed by one copied Hangul syllable, th
 starts with the identifier's repeated final digit and a complete word beginning with that
 syllable, both Hangul boxes are at least 99% confident, and their leading-edge and vertical
 geometry agree. Neither artifact is removed independently.
+At line end, a structured false split consisting of two ASCII decimal digits and one Hangul
+syllable followed by one Hangul syllable has a separate recovery profile. Fragment confidence
+must reach 99.61% and 99.96%, the gap must be 35% to 35.5% of line height, the preceding boundary
+at least 62%, and pitch agreement within 12%. Subpixel verification coordinates are normalized;
+the union must exactly reproduce the concatenation at 99.92% confidence or better, and a preceding
+adjacent union at 99% preserves the original pair.
 An interior pair of one-syllable Hangul fragments can be rejoined only when their measured gap is
 effectively zero, gaps on both sides are wide, character pitch agrees, each fragment has strong
 confidence, and recognizing their union at 99.99% or better exactly returns their concatenation.
