@@ -1449,6 +1449,91 @@ def test_dictionary_rejects_an_unsupported_dependent_noun_role() -> None:
     assert candidate.lexical_components[0].learner_role == 'noun'
 
 
+class CopularDependentDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma != '점':
+            return ()
+        roles = ('noun', '의존 명사')
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-5.24, 'dependent noun'), (-5.26, 'noun')],
+)
+def test_adnominal_copular_dependent_noun_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('는', 'ETM', 4, 1),
+                Token('점', 'NNG', 6, 1),
+                Token('이', 'VCP', 7, 1),
+                Token('다', 'EF', 8, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('는', 'ETM', 4, 1),
+                Token('점', 'NNB', 6, 1),
+                Token('이', 'VCP', 7, 1),
+                Token('다', 'EF', 8, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        CopularDependentDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('머물렀다는 점이다', (6, 9))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_adnominal_dependent_noun_requires_a_copular_target() -> None:
+    analyses = [
+        (
+            [
+                Token('는', 'ETM', 4, 1),
+                Token('점', 'NNG', 6, 1),
+                Token('은', 'JX', 7, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('는', 'ETM', 4, 1),
+                Token('점', 'NNB', 6, 1),
+                Token('은', 'JX', 7, 1),
+            ],
+            -5.24,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        CopularDependentDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('머물렀다는 점은', (6, 8))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'noun'
+
+
 @pytest.mark.parametrize(
     ('surface', 'tokens'),
     [

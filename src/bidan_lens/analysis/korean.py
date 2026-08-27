@@ -54,6 +54,7 @@ _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
 _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
 _ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN = 1.0
+_ADNOMINAL_COPULAR_DEPENDENT_NOUN_SCORE_MARGIN = 4.3
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
 _COMPLETE_DERIVED_PREDICATE_SCORE_MARGIN = 5.0
 _COMPLETE_LEXICAL_ADVERB_SCORE_MARGIN = 5.0
@@ -910,6 +911,7 @@ class KoreanAnalyzer:
         locative_itda_ids: set[int] = set()
         post_particle_inflected_verb_ids: set[int] = set()
         adnominal_dependent_noun_ids: set[int] = set()
+        adnominal_copular_dependent_noun_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
         for rank, analysis in enumerate(analyses):
             raw_tokens, kiwi_score = analysis
@@ -1053,6 +1055,26 @@ class KoreanAnalyzer:
                 )
             ):
                 adnominal_dependent_noun_ids.add(id(candidate))
+            preceding_context_end = (
+                preceding_context_token.start
+                + max(
+                    preceding_context_token.length,
+                    len(preceding_context_token.form),
+                )
+                if preceding_context_token is not None
+                else -1
+            )
+            if (
+                preceding_context_tag == 'ETM'
+                and preceding_context_end < start
+                and sentence[preceding_context_end:start] == ' '
+                and len(components) == 1
+                and components[0].learner_role == 'dependent noun'
+                and self.dictionary.lookup(components[0].lemma, '의존 명사', 1)
+                and any(_base_tag(token.tag) == 'VCP' for token in target_tokens)
+                and any(_base_tag(token.tag) == 'EF' for token in target_tokens)
+            ):
+                adnominal_copular_dependent_noun_ids.add(id(candidate))
         candidates.sort(key=lambda candidate: candidate.score, reverse=True)
         candidates = self._promote_dictionary_preferred_nominal_role(candidates)
         candidates = self._promote_prenominal_determiner(
@@ -1073,6 +1095,10 @@ class KoreanAnalyzer:
         candidates = self._promote_adnominal_before_dependent_noun(
             candidates,
             adnominal_dependent_noun_ids,
+        )
+        candidates = self._promote_adnominal_copular_dependent_noun(
+            candidates,
+            adnominal_copular_dependent_noun_ids,
         )
         candidates = self._promote_close_noun_particle_candidate(candidates)
         candidates = self._promote_close_complete_multi_component(
@@ -1509,6 +1535,39 @@ class KoreanAnalyzer:
                 id(candidate) in adnominal_ids
                 and first.score - candidate.score
                 <= _ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN
+            ):
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
+    @staticmethod
+    def _promote_adnominal_copular_dependent_noun(
+        candidates: list[AnalysisCandidate],
+        adnominal_ids: set[int],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or id(candidates[0]) in adnominal_ids:
+            return candidates
+        first = candidates[0]
+        if (
+            len(first.lexical_components) != 1
+            or first.lexical_components[0].learner_role != 'noun'
+        ):
+            return candidates
+        current = first.lexical_components[0]
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                id(candidate) not in adnominal_ids
+                or first.score - candidate.score
+                > _ADNOMINAL_COPULAR_DEPENDENT_NOUN_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                current.surface == alternative.surface
+                and current.lemma == alternative.lemma
+                and alternative.learner_role == 'dependent noun'
+                and alternative.dictionary_entries
             ):
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates

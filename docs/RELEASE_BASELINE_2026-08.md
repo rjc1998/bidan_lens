@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.15 quick tier records 99.23% whole-eojeol OCR, 99.00% target selection, 95.00%
 functional context, 75.50% exact sentence transcription, 94.00% component accuracy, 95.00%
 exact KRDict fidelity, 90.50% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 226.10 ms median / 335.31 ms p95. There
+false promotions. The accepted current rerun is 217.27 ms median / 329.15 ms p95. There
 are nine analysis, eight context, and two target failures. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,17 +57,17 @@ gate pass.
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`6906ce7e4f7dd12c62490aa6a1e431186c0050bcac89c85d6e7244155e667b04` and
+`68c789c5a40e3ccc31193be0affdd72728d8602024a66b73676cb0a23dbb7e56` and
 `de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
 The complete v4.15 development run against the current OCR and analyzer cleanup records 98.20%
 whole-eojeol OCR, 97.10% target selection, 88.75% functional context, 71.70% exact sentence
-transcription, 93.00% component accuracy, 95.35% exact KRDict fidelity, 83.45% fully correct first
+transcription, 93.05% component accuracy, 95.35% exact KRDict fidelity, 83.50% fully correct first
 popups, 94.20% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 219.91 ms median / 329.98 ms p95. The privacy-safe stage totals are 58 target,
-167 context, and 106 analysis failures. The analysis failures comprise 47 primary lemmas, 49
+accepted rerun is 217.71 ms median / 327.64 ms p95. The privacy-safe stage totals are 58 target,
+167 context, and 105 analysis failures. The analysis failures comprise 47 primary lemmas, 48
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`6b86b11835bcdaf00019116796d52bc47d1d7741456d4d4b7bee819476a045e3` and
-`01aec537a57b6c58ddc66dc54cebb15399ffaa12a6edfd061148ef3371051bbf`.
+`b86d63f607fad30b1629a4e5e39854566cd6bea711a064a61af263a8d96523dc` and
+`e3fa166d8a601c779b7189c38d122807bafdc57a6e528261e200af0c7f11c83c`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -117,7 +117,7 @@ The v4.13 history then has 112 active decisions and SHA-256
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
 The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight oracle defects, and seven
-genuinely ambiguous cases. The current evidence leaves 104 reviewed active cases and 16 resolved IDs; two newly
+genuinely ambiguous cases. The current evidence leaves 103 reviewed active cases and 17 resolved IDs; two newly
 downstream primary-lemma cases remain missing, with no stale decision. Its SHA-256 is
 `d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
 
@@ -683,6 +683,15 @@ other verb-role pairs retain the 2.0-point isolated limit. The exact comparison 
 Quick diagnostics are byte-identical and quick quality metrics are unchanged. Main component
 accuracy rises to 93.00%, exact KRDict fidelity to 95.35%, and popup correctness to 83.45%;
 alternative recovery remains 94.20%. Stress, held-out language, upstream, promotion, and
+negative-pointer results are unchanged.
+
+The subsequent component-role batch promotes an existing dictionary-backed dependent-noun
+candidate only when a single-space adnominal clause governs a target that contains both a copula
+and final ending. The promotion is capped at 4.3 score points; ordinary non-copular nouns remain
+unchanged. The exact comparison removes only `dev-plain-1229`, with no addition or stage change.
+Quick diagnostics are byte-identical and quick quality metrics are unchanged. Main component
+accuracy rises to 93.05% and popup correctness to 83.50%; exact KRDict fidelity remains 95.35%
+and alternative recovery remains 94.20%. Stress, held-out language, upstream, promotion, and
 negative-pointer results are unchanged.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
