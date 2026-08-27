@@ -62,24 +62,24 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 99.23% whole-eojeol OCR, 99.00% target
 selection, 95.00% functional context, 75.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 228.87 ms
-median / 339.95 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 226.10 ms
+median / 335.31 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are nine analysis cases (five primary lemmas and
 four component roles), eight context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`07f08d12d74a730e3fbf053acd4feaf6dddf3af8a772adadc63e5dae480eb124`; the
+`6906ce7e4f7dd12c62490aa6a1e431186c0050bcac89c85d6e7244155e667b04`; the
 privacy-safe diagnostic SHA-256 is
 `de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.20% whole-eojeol OCR, 97.10% target selection, 88.75%
-functional context, 71.70% exact sentence transcription, 92.90% component accuracy, 95.20% exact
-KRDict fidelity, 83.30% fully correct first popups, and 94.20% alternative recovery. False
-promotions remain zero and the accepted follow-up is 224.43 ms median /
-337.07 ms p95. Privacy-safe diagnostics contain 58 target, 167 context, and 109 analysis failures;
-the analysis stages are 47 primary lemmas, 52 component roles, four component counts, and six
+functional context, 71.70% exact sentence transcription, 93.00% component accuracy, 95.35% exact
+KRDict fidelity, 83.45% fully correct first popups, and 94.20% alternative recovery. False
+promotions remain zero and the accepted follow-up is 219.91 ms median /
+329.98 ms p95. Privacy-safe diagnostics contain 58 target, 167 context, and 106 analysis failures;
+the analysis stages are 47 primary lemmas, 49 component roles, four component counts, and six
 grammar roles. No component-surface failures remain. The nine stable IDs with negative
 activations also fail target selection; one contains both punctuation and whitespace activation.
 
@@ -92,9 +92,9 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`d1e3a31b7f4eeec0ef9cf1f17b8ac079945a41cffceae535d714b49e6a09f3f0`; the
+`6b86b11835bcdaf00019116796d52bc47d1d7741456d4d4b7bee819476a045e3`; the
 privacy-safe diagnostic SHA-256 is
-`2bed9ae3dc48c8b2a2be096911c8b2f09ef2661fd5d9da1947d7bfb9716cf3c6`.
+`01aec537a57b6c58ddc66dc54cebb15399ffaa12a6edfd061148ef3371051bbf`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -494,6 +494,16 @@ removes only `dev-plain-0996`, with no addition or stage change. Component accur
 remains 94.20%. Quick diagnostics are byte-identical, while stress, held-out language, upstream,
 promotion, and negative-pointer results are unchanged.
 
+The following component-role batch lets an existing same-surface descriptive `있다` candidate
+lead by as much as 11.0 score points at a one-sided punctuation or fragment boundary only when
+isolated analysis independently prefers the same dictionary-backed descriptive reading. Paired
+wrappers and other verb-role pairs retain the 2.0-point isolated limit. The exact comparison removes
+only `dev-plain-0280`, `dev-plain-0324`, and `dev-plain-1103`, with no addition or stage
+change. Quick diagnostics are byte-identical and quick quality metrics are unchanged. Main
+component accuracy rises to 93.00%, exact KRDict fidelity to 95.35%, and popup correctness to
+83.45%; alternative recovery remains 94.20%. Stress, held-out language, upstream, promotion, and
+negative-pointer results are unchanged.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
@@ -513,7 +523,7 @@ The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
 The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. The current evidence leaves 107 reviewed active cases and 13 resolved IDs; two newly
+and seven genuinely ambiguous cases. The current evidence leaves 104 reviewed active cases and 16 resolved IDs; two newly
 downstream primary-lemma cases remain missing, with no stale decision. Its SHA-256 is
 `d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
 
@@ -909,9 +919,9 @@ or English text cannot be inferred from reliable runtime evidence; no speculativ
 implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
 complex for another safe general rule. Five reviewed primary-lemma Kiwi errors likewise lack a
-safe complete candidate or bounded general promotion. Ten of the 20 reviewed component-role
+safe complete candidate or bounded general promotion. Eleven of the 20 reviewed component-role
 Kiwi errors are now resolved without a regression; the next development target is the remaining
-10 cases whose target and context are already correct.
+nine cases whose target and context are already correct.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.

@@ -48,6 +48,7 @@ _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
+_ISOLATED_DESCRIPTIVE_ITDA_SCORE_MARGIN = 11.0
 _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
 _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
@@ -485,6 +486,12 @@ class KoreanAnalyzer:
                 and unicodedata.category(sentence[end]).startswith('P')
             )
         )
+        paired_wrapper_boundary = (
+            start > 0
+            and end < len(sentence)
+            and unicodedata.category(sentence[start - 1]).startswith('P')
+            and unicodedata.category(sentence[end]).startswith('P')
+        )
         isolated = self._analyze_candidates(
             surface,
             (0, len(surface)),
@@ -507,11 +514,26 @@ class KoreanAnalyzer:
         ):
             return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
+            score_margin = _ISOLATED_VERB_ROLE_SCORE_MARGIN
+            if (
+                not paired_wrapper_boundary
+                and len(first.lexical_components) == 1
+                and len(candidate.lexical_components) == 1
+                and len(isolated[0].lexical_components) == 1
+                and first.lexical_components[0].lemma == '있다'
+                and first.lexical_components[0].learner_role == 'action verb'
+                and candidate.lexical_components[0].lemma == '있다'
+                and candidate.lexical_components[0].learner_role
+                == 'descriptive verb'
+                and isolated[0].lexical_components[0].lemma == '있다'
+                and isolated[0].lexical_components[0].learner_role
+                == 'descriptive verb'
+            ):
+                score_margin = _ISOLATED_DESCRIPTIVE_ITDA_SCORE_MARGIN
             if (
                 candidate.score > first.score
                 or self._candidate_signature(candidate) != signature
-                or first.score - candidate.score
-                > _ISOLATED_VERB_ROLE_SCORE_MARGIN
+                or first.score - candidate.score > score_margin
                 or candidate.lemma != first.lemma
                 or len(candidate.lexical_components)
                 != len(first.lexical_components)

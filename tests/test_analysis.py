@@ -1611,6 +1611,51 @@ def test_isolated_role_does_not_undo_dictionary_preferred_descriptive_role() -> 
     assert candidate.lexical_components[0].learner_role == 'descriptive verb'
 
 
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-11.94, 'descriptive verb'), (-11.96, 'action verb')],
+)
+def test_isolated_descriptive_itda_has_bounded_extended_margin(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    contextual = [
+        (
+            [
+                Token('사람', 'NNG', 0, 2),
+                Token('이', 'JKS', 2, 1),
+                Token('있', 'VV', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('사람', 'NNG', 0, 2),
+                Token('이', 'JKS', 2, 1),
+                Token('있', 'VA', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    isolated = [
+        ([Token('있', 'VA', 0, 1), Token('다', 'EF', 1, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '있다' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze('사람이 있다.', (4, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
 def test_locative_itda_prefers_descriptive_role() -> None:
     analyses = [
         (
