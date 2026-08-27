@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_split,
     _recover_confirmed_two_plus_four_splits,
+    _recover_confirmed_two_plus_punctuated_two_split,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -2606,6 +2607,97 @@ def test_confirmed_four_plus_four_split_requires_word_confidence() -> None:
             Image.new('RGB', (160, 15)),
             BoundingBox(0, 0, 160, 15),
             ConfirmedFourPlusFourRecognizer(),
+        )
+        == words
+    )
+
+
+class ConfirmedTwoPlusPunctuatedTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        second_text: str = "\ub9d0\ud55c\u2026",
+        second_confidence: float = 0.99974,
+        segments: tuple[tuple[int, int], ...] = ((0, 32), (38, 89)),
+    ) -> None:
+        self.values = (
+            RecognizedText("\uac19\uc774", 0.999957),
+            RecognizedText(second_text, second_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.04
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_two_plus_punctuated_two_split_recovers_reviewed_profile() -> None:
+    height = 17.6
+    words = [
+        ("\uac19\uc774\ub9d0\ud55c\u2026", BoundingBox(20, 0, 109, height), 0.885137),
+    ]
+
+    recovered = _recover_confirmed_two_plus_punctuated_two_split(
+        words,
+        Image.new("RGB", (130, 18)),
+        BoundingBox(0, 0, 130, height),
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(),
+    )
+
+    assert recovered == [
+        ("\uac19\uc774", BoundingBox(20, 0, 52, height), 0.885137),
+        ("\ub9d0\ud55c\u2026", BoundingBox(58, 0, 109, height), 0.885137),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(second_text="\ub9d0\ud588\u2026"),
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(second_confidence=0.99969),
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(segments=((0, 32), (39, 89))),
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(segments=((0, 31), (37, 89))),
+        ConfirmedTwoPlusPunctuatedTwoRecognizer(segments=((2, 34), (40, 87))),
+    ],
+)
+def test_confirmed_two_plus_punctuated_two_split_requires_exact_profile(
+    recognizer,
+) -> None:
+    words = [
+        ("\uac19\uc774\ub9d0\ud55c\u2026", BoundingBox(20, 0, 109, 17.6), 0.885137),
+    ]
+
+    assert (
+        _recover_confirmed_two_plus_punctuated_two_split(
+            words,
+            Image.new("RGB", (130, 18)),
+            BoundingBox(0, 0, 130, 17.6),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize("confidence", [0.8799, 0.8901])
+def test_confirmed_two_plus_punctuated_two_split_requires_word_confidence(
+    confidence,
+) -> None:
+    words = [
+        ("\uac19\uc774\ub9d0\ud55c\u2026", BoundingBox(20, 0, 109, 17.6), confidence),
+    ]
+
+    assert (
+        _recover_confirmed_two_plus_punctuated_two_split(
+            words,
+            Image.new("RGB", (130, 18)),
+            BoundingBox(0, 0, 130, 17.6),
+            ConfirmedTwoPlusPunctuatedTwoRecognizer(),
         )
         == words
     )
