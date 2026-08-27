@@ -57,6 +57,7 @@ _COMPLETE_DERIVED_PREDICATE_SCORE_MARGIN = 5.0
 _COMPLETE_LEXICAL_ADVERB_SCORE_MARGIN = 5.0
 _TERMINAL_ADVERB_ENDING_SCORE_MARGIN = 3.25
 _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN = 2.5
+_DICTIONARY_PROPER_NOUN_ROLE_SCORE_MARGIN = 3.2
 _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN = 2.7
 _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
 _CONTEXTUAL_SIK_NOUN_SCORE_MARGIN = 5.1
@@ -149,6 +150,17 @@ class KoreanAnalyzer:
         )
         if wrapper_synthesized:
             candidates = wrapper_candidates
+        if (
+            candidates
+            and candidates[0].lexical_components
+            and all(
+                component.learner_role == 'name or proper noun'
+                for component in candidates[0].lexical_components
+            )
+        ):
+            candidates = tuple(
+                self._promote_dictionary_preferred_nominal_role(list(candidates))
+            )
         candidates = tuple(self._promote_contextual_sik_noun(list(candidates)))
         candidates = tuple(
             self._promote_compound_terminal_noun(list(candidates))
@@ -1072,11 +1084,24 @@ class KoreanAnalyzer:
             if (
                 first.score - candidate.score
                 > _DICTIONARY_DEPENDENT_ROLE_SCORE_MARGIN
+                and not all(
+                    current.learner_role == 'name or proper noun'
+                    and alternative.learner_role == 'noun'
+                    for current, alternative in differing
+                )
             ):
                 continue
             if (
                 first.score - candidate.score
-                > _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN
+                > (
+                    _DICTIONARY_PROPER_NOUN_ROLE_SCORE_MARGIN
+                    if all(
+                        current.learner_role == 'name or proper noun'
+                        and alternative.learner_role == 'noun'
+                        for current, alternative in differing
+                    )
+                    else _DICTIONARY_NOMINAL_ROLE_SCORE_MARGIN
+                )
                 and not all(
                     alternative.learner_role == 'dependent noun'
                     for _, alternative in differing

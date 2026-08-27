@@ -945,16 +945,62 @@ def test_dictionary_preferred_nominal_role_is_score_bounded(
     assert candidate.lexical_components[0].learner_role == expected_role
 
 
-def test_dictionary_noun_entry_can_disambiguate_a_proper_noun_tag() -> None:
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-4.1, 'noun'), (-4.2, 'name or proper noun')],
+)
+def test_dictionary_noun_entry_can_disambiguate_a_proper_noun_tag(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
     analyses = [
         ([Token('그', 'NNP', 0, 1)], -1.0),
-        ([Token('그', 'NNG', 0, 1)], -2.5),
+        ([Token('그', 'NNG', 0, 1)], alternative_score),
     ]
 
     candidate = KoreanAnalyzer(
         NominalRoleDictionary('noun'),
         FakeKiwi(analyses),
     ).analyze('그', (0, 1))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_dictionary_nominal_role_is_reapplied_after_wrapper_context() -> None:
+    sentence = "'그' 돈"
+    wrapped = [
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('그', 'NNP', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('돈', 'NNG', 4, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('그', 'NNG', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('돈', 'NNG', 4, 1),
+            ],
+            -1.5,
+        ),
+    ]
+    unwrapped = [
+        ([Token('그', 'NNP', 0, 1), Token('돈', 'NNG', 2, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = unwrapped if text == '그 돈' else wrapped
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        NominalRoleDictionary('noun'),
+        ContextKiwi([]),
+    ).analyze(sentence, (1, 2))[0]
 
     assert candidate.lexical_components[0].learner_role == 'noun'
 
@@ -2521,3 +2567,41 @@ def test_complete_predicate_recovery_preserves_existing_tense_features() -> None
     )._promote_close_complete_inflected_word([current, alternative])
 
     assert promoted[0] is current
+
+def test_wrapper_context_keeps_a_pronoun_over_dictionary_order() -> None:
+    sentence = "'그' 돈"
+    wrapped = [
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('그', 'NP', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('돈', 'NNG', 4, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('그', 'MM', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('돈', 'NNG', 4, 1),
+            ],
+            -1.5,
+        ),
+    ]
+    unwrapped = [
+        ([Token('그', 'NP', 0, 1), Token('돈', 'NNG', 2, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = unwrapped if text == '그 돈' else wrapped
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        NominalRoleDictionary('determiner'),
+        ContextKiwi([]),
+    ).analyze(sentence, (1, 2))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'pronoun'
