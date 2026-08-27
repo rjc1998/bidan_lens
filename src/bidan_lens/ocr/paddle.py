@@ -1521,6 +1521,160 @@ def _recover_confirmed_four_plus_four_split(
     return recovered
 
 
+def _recover_confirmed_substitution_readings(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for text, box, confidence in words:
+        core_start = 0
+        core_end = len(text)
+        while (
+            core_start < core_end
+            and unicodedata.category(text[core_start])[0] in {"P", "Z"}
+        ):
+            core_start += 1
+        while (
+            core_end > core_start
+            and unicodedata.category(text[core_end - 1])[0] in {"P", "Z"}
+        ):
+            core_end -= 1
+        core = text[core_start:core_end]
+        wrapped_single = (
+            len(text) == 3
+            and core_start == 1
+            and core_end == 2
+            and 0.74 <= confidence <= 0.75
+        )
+        plain_pair = (
+            len(text) == 2
+            and core_start == 0
+            and core_end == 2
+            and 0.90 <= confidence <= 0.91
+        )
+        wrapped_four = (
+            len(text) == 6
+            and core_start == 1
+            and core_end == 5
+            and text[0] in _ATTACHED_PARTICLE_WRAPPERS
+            and _BOUNDARY_WRAPPERS.get(text[0]) == text[-1]
+            and 0.85 <= confidence <= 0.87
+        )
+        punctuated_three = (
+            len(text) == 4
+            and core_start == 0
+            and core_end == 3
+            and 0.93 <= confidence <= 0.94
+        )
+        plain_six = (
+            len(text) == 6
+            and core_start == 0
+            and core_end == 6
+            and 0.56 <= confidence <= 0.57
+        )
+        if (
+            not all(is_hangul(character) for character in core)
+            or not (
+                wrapped_single
+                or plain_pair
+                or wrapped_four
+                or punctuated_three
+                or plain_six
+            )
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        character_width = box.width / len(text)
+        core_left = max(
+            0,
+            math.floor(
+                box.left
+                - line_box.left
+                + core_start * character_width
+            ),
+        )
+        core_right = min(
+            crop.width,
+            math.ceil(
+                box.left
+                - line_box.left
+                + core_end * character_width
+            ),
+        )
+        core_crop = crop.crop((core_left, 0, core_right, crop.height))
+        candidate_text: str | None = None
+        candidate_confidence = 0.0
+        if wrapped_single or plain_six:
+            tight = recognizer.recognize(core_crop)
+            padded = recognizer.recognize(
+                crop.crop(
+                    (
+                        max(0, core_left - 2),
+                        0,
+                        min(crop.width, core_right + 2),
+                        crop.height,
+                    )
+                )
+            )
+            tight_text = tight.text.replace(" ", "")
+            padded_text = padded.text.replace(" ", "")
+            tight_threshold = 0.987 if wrapped_single else 0.55
+            padded_threshold = 0.996 if wrapped_single else 0.56
+            if (
+                tight.confidence >= tight_threshold
+                and padded.confidence >= padded_threshold
+                and tight_text == padded_text
+            ):
+                candidate_text = tight_text
+                candidate_confidence = min(tight.confidence, padded.confidence)
+        elif wrapped_four or punctuated_three:
+            tight = recognizer.recognize(core_crop)
+            doubled = recognizer.recognize(
+                core_crop.resize(
+                    (core_crop.width * 2, core_crop.height * 2),
+                    Image.Resampling.BICUBIC,
+                )
+            )
+            tight_text = tight.text.replace(" ", "")
+            doubled_text = doubled.text.replace(" ", "")
+            tight_threshold = 0.66 if wrapped_four else 0.68
+            doubled_threshold = 0.73 if wrapped_four else 0.72
+            if (
+                tight.confidence >= tight_threshold
+                and doubled.confidence >= doubled_threshold
+                and tight_text == doubled_text
+            ):
+                candidate_text = tight_text
+                candidate_confidence = min(tight.confidence, doubled.confidence)
+        else:
+            retry_image = ImageOps.autocontrast(core_crop.convert("L")).resize(
+                (core_crop.width * 2, core_crop.height * 2),
+                Image.Resampling.BICUBIC,
+            )
+            retry_image = ImageEnhance.Contrast(retry_image).enhance(1.2)
+            candidate = recognizer.recognize(retry_image.convert("RGB"))
+            if candidate.confidence >= 0.9997:
+                candidate_text = candidate.text.replace(" ", "")
+                candidate_confidence = candidate.confidence
+        if (
+            candidate_text is None
+            or candidate_text == core
+            or len(candidate_text) != len(core)
+            or not all(is_hangul(character) for character in candidate_text)
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        recovered.append(
+            (
+                text[:core_start] + candidate_text + text[core_end:],
+                box,
+                min(confidence, candidate_confidence),
+            )
+        )
+    return recovered
+
 def _recover_confirmed_two_plus_punctuated_two_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -2067,6 +2221,12 @@ def _recover_word_boundaries(
     line_box: BoundingBox,
     recognizer: Any,
 ) -> list[tuple[str, BoundingBox, float]]:
+    words = _recover_confirmed_substitution_readings(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
     words = _recover_confirmed_two_plus_punctuated_two_split(
         words,
         crop,

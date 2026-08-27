@@ -46,28 +46,28 @@ shifts only targets outside the 1280 by 720 image into a 10 px safe band and rem
 from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
 preserved as rejected evidence because its correction was broader than the viewport defect.
 
-The v4.15 quick tier records 99.23% whole-eojeol OCR, 99.00% target selection, 95.00%
-functional context, 75.50% exact sentence transcription, 94.50% component accuracy, 95.50%
-exact KRDict fidelity, 91.00% fully correct first popups, 96.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 238.52 ms median / 346.94 ms p95. There
-are eight analysis, eight context, and two target failures. Aggregate and every negative category are
+The v4.15 quick tier records 99.28% whole-eojeol OCR, 99.50% target selection, 95.50%
+functional context, 76.00% exact sentence transcription, 94.50% component accuracy, 95.50%
+exact KRDict fidelity, 91.00% fully correct first popups, 97.00% alternative recovery, and zero
+false promotions. The accepted current rerun is 226.25 ms median / 335.27 ms p95. There
+are nine analysis, eight context, and one target failure. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
 
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`b42a5fedb8862eae4f8152076f610b9f1176691620006c87777bd7b1fad16326` and
-`cede05e83f46f6fe464b9830c8318ec83c15e2ec58ba3883a2d3e852a32ab807`.
+`b21d3b296065a4b01314fac76abfba324b9efbb610ecfe3f6ecf29b0d5232734` and
+`8e0f3729a158475dbfb22a2666cdeaaddd73d8ff7b874d6e28d2bff1cc772705`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
-The complete v4.15 development run against the current OCR and analyzer cleanup records 98.22%
-whole-eojeol OCR, 97.20% target selection, 88.85% functional context, 71.80% exact sentence
-transcription, 93.25% component accuracy, 95.55% exact KRDict fidelity, 83.80% fully correct first
-popups, 94.30% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 236.75 ms median / 358.15 ms p95. The privacy-safe stage totals are 56 target,
-167 context, and 101 analysis failures. The analysis failures comprise 44 primary lemmas, 47
+The complete v4.15 development run against the current OCR and analyzer cleanup records 98.24%
+whole-eojeol OCR, 97.45% target selection, 89.10% functional context, 71.90% exact sentence
+transcription, 93.25% component accuracy, 95.55% exact KRDict fidelity, 84.00% fully correct first
+popups, 94.55% alternative recovery, and zero false promotions across 2,000 main cases. The
+accepted rerun is 224.39 ms median / 339.15 ms p95. The privacy-safe stage totals are 51 target,
+167 context, and 102 analysis failures. The analysis failures comprise 44 primary lemmas, 48
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`0f62c4ac8d92036c69bfbb122fbca0689221c09dd6c4ee0b98b8ad478acd30b1` and
-`10e286493986b1e06b9d93de24989bd43757899f23399f8d071bfb484590e120`.
+`b9b4da94977274cf9f47e3d6fceaf8aed2873d150538b7ed51f53830bdfc9fa3` and
+`93acdbb69d9e77d8975a4b6d52c9aea0a65c6a34dd44a4d169614a5988b272c2`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -732,12 +732,25 @@ edge-complete readings of two Hangul and two Hangul plus ellipsis, both at least
 with 34%-35% of line-height separation, at least 94% pitch agreement, and exact recombination.
 The exact full comparison removes only `dev-plain-1698`, with no addition or stage change. Quick
 diagnostics remain byte-identical and every non-latency quick quality metric remains unchanged;
-stress, held-out language, promotion, and negative-pointer results are unchanged. The two accepted
-geometry passes leave 56 main target failures: 30 wrong-text hits in matching geometry and 26
-no-hit cases. The only remaining observed exact CTC candidate is a 1+1 split at the much weaker
-0.001 space threshold and remains rejected. The next development target is privacy-safe grouping
-of wrong-text OCR substitution and omission evidence; broader hit-test expansion remains
-unsupported.
+stress, held-out language, promotion, and negative-pointer results are unchanged.
+
+Privacy-safe detector-relative probing then groups the 30 matching-geometry wrong-text cases by
+raw/core length, punctuation shape, and confidence without persisting text. The accepted
+substitution batch covers five exact profiles: bracketed one- and four-Hangul cores, a plain
+two-Hangul core, a terminal-punctuation three-Hangul core, and a plain six-Hangul core. Each
+replacement preserves Hangul length and requires either two agreeing crop variants or the bounded
+high-confidence enhanced retry; paired four-core wrappers must use the attached-particle wrapper
+set. Exact quick/full comparisons recover five target readings. Four failures fully resolve and
+`dev-plain-0147` moves only from target to component role, with no unrelated addition. The lone
+weak two-Hangul retry candidate and nonauthoritative rounded-crop candidates remain rejected.
+Stress, held-out language, promotion, and negative-pointer results are unchanged.
+
+The two accepted geometry passes and substitution batch leave 51 main target failures: 25
+wrong-text hits in matching geometry and 26 no-hit cases. The wrong-text set contains nine
+remaining equal-length substitutions and 16 length-changing substitution or omission cases. The
+only remaining observed exact CTC candidate is a 1+1 split at the much weaker 0.001 space
+threshold and remains rejected. The next development target is privacy-safe grouping of the
+length-changing wrong-text evidence; broader hit-test expansion remains unsupported.
 
 The v4.12 corpus rebuild itself was limited to negative-probe construction. Geometry-only review
 showed that the two v4.11 near-miss failures pointed inside real eojeols on adjacent lines. The builder now selects

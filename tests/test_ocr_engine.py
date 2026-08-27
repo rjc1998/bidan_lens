@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_seven_character_splits,
+    _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_split,
@@ -2611,6 +2612,161 @@ def test_confirmed_four_plus_four_split_requires_word_confidence() -> None:
         == words
     )
 
+
+class ConfirmedSubstitutionRecognizer:
+    def __init__(self, *values: RecognizedText) -> None:
+        self.values = values
+        self.recognition_calls = 0
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+@pytest.mark.parametrize(
+    ("words", "recognizer", "expected"),
+    [
+        (
+            [("[\uac00]", BoundingBox(20, 0, 44, 18), 0.745)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub098", 0.987),
+                RecognizedText("\ub098", 0.996),
+            ),
+            [("[\ub098]", BoundingBox(20, 0, 44, 18), 0.745)],
+        ),
+        (
+            [("\uac00\ub098", BoundingBox(20, 0, 42, 18), 0.905)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub2e4\ub77c", 0.9997),
+            ),
+            [("\ub2e4\ub77c", BoundingBox(20, 0, 42, 18), 0.905)],
+        ),
+        (
+            [("[\uac00\ub098\ub2e4\ub77c]", BoundingBox(20, 0, 80, 18), 0.86)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub9c8\ubc14\uc0ac\uc544", 0.66),
+                RecognizedText("\ub9c8\ubc14\uc0ac\uc544", 0.73),
+            ),
+            [("[\ub9c8\ubc14\uc0ac\uc544]", BoundingBox(20, 0, 80, 18), 0.66)],
+        ),
+        (
+            [("\uac00\ub098\ub2e4\u2026", BoundingBox(20, 0, 64, 18), 0.935)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub77c\ub9c8\ubc14", 0.68),
+                RecognizedText("\ub77c\ub9c8\ubc14", 0.72),
+            ),
+            [("\ub77c\ub9c8\ubc14\u2026", BoundingBox(20, 0, 64, 18), 0.68)],
+        ),
+        (
+            [("\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14", BoundingBox(20, 0, 86, 18), 0.565)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub77c\ub9c8\ubc14\uc0ac\uc544\uc790", 0.55),
+                RecognizedText("\ub77c\ub9c8\ubc14\uc0ac\uc544\uc790", 0.56),
+            ),
+            [("\ub77c\ub9c8\ubc14\uc0ac\uc544\uc790", BoundingBox(20, 0, 86, 18), 0.55)],
+        ),
+    ],
+)
+def test_confirmed_substitution_readings_recovers_reviewed_profiles(
+    words,
+    recognizer,
+    expected,
+) -> None:
+    assert (
+        _recover_confirmed_substitution_readings(
+            words,
+            Image.new("RGB", (110, 18)),
+            BoundingBox(0, 0, 110, 18),
+            recognizer,
+        )
+        == expected
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "recognizer"),
+    [
+        (
+            [("[\uac00]", BoundingBox(20, 0, 44, 18), 0.745)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub098", 0.987),
+                RecognizedText("\ub2e4", 0.996),
+            ),
+        ),
+        (
+            [("[\uac00]", BoundingBox(20, 0, 44, 18), 0.745)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub098", 0.9869),
+                RecognizedText("\ub098", 0.996),
+            ),
+        ),
+        (
+            [("\uac00\ub098", BoundingBox(20, 0, 42, 18), 0.905)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub2e4\ub77c", 0.99969),
+            ),
+        ),
+        (
+            [("[\uac00\ub098\ub2e4\ub77c]", BoundingBox(20, 0, 80, 18), 0.86)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub9c8\ubc14\uc0ac\uc544", 0.659),
+                RecognizedText("\ub9c8\ubc14\uc0ac\uc544", 0.73),
+            ),
+        ),
+        (
+            [("\uac00\ub098\ub2e4\u2026", BoundingBox(20, 0, 64, 18), 0.935)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub77c\ub9c8\ubc14", 0.68),
+                RecognizedText("\ub77c\ub9c8\ub2e4", 0.72),
+            ),
+        ),
+        (
+            [("\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14", BoundingBox(20, 0, 86, 18), 0.565)],
+            ConfirmedSubstitutionRecognizer(
+                RecognizedText("\ub77c\ub9c8\ubc14\uc0ac\uc544\uc790", 0.55),
+                RecognizedText("ABCDEF", 0.99),
+            ),
+        ),
+    ],
+)
+def test_confirmed_substitution_readings_requires_exact_profile(
+    words,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_substitution_readings(
+            words,
+            Image.new("RGB", (110, 18)),
+            BoundingBox(0, 0, 110, 18),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        [("[\uac00]", BoundingBox(20, 0, 44, 18), 0.7399)],
+        [("\uac00\ub098", BoundingBox(20, 0, 42, 18), 0.8999)],
+        [("[\uac00\ub098\ub2e4\ub77c]", BoundingBox(20, 0, 80, 18), 0.8499)],
+        [("\uac00\ub098\ub2e4\u2026", BoundingBox(20, 0, 64, 18), 0.9401)],
+        [("\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14", BoundingBox(20, 0, 86, 18), 0.5701)],
+        [("\uac00\ub098\ub2e4\ub77c", BoundingBox(20, 0, 80, 18), 0.86)],
+        [("-\uac00\ub098\ub2e4\ub77c-", BoundingBox(20, 0, 80, 18), 0.86)],
+    ],
+)
+def test_confirmed_substitution_readings_requires_word_shape(words) -> None:
+    assert (
+        _recover_confirmed_substitution_readings(
+            words,
+            Image.new("RGB", (110, 18)),
+            BoundingBox(0, 0, 110, 18),
+            ConfirmedSubstitutionRecognizer(),
+        )
+        == words
+    )
 
 class ConfirmedTwoPlusPunctuatedTwoRecognizer:
     def __init__(
