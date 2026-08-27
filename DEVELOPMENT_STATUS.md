@@ -61,25 +61,25 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.15 200-case quick tier records 99.23% whole-eojeol OCR, 99.00% target
-selection, 95.00% functional context, 75.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 221.62 ms
-median / 330.24 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
-promotions remain zero. Its remaining failures are nine analysis cases (five primary lemmas and
+selection, 95.00% functional context, 75.50% exact sentence transcription, 94.50% component
+accuracy, 95.50% exact KRDict fidelity, and 91.00% fully correct first popups, with 217.83 ms
+median / 320.56 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles), eight context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`bc5d1bb8320f7a1619b0ecfbd4d3da98921366711e93c3ea86c5e88b7afa3266`; the
+`b59f53791cddc7f4d888fde86829b774d57ddc8302f1bdae4ec7fc00b94e6494`; the
 privacy-safe diagnostic SHA-256 is
-`de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
+`cede05e83f46f6fe464b9830c8318ec83c15e2ec58ba3883a2d3e852a32ab807`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.20% whole-eojeol OCR, 97.10% target selection, 88.75%
-functional context, 71.70% exact sentence transcription, 93.10% component accuracy, 95.40% exact
-KRDict fidelity, 83.55% fully correct first popups, and 94.20% alternative recovery. False
-promotions remain zero and the accepted follow-up is 222.27 ms median /
-331.71 ms p95. Privacy-safe diagnostics contain 58 target, 167 context, and 104 analysis failures;
-the analysis stages are 47 primary lemmas, 47 component roles, four component counts, and six
+functional context, 71.70% exact sentence transcription, 93.25% component accuracy, 95.55% exact
+KRDict fidelity, 83.70% fully correct first popups, and 94.20% alternative recovery. False
+promotions remain zero and the accepted follow-up is 221.19 ms median /
+329.82 ms p95. Privacy-safe diagnostics contain 58 target, 167 context, and 101 analysis failures;
+the analysis stages are 44 primary lemmas, 47 component roles, four component counts, and six
 grammar roles. No component-surface failures remain. The nine stable IDs with negative
 activations also fail target selection; one contains both punctuation and whitespace activation.
 
@@ -92,9 +92,9 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`46a5a779e21b9045c034f8e653a2612f1ad8df48a91e7f85e114481b60cb918a`; the
+`bcd17ae8caefc5c5e0370432602d747dda2c34d3151f5a42159684f1ba019d50`; the
 privacy-safe diagnostic SHA-256 is
-`cc6c0c58144905879bfeb95cf3f7abbe6037d98b6ab6fba3962902c605ed6cee`.
+`5070c867ea22cb4b0b943c48ffff6aa6ca675c8d9c055d27cfaf9c6f0ce35726`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -523,6 +523,18 @@ unchanged. Main component accuracy rises to 93.10%, exact KRDict fidelity to 95.
 correctness to 83.55%; alternative recovery remains 94.20%. Stress, held-out language, upstream,
 promotion, and negative-pointer results are unchanged.
 
+The next primary-lemma batch promotes an existing contextual alternative within 3.0 score points
+only at a punctuation or fragment boundary and only when its exact candidate signature leads
+isolated-eojeol analysis, its lemma differs from the current leader, every component is
+dictionary-backed, and no word part is unrepresented. Eligible alternatives are limited to a
+longer complete inflected predicate or a single whole-surface number replacing a multi-component
+split. The exact comparison removes only `dev-plain-0098`, `dev-plain-1137`, and
+`dev-plain-1297`, with no addition or stage change. The quick tier removes only
+`dev-plain-0098`; component accuracy and KRDict fidelity rise to 94.50% and 95.50%, and popup
+correctness rises to 91.00%. Full component accuracy rises to 93.25%, KRDict fidelity to 95.55%,
+and popup correctness to 83.70%; alternative recovery remains 94.20%. Stress, held-out language,
+upstream, promotion, and negative-pointer results are unchanged.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
@@ -540,11 +552,11 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
+The current v4.15 report contains 122 decisions: 30 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. The current evidence leaves 102 reviewed active cases and 18 resolved IDs; two newly
-downstream primary-lemma cases remain missing, with no stale decision. Its SHA-256 is
-`d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
+and seven genuinely ambiguous cases. The current evidence leaves 101 reviewed active cases and
+21 resolved IDs, with no missing or stale decision. Its SHA-256 is
+`401fc9ec1592c2aebf991b5c05e77648664c8f04751152345c40903b8de5da30`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete

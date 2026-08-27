@@ -49,6 +49,7 @@ _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
 _LOCAL_ITDA_NOUN_SCORE_MARGIN = 4.5
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
+_ISOLATED_COMPLETE_CANDIDATE_SCORE_MARGIN = 3.0
 _ISOLATED_DESCRIPTIVE_ITDA_SCORE_MARGIN = 11.0
 _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
@@ -600,6 +601,43 @@ class KoreanAnalyzer:
             )
         ):
             return candidates
+        if punctuation_or_fragment_boundary:
+            isolated_leader = isolated[0]
+            isolated_signature = self._candidate_signature(isolated_leader)
+            first_lexical_surface = ''.join(
+                component.surface for component in first.lexical_components
+            )
+            for index, candidate in enumerate(candidates[1:], start=1):
+                components = candidate.lexical_components
+                candidate_lexical_surface = ''.join(
+                    component.surface for component in components
+                )
+                complete_predicate = (
+                    len(candidate_lexical_surface) > len(first_lexical_surface)
+                    and self._is_inflected_predicate_candidate(candidate)
+                )
+                complete_number = (
+                    len(first.lexical_components) > 1
+                    and len(components) == 1
+                    and components[0].learner_role == 'number'
+                    and components[0].surface == surface
+                )
+                if (
+                    candidate.score <= first.score
+                    and first.score - candidate.score
+                    <= _ISOLATED_COMPLETE_CANDIDATE_SCORE_MARGIN
+                    and candidate.lemma != first.lemma
+                    and self._candidate_signature(candidate) == isolated_signature
+                    and components
+                    and all(component.dictionary_entries for component in components)
+                    and not self._has_unrepresented_word_part(candidate)
+                    and (complete_predicate or complete_number)
+                ):
+                    return (
+                        candidate,
+                        *candidates[:index],
+                        *candidates[index + 1 :],
+                    )
         for index, candidate in enumerate(candidates[1:], start=1):
             score_margin = _ISOLATED_VERB_ROLE_SCORE_MARGIN
             if (

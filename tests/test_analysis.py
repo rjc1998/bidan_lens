@@ -1857,6 +1857,123 @@ def test_isolated_descriptive_itda_has_bounded_extended_margin(
     assert candidate.lexical_components[0].learner_role == expected_role
 
 
+class IsolatedCompleteDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '맡다': ('verb',),
+            '맡기다': ('verb',),
+            '수': ('determiner',),
+            '백': ('numeral',),
+            '수백': ('numeral',),
+        }.get(lemma, ())
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_lemma'),
+    [(-3.94, '맡기다'), (-3.96, '맡다')],
+)
+def test_isolated_complete_predicate_has_bounded_margin(
+    alternative_score: float,
+    expected_lemma: str,
+) -> None:
+    contextual = [
+        (
+            [
+                Token('그', 'NP', 0, 1),
+                Token('가', 'JKS', 1, 1),
+                Token('맡', 'VV', 3, 1),
+                Token('기', 'ETN', 4, 1),
+                Token('는', 'JX', 5, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('그', 'NP', 0, 1),
+                Token('가', 'JKS', 1, 1),
+                Token('맡기', 'VV', 3, 2),
+                Token('는', 'ETM', 5, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    isolated = [
+        ([Token('맡기', 'VV', 0, 2), Token('는', 'ETM', 2, 1)], -1.0),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '맡기는' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        IsolatedCompleteDictionary(),
+        ContextKiwi([]),
+    ).analyze('그가 맡기는…', (3, 6))[0]
+
+    assert candidate.lemma == expected_lemma
+
+
+@pytest.mark.parametrize(
+    ('separator', 'expected_lemma'),
+    [(':', '수백'), (' ', '수')],
+)
+def test_isolated_whole_number_requires_punctuation_boundary(
+    separator: str,
+    expected_lemma: str,
+) -> None:
+    sentence = '규모는 수백' + separator + '조원'
+    contextual = [
+        (
+            [
+                Token('규모', 'NNG', 0, 2),
+                Token('는', 'JX', 2, 1),
+                Token('수', 'MM', 4, 1),
+                Token('백', 'NR', 5, 1),
+                Token('조', 'NR', 7, 1),
+                Token('원', 'NNB', 8, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('규모', 'NNG', 0, 2),
+                Token('는', 'JX', 2, 1),
+                Token('수백', 'NR', 4, 2),
+                Token('조', 'NR', 7, 1),
+                Token('원', 'NNB', 8, 1),
+            ],
+            -1.7,
+        ),
+    ]
+    isolated = [([Token('수백', 'NR', 0, 2)], -1.0)]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '수백' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        IsolatedCompleteDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (4, 6))[0]
+
+    assert candidate.lemma == expected_lemma
+
+
 def test_locative_itda_prefers_descriptive_role() -> None:
     analyses = [
         (
