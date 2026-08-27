@@ -176,6 +176,12 @@ types and lengths, separate whole/part confidence floors, and concatenation that
 reproduces the original word. The pure-Hangul profile permits a lower detector-capped whole-word
 confidence only when one part is near-certain; the structured identifier profile retains high
 confidence floors for the word and both parts.
+A seven-syllable all-Hangul word has separate five-plus-two and four-plus-three CTC split
+profiles. A 0.01 word-local space probe must return exactly two edge-complete crops separated by
+32% to 34% of line height, character pitch must agree within 3%, both recognized parts must have
+the profile lengths, and their concatenation must exactly reproduce the original recognition. The
+original word must be at least 96% confident. The five-plus-two profile requires one part at
+99.97% and the other at 97.9%; the four-plus-three profile requires both parts at 99.99%.
 An eight-syllable all-Hangul word has a distinct three-plus-five profile. A 0.02 CTC-space probe
 must return exactly three- and five-syllable crops separated by 30% to 33% of line height, their
 character pitch must agree within 3%, the original and both parts must meet separate

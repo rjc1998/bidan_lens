@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_confirmed_seven_character_splits,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_two_plus_four_splits,
@@ -2533,6 +2534,179 @@ def test_confirmed_three_plus_five_split_requires_exact_parts() -> None:
             Image.new("RGB", (175, 16)),
             BoundingBox(0, 0, 175, 16),
             ConfirmedThreePlusFiveRecognizer("문학상에게"),
+        )
+        == words
+    )
+
+
+class ConfirmedSevenCharacterRecognizer:
+    def __init__(
+        self,
+        first_text: str,
+        second_text: str,
+        first_confidence: float,
+        second_confidence: float,
+        segments: tuple[tuple[int, int], tuple[int, int]],
+    ) -> None:
+        self.values = (
+            RecognizedText(first_text, first_confidence),
+            RecognizedText(second_text, second_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.01
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+@pytest.mark.parametrize(
+    ("text", "recognizer", "height", "word_confidence", "expected"),
+    [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14\uc0ac",
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                "\ubc14\uc0ac",
+                0.9794,
+                0.9998,
+                ((0, 73), (77, 106)),
+            ),
+            12.32,
+            0.9673,
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                    BoundingBox(20, 0, 93, 12.32),
+                    0.9673,
+                ),
+                ("\ubc14\uc0ac", BoundingBox(97, 0, 126, 12.32), 0.9673),
+            ],
+        ),
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14\uc0ac",
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c",
+                "\ub9c8\ubc14\uc0ac",
+                0.99991,
+                0.99999,
+                ((0, 112), (122, 208)),
+            ),
+            29.93,
+            0.9998,
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77c",
+                    BoundingBox(20, 0, 132, 29.93),
+                    0.9998,
+                ),
+                (
+                    "\ub9c8\ubc14\uc0ac",
+                    BoundingBox(142, 0, 228, 29.93),
+                    0.9998,
+                ),
+            ],
+        ),
+    ],
+)
+def test_confirmed_seven_character_split_recovers_reviewed_profiles(
+    text,
+    recognizer,
+    height,
+    word_confidence,
+    expected,
+) -> None:
+    words = [
+        (
+            text,
+            BoundingBox(20, 0, expected[-1][1].right, height),
+            word_confidence,
+        )
+    ]
+
+    recovered = _recover_confirmed_seven_character_splits(
+        words,
+        Image.new("RGB", (250, round(height))),
+        BoundingBox(0, 0, 250, height),
+        recognizer,
+    )
+
+    assert recovered == expected
+
+
+@pytest.mark.parametrize(
+    ("recognizer", "height", "right"),
+    [
+        (
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                "\ubc14\uc544",
+                0.9794,
+                0.9998,
+                ((0, 73), (77, 106)),
+            ),
+            12.32,
+            126,
+        ),
+        (
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                "\ubc14\uc0ac",
+                0.9789,
+                0.9998,
+                ((0, 73), (77, 106)),
+            ),
+            12.32,
+            126,
+        ),
+        (
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c",
+                "\ub9c8\ubc14\uc0ac",
+                0.99989,
+                0.99999,
+                ((0, 112), (122, 208)),
+            ),
+            29.93,
+            228,
+        ),
+        (
+            ConfirmedSevenCharacterRecognizer(
+                "\uac00\ub098\ub2e4\ub77c",
+                "\ub9c8\ubc14\uc0ac",
+                0.99991,
+                0.99999,
+                ((0, 112), (120, 208)),
+            ),
+            29.93,
+            228,
+        ),
+    ],
+)
+def test_confirmed_seven_character_split_requires_exact_strong_parts(
+    recognizer,
+    height,
+    right,
+) -> None:
+    words = [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14\uc0ac",
+            BoundingBox(20, 0, right, height),
+            0.9673,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_seven_character_splits(
+            words,
+            Image.new("RGB", (250, round(height))),
+            BoundingBox(0, 0, 250, height),
+            recognizer,
         )
         == words
     )
