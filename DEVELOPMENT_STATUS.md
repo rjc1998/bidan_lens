@@ -951,8 +951,11 @@ implemented. All nine active reviewed missed-or-merged OCR word-boundary cases a
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
 complex for another safe general rule. Five reviewed primary-lemma Kiwi errors likewise lack a
 safe complete candidate or bounded general promotion. Thirteen of the 20 reviewed component-role
-Kiwi errors are now resolved without a regression; the next development target is the remaining
-seven cases whose target and context are already correct.
+Kiwi errors are now resolved without a regression. The remaining seven were rechecked against
+contextual, isolated, and local dictionary evidence; those signals either reinforce the current
+reading or leave a semantic ambiguity that has no bounded structural correction. The next
+development target is privacy-safe geometry clustering of the 58 target-selection failures,
+starting with the required render strata that still block the primary and exceptional floors.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
