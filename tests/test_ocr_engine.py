@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_confirmed_four_plus_four_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
@@ -2515,6 +2516,96 @@ def test_confirmed_three_plus_three_split_requires_exact_parts() -> None:
             Image.new("RGB", (140, 17)),
             BoundingBox(0, 0, 140, 17),
             ConfirmedThreePlusThreeRecognizer("문화점"),
+        )
+        == words
+    )
+
+
+class ConfirmedFourPlusFourRecognizer:
+    def __init__(
+        self,
+        second_text: str = '가리기에',
+        second_confidence: float = 0.9997,
+        segments: tuple[tuple[int, int], ...] = ((0, 60), (64, 124)),
+    ) -> None:
+        self.values = (
+            RecognizedText('정당성을', 0.99965),
+            RecognizedText(second_text, second_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.04
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_four_plus_four_split_recovers_reviewed_profile() -> None:
+    height = 14.08
+    words = [
+        ('앞말', BoundingBox(0, 0, 15, height), 0.999),
+        ('정당성을가리기에', BoundingBox(20, 0, 144, height), 0.9981),
+        ('뒷말', BoundingBox(150, 0, 170, height), 0.999),
+    ]
+
+    recovered = _recover_confirmed_four_plus_four_split(
+        words,
+        Image.new('RGB', (180, 15)),
+        BoundingBox(0, 0, 180, height),
+        ConfirmedFourPlusFourRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        ('정당성을', BoundingBox(20, 0, 80, height), 0.9981),
+        ('가리기에', BoundingBox(84, 0, 144, height), 0.9981),
+        words[2],
+    ]
+
+
+@pytest.mark.parametrize(
+    'recognizer',
+    [
+        ConfirmedFourPlusFourRecognizer(second_text='가리기도'),
+        ConfirmedFourPlusFourRecognizer(second_confidence=0.99959),
+        ConfirmedFourPlusFourRecognizer(segments=((0, 60), (65, 124))),
+        ConfirmedFourPlusFourRecognizer(segments=((0, 59), (63, 124))),
+    ],
+)
+def test_confirmed_four_plus_four_split_requires_exact_reviewed_profile(
+    recognizer,
+) -> None:
+    words = [
+        ('정당성을가리기에', BoundingBox(20, 0, 144, 15), 0.9981),
+    ]
+
+    assert (
+        _recover_confirmed_four_plus_four_split(
+            words,
+            Image.new('RGB', (160, 15)),
+            BoundingBox(0, 0, 160, 15),
+            recognizer,
+        )
+        == words
+    )
+
+
+def test_confirmed_four_plus_four_split_requires_word_confidence() -> None:
+    words = [
+        ('정당성을가리기에', BoundingBox(20, 0, 144, 15), 0.9979),
+    ]
+
+    assert (
+        _recover_confirmed_four_plus_four_split(
+            words,
+            Image.new('RGB', (160, 15)),
+            BoundingBox(0, 0, 160, 15),
+            ConfirmedFourPlusFourRecognizer(),
         )
         == words
     )
