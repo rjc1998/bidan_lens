@@ -1286,6 +1286,7 @@ class ReviewedRoleDictionary(DictionaryStore):
         roles = {
             '적': ('의존 명사', 'noun'),
             '부정하다': ('verb', 'adjective'),
+            '두드러지다': ('adjective', 'verb'),
             '있다': ('보조 동사', 'verb', 'adjective'),
             '하다': ('보조 동사', 'verb'),
             '가다': ('verb', '보조 동사'),
@@ -1530,6 +1531,84 @@ def test_dictionary_preferred_predicate_role_is_score_bounded(
     ).analyze('부정한', (0, 4))[0]
 
     assert candidate.lexical_components[0].learner_role == expected_role
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-7.04, 'descriptive verb'), (-7.06, 'action verb')],
+)
+def test_dictionary_preferred_descriptive_role_has_bounded_extended_margin(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('두드러지', 'VV', 0, 4),
+                Token('었', 'EP', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('두드러지', 'VA', 0, 4),
+                Token('었', 'EP', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('두드러졌다', (0, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_isolated_role_does_not_undo_dictionary_preferred_descriptive_role() -> None:
+    contextual = [
+        (
+            [
+                Token('두드러지', 'VV', 0, 4),
+                Token('었', 'EP', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('두드러지', 'VA', 0, 4),
+                Token('었', 'EP', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            -7.04,
+        ),
+    ]
+    isolated = [
+        (
+            [
+                Token('두드러지', 'VV', 0, 4),
+                Token('었', 'EP', 4, 1),
+                Token('다', 'EF', 5, 1),
+            ],
+            -1.0,
+        ),
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '두드러졌다' else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        ContextKiwi([]),
+    ).analyze('두드러졌다.', (0, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'descriptive verb'
 
 
 def test_locative_itda_prefers_descriptive_role() -> None:

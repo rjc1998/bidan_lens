@@ -64,6 +64,7 @@ _UNSUPPORTED_DEPENDENT_ROLE_SCORE_MARGIN = 4.0
 _CONTEXTUAL_SIK_NOUN_SCORE_MARGIN = 5.1
 _COMPOUND_TERMINAL_NOUN_SCORE_MARGIN = 6.0
 _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN = 1.0
+_DICTIONARY_DESCRIPTIVE_ROLE_SCORE_MARGIN = 6.1
 _PRENOMINAL_DETERMINER_SCORE_MARGIN = 4.0
 _LOCATIVE_ITDA_SCORE_MARGIN = 7.0
 _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
@@ -507,7 +508,8 @@ class KoreanAnalyzer:
             return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
-                self._candidate_signature(candidate) != signature
+                candidate.score > first.score
+                or self._candidate_signature(candidate) != signature
                 or first.score - candidate.score
                 > _ISOLATED_VERB_ROLE_SCORE_MARGIN
                 or candidate.lemma != first.lemma
@@ -1344,9 +1346,7 @@ class KoreanAnalyzer:
             return candidates
         for index, candidate in enumerate(candidates[1:], start=1):
             if (
-                first.score - candidate.score
-                > _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN
-                or candidate.lemma != first.lemma
+                candidate.lemma != first.lemma
                 or len(candidate.lexical_components) != 1
             ):
                 continue
@@ -1356,6 +1356,14 @@ class KoreanAnalyzer:
                 or current.lemma != alternative.lemma
                 or alternative.learner_role not in predicate_roles
             ):
+                continue
+            score_margin = (
+                _DICTIONARY_DESCRIPTIVE_ROLE_SCORE_MARGIN
+                if current.learner_role == 'action verb'
+                and alternative.learner_role == 'descriptive verb'
+                else _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN
+            )
+            if first.score - candidate.score > score_margin:
                 continue
             preferred = self.dictionary.lookup(alternative.lemma, None, 1)
             if preferred and preferred[0].part_of_speech == (
