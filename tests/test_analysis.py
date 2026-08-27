@@ -2103,6 +2103,238 @@ def test_complete_dictionary_predicate_replaces_a_word_part_derivation() -> None
 
 
 @pytest.mark.parametrize(
+    ('alternative_score', 'expected_lemma'),
+    [(-4.19, '\ub9d0'), (-4.21, '\ub9d0\ub85c')],
+)
+def test_close_noun_particle_promotion_is_score_bounded(
+    alternative_score: float,
+    expected_lemma: str,
+) -> None:
+    proper_entries = (
+        DictionaryEntry(
+            'proper',
+            '\ub9d0\ub85c',
+            'proper noun',
+            None,
+            None,
+            (DictionarySense('proper'),),
+        ),
+    )
+    noun_entries = (
+        DictionaryEntry(
+            'noun',
+            '\ub9d0',
+            'noun',
+            None,
+            None,
+            (DictionarySense('noun'),),
+        ),
+    )
+    particle_entries = (
+        DictionaryEntry(
+            'particle',
+            '\ub85c',
+            'particle',
+            None,
+            None,
+            (DictionarySense('particle'),),
+        ),
+    )
+
+    class NounParticleDictionary(FakeDictionary):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma == '\ub85c' and part_of_speech in {None, 'particle'}:
+                return particle_entries[:limit]
+            return super().lookup(lemma, part_of_speech, limit)
+
+    first = AnalysisCandidate(
+        '\ub9d0\ub85c',
+        '\ub9d0\ub85c',
+        -1.0,
+        lexical_components=(
+            LexicalComponent(
+                '\ub9d0\ub85c',
+                '\ub9d0\ub85c',
+                'name or proper noun',
+                proper_entries,
+            ),
+        ),
+        dictionary_entries=proper_entries,
+    )
+    alternative = AnalysisCandidate(
+        '\ub9d0\ub85c',
+        '\ub9d0',
+        alternative_score,
+        morphemes=(
+            MorphemeExplanation('\ub9d0', '\ub9d0', 'noun'),
+            MorphemeExplanation('\ub85c', '\ub85c', 'particle'),
+        ),
+        features=(LearnerFeature('particle', 'particle', '\ub85c'),),
+        dictionary_entries=noun_entries,
+        lexical_components=(
+            LexicalComponent('\ub9d0', '\ub9d0', 'noun', noun_entries),
+        ),
+    )
+
+    candidates = KoreanAnalyzer(
+        NounParticleDictionary(),
+        FakeKiwi([]),
+    )._promote_close_noun_particle_candidate([first, alternative])
+
+    assert candidates[0].lemma == expected_lemma
+
+
+def test_complete_inflected_predicate_is_not_replaced_by_richer_split() -> None:
+    whole_entries = (
+        DictionaryEntry(
+            'whole',
+            '\ubc1b\uc544\ub4e4\uc774\ub2e4',
+            'verb',
+            None,
+            None,
+            (DictionarySense('whole'),),
+        ),
+    )
+    part_entries = (
+        DictionaryEntry(
+            'part',
+            '\ubc1b\ub2e4',
+            'verb',
+            None,
+            None,
+            (DictionarySense('part'),),
+        ),
+    )
+    first = AnalysisCandidate(
+        '\ubc1b\uc544\ub4e4\uc778\ub2e4',
+        '\ubc1b\uc544\ub4e4\uc774\ub2e4',
+        -1.0,
+        morphemes=(
+            MorphemeExplanation(
+                '\ubc1b\uc544\ub4e4\uc774',
+                '\ubc1b\uc544\ub4e4\uc774\ub2e4',
+                'action verb',
+            ),
+            MorphemeExplanation('\u3134\ub2e4', '\u3134\ub2e4', 'verb ending'),
+        ),
+        features=(LearnerFeature('verb ending', 'ending'),),
+        dictionary_entries=whole_entries,
+        lexical_components=(
+            LexicalComponent(
+                '\ubc1b\uc544\ub4e4\uc774',
+                '\ubc1b\uc544\ub4e4\uc774\ub2e4',
+                'action verb',
+                whole_entries,
+            ),
+        ),
+    )
+    split = AnalysisCandidate(
+        '\ubc1b\uc544\ub4e4\uc778\ub2e4',
+        '\ubc1b\ub2e4',
+        -2.9,
+        features=(LearnerFeature('verb ending', 'ending'),),
+        dictionary_entries=part_entries,
+        lexical_components=(
+            LexicalComponent(
+                '\ubc1b',
+                '\ubc1b\ub2e4',
+                'action verb',
+                part_entries,
+            ),
+            LexicalComponent(
+                '\ub4e4\uc774',
+                '\ub4e4\uc774\ub2e4',
+                'action verb',
+                part_entries,
+            ),
+        ),
+    )
+
+    candidates = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([]),
+    )._promote_close_complete_multi_component([first, split], set())
+
+    assert candidates[0] is first
+
+
+@pytest.mark.parametrize(
+    ('whole_surface', 'alternative_role'),
+    [
+        ('\uac00\uc838\uc624', 'helping verb'),
+        ('\uc0ac', 'action verb'),
+    ],
+)
+def test_complete_predicate_allows_supported_multi_component_exceptions(
+    whole_surface: str,
+    alternative_role: str,
+) -> None:
+    whole_entries = (
+        DictionaryEntry(
+            'whole',
+            whole_surface + '\ub2e4',
+            'verb',
+            None,
+            None,
+            (DictionarySense('whole'),),
+        ),
+    )
+    part_entries = (
+        DictionaryEntry(
+            'part',
+            '\uac00\uc9c0\ub2e4',
+            'verb',
+            None,
+            None,
+            (DictionarySense('part'),),
+        ),
+    )
+    first = AnalysisCandidate(
+        whole_surface + '\ub2e4',
+        whole_surface + '\ub2e4',
+        -1.0,
+        features=(LearnerFeature('verb ending', 'ending'),),
+        dictionary_entries=whole_entries,
+        lexical_components=(
+            LexicalComponent(
+                whole_surface,
+                whole_surface + '\ub2e4',
+                'action verb',
+                whole_entries,
+            ),
+        ),
+    )
+    alternative = AnalysisCandidate(
+        whole_surface + '\ub2e4',
+        '\uac00\uc9c0\ub2e4',
+        -1.5,
+        features=(LearnerFeature('verb ending', 'ending'),),
+        dictionary_entries=part_entries,
+        lexical_components=(
+            LexicalComponent(
+                '\uac00\uc9c0',
+                '\uac00\uc9c0\ub2e4',
+                'action verb',
+                part_entries,
+            ),
+            LexicalComponent(
+                '\uc624',
+                '\uc624\ub2e4',
+                alternative_role,
+                part_entries,
+            ),
+        ),
+    )
+
+    candidates = KoreanAnalyzer(
+        FakeDictionary(),
+        FakeKiwi([]),
+    )._promote_close_complete_multi_component([first, alternative], set())
+
+    assert candidates[0] is alternative
+
+
+@pytest.mark.parametrize(
     ('sentence', 'surface', 'contextual', 'isolated', 'expected_lemma'),
     [
         (

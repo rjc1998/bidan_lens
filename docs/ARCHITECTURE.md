@@ -35,7 +35,13 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     Kiwi analyses while exposing at most five popup candidates. A richer multi-component analysis
     may lead only when every component has a local definition, its adjusted Kiwi score is within
     2 points of the leader, it does not displace a contextual auxiliary, and the leader is not
-    already a complete dictionary-backed multi-component analysis. When the first Kiwi
+    already a complete dictionary-backed multi-component analysis. A complete dictionary-backed
+    multi-syllable inflected predicate is likewise not replaced by a split containing only
+    non-auxiliary verbs; one-syllable predicates and main-plus-helping-verb analyses retain the
+    established ambiguity handling. A two-syllable proper-noun leader may yield to an
+    already-present one-syllable noun plus one-syllable particle analysis only within 3.2 score
+    points, with dictionary support for the noun, a centrally known or exact KRDict particle, and
+    exact morpheme-boundary agreement. When the first Kiwi
     analysis has no local definition, a known particle suffix may produce a promoted candidate
     only when its remaining stem has a local dictionary entry; an already segmented sequence of
     dictionary-backed nouns may also recover a missing particle feature when its remaining suffix

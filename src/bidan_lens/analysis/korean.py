@@ -64,6 +64,7 @@ _COMPOUND_TERMINAL_NOUN_SCORE_MARGIN = 6.0
 _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN = 1.0
 _LOCATIVE_ITDA_SCORE_MARGIN = 7.0
 _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
+_NOUN_PARTICLE_SCORE_MARGIN = 3.2
 _AUXILIARY_EXPLANATIONS = {
     '버리다': 'indicates completion of the preceding action',
 }
@@ -969,6 +970,7 @@ class KoreanAnalyzer:
             candidates,
             adnominal_dependent_noun_ids,
         )
+        candidates = self._promote_close_noun_particle_candidate(candidates)
         candidates = self._promote_close_complete_multi_component(
             candidates, contextual_auxiliary_ids
         )
@@ -1426,13 +1428,65 @@ class KoreanAnalyzer:
                 return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
 
-    @staticmethod
+    def _promote_close_noun_particle_candidate(
+        self,
+        candidates: list[AnalysisCandidate],
+    ) -> list[AnalysisCandidate]:
+        if not candidates or len(candidates[0].lexical_components) != 1:
+            return candidates
+        first = candidates[0]
+        first_component = first.lexical_components[0]
+        if (
+            len(first.surface) != 2
+            or first.lemma != first.surface
+            or first_component.surface != first.surface
+            or first_component.lemma != first.lemma
+            or first_component.learner_role != 'name or proper noun'
+            or not first_component.dictionary_entries
+        ):
+            return candidates
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score > _NOUN_PARTICLE_SCORE_MARGIN
+                or candidate.surface != first.surface
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            component = candidate.lexical_components[0]
+            if (
+                component.learner_role != 'noun'
+                or len(component.surface) != 1
+                or component.lemma != candidate.lemma
+                or not component.dictionary_entries
+                or not candidate.dictionary_entries
+                or not first.surface.startswith(component.surface)
+            ):
+                continue
+            suffix = first.surface[len(component.surface) :]
+            particle_surface = ''.join(
+                morpheme.surface
+                for morpheme in candidate.morphemes
+                if morpheme.learner_label == 'particle'
+            )
+            known_particle = (
+                suffix in known_particle_suffixes()
+                or bool(self.dictionary.lookup(suffix, 'particle', 1))
+            )
+            if known_particle and particle_surface == suffix:
+                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        return candidates
+
     def _promote_close_complete_multi_component(
+        self,
         candidates: list[AnalysisCandidate], contextual_auxiliary_ids: set[int]
     ) -> list[AnalysisCandidate]:
         if not candidates or id(candidates[0]) in contextual_auxiliary_ids:
             return candidates
         first = candidates[0]
+        protected_complete_predicate = bool(
+            self._is_inflected_predicate_candidate(first)
+            and len(first.lexical_components[0].surface) >= 2
+        )
         noun_roles = {
             'noun',
             'name or proper noun',
@@ -1467,6 +1521,13 @@ class KoreanAnalyzer:
                 and len(components) >= 2
                 and components[0].learner_role != 'number'
                 and all(component.dictionary_entries for component in components)
+                and not (
+                    protected_complete_predicate
+                    and not any(
+                        component.learner_role == 'helping verb'
+                        for component in components
+                    )
+                )
                 and not (
                     'particle' in first_labels and 'particle' not in candidate_labels
                 )

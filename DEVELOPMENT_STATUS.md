@@ -62,23 +62,23 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 99.23% whole-eojeol OCR, 99.00% target
 selection, 95.00% functional context, 75.50% exact sentence transcription, 94.00% component
-accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 226.14 ms
-median / 327.83 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
+accuracy, 95.00% exact KRDict fidelity, and 90.50% fully correct first popups, with 233.41 ms
+median / 348.15 ms p95 automated latency. Alternative-candidate recovery is 96.50% and false
 promotions remain zero. Its remaining failures are nine analysis cases (five primary lemmas and
 four component roles), eight context cases, and two target cases. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`6966cbfc6fa11847c6299feec1ec8b3d1b7d3a27b06a8dd55ff91178d0a17013`; the
+`b9e1bd3b1c6e75476eba1a280e8701d7147a27cb59de9839110e778d2a19f8b4`; the
 privacy-safe diagnostic SHA-256 is
 `de2b5c7ae2a86a501e222ece53b8a922529658ad245ce12c6a59164a9faeba3c`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.20% whole-eojeol OCR, 97.10% target selection, 88.75%
-functional context, 71.70% exact sentence transcription, 92.35% component accuracy, 94.75% exact
-KRDict fidelity, 82.65% fully correct first popups, and 94.10% alternative recovery. False
-promotions remain zero and the accepted rerun is 227.02 ms median / 339.63 ms p95. Privacy-safe
-diagnostics contain 58 target, 167 context, and 122 analysis failures; the analysis stages are 50 primary
+functional context, 71.70% exact sentence transcription, 92.45% component accuracy, 94.85% exact
+KRDict fidelity, 82.80% fully correct first popups, and 94.10% alternative recovery. False
+promotions remain zero and the accepted rerun is 236.12 ms median / 350.35 ms p95. Privacy-safe
+diagnostics contain 58 target, 167 context, and 119 analysis failures; the analysis stages are 47 primary
 lemmas, 62 component roles, four component counts, and six grammar roles. No component-surface
 failures remain. Three additional records fail only a negative-pointer category.
 
@@ -91,9 +91,9 @@ near-miss probes remain at zero, whitespace is four of 1,931 (0.21%), and punctu
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`26714ccd72267675e907e29121f0d278e894a1f9a2fc8ccfd3b17bbd9bd52b92`; the
+`a0b14818e4bb09a41303c67652d595f58a2c6fd996cf1d798f861499c103874f`; the
 privacy-safe diagnostic SHA-256 is
-`86468290f13912ccce977710cd5f8bf045e9ee2d5112774d6df4cce2de89cd40`.
+`670fe0c8218c5ed2ea13dea8fe8911fcbdc70da4130a1742f05d324b281bae56`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -433,6 +433,26 @@ boundary cases, and no missing decisions. `dev-plain-1740` remains unchanged bec
 multi-fragment union reaches only 97.39%, its punctuation-changing union reaches only 90.13%, and
 an exact 99.94% sub-union still does not reproduce the independent word.
 
+The remaining uncharacterized boundary cases do not support another safe recovery. The documented
+spacing control `dev-plain-1353` remains separate; `dev-plain-1609` has a 92.30%-confidence
+one-syllable fragment, overlapping neighboring boundaries, and only 99.7795% exact union
+recognition; and `dev-plain-1838` reaches only 98.8656% for its intended 3+1 union. All nine active
+reviewed boundary IDs are now characterized, and no global OCR split threshold is changed.
+
+The next downstream analyzer batch reviews the eight remaining primary-lemma cases categorized as
+Kiwi errors. A two-syllable proper-noun leader may yield to an already-present one-syllable
+dictionary-backed noun plus exact one-syllable particle only within 3.2 score points and only when
+the particle is centrally known or independently present in KRDict. A complete multi-syllable
+dictionary-backed inflected predicate is not replaced by a richer split containing only
+non-auxiliary verbs; one-syllable bases and main-plus-helping-verb analyses preserve established
+behavior. A broader initial predicate guard was rejected because it moved one main failure stage
+and reduced held-out multi-lexical accuracy to 87.50%. The accepted rules remove only
+`dev-plain-0375`, `dev-plain-0663`, and `dev-plain-1472`, with no addition or stage change.
+Component accuracy rises to 92.45%, exact KRDict fidelity to 94.85%, and popup correctness to
+82.80%. Quick diagnostics remain byte-identical, stress is unchanged, held-out language remains
+92.00% overall / 96.00% auxiliary / 88.00% multi-lexical, and every upstream, promotion,
+negative-pointer, and latency gate is preserved.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs without
 introducing a new context failure. The preceding cleanup permits a one-pixel overlap of at most 7.5%
 of a small line only under the existing exact combined-recognition duplicate profile. It resolves
@@ -452,8 +472,8 @@ The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
 The current v4.15 report contains 120 decisions: 28 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. Its fail-closed audit finds all 120 active failures reviewed
-with no missing, resolved, or stale ID. Its SHA-256 is
+and seven genuinely ambiguous cases. The current evidence leaves 117 active cases and three
+resolved IDs, with no missing or stale decision. Its SHA-256 is
 `d6db4974d39f20806866f321aa767bfe927d100b78ed25a90d62b089c66ed8b6`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
@@ -845,12 +865,12 @@ main popup correctness and required render strata still block release evidence. 
 component-role, component-count, grammar-role, multi-lexical, and negative-activation review is
 complete. Two line/sentence reconstruction cases remain active because their intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. The next development target is the nine active reviewed missed-or-merged OCR
-word-boundary cases among the 167 active full-tier context disagreements, beginning with the
-remaining uncharacterized cases while preserving the documented weak, punctuation-dependent,
-and complex-layout controls, followed by analysis failures whose
-target and context are already correct. Thresholds are not frozen, and
-neither the untouched release
+implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
+characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
+complex for another safe general rule. Five reviewed primary-lemma Kiwi errors likewise lack a
+safe complete candidate or bounded general promotion. The next development target is the 20
+reviewed component-role Kiwi errors among cases whose target and context are already correct.
+Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
 
