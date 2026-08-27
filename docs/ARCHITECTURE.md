@@ -164,6 +164,11 @@ confident, a gap of 25.5% to 26% of line height, a following boundary of at leas
 agreement within 4%. Subpixel verification coordinates are normalized, exact union recognition
 must reach 99.99%, and the pair is preserved when its second fragment combined with the following
 word reaches 90% confidence.
+A five-syllable all-Hangul word can be split into three- and two-syllable eojeols only when a
+0.01 word-local CTC-space probe returns exactly two edge-complete crops. Their gap must be 33% to
+34% of line height, pitch must agree within 10%, the original word must be at least 99.9%
+confident, both parts must be at least 99.92% confident, and concatenating the recognized parts
+must exactly reproduce the original word.
 A six-syllable all-Hangul word can be split into two three-syllable eojeols only when the normal
 CTC threshold retains one word but a 0.01 space probe returns exactly two crops. Their gap must be
 28% to 35% of line height, pitch must be compatible, the original and parts must meet separate

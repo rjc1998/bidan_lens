@@ -14,6 +14,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
+    _recover_confirmed_three_plus_two_split,
     _recover_confirmed_two_plus_four_splits,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
@@ -2706,6 +2707,84 @@ def test_confirmed_seven_character_split_requires_exact_strong_parts(
             words,
             Image.new("RGB", (250, round(height))),
             BoundingBox(0, 0, 250, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+class ConfirmedThreePlusTwoSplitRecognizer:
+    def __init__(
+        self,
+        *,
+        second_text: str = "\ub77c\ub9c8",
+        first_confidence: float = 0.9993,
+        segments: tuple[tuple[int, int], ...] = ((0, 93), (103, 159)),
+    ) -> None:
+        self.values = (
+            RecognizedText("\uac00\ub098\ub2e4", first_confidence),
+            RecognizedText(second_text, 0.9999),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.01
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_three_plus_two_split_recovers_reviewed_profile() -> None:
+    words = [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(20, 0, 179, 29.94),
+            0.9991,
+        )
+    ]
+
+    recovered = _recover_confirmed_three_plus_two_split(
+        words,
+        Image.new("RGB", (210, 30)),
+        BoundingBox(0, 0, 210, 29.94),
+        ConfirmedThreePlusTwoSplitRecognizer(),
+    )
+
+    assert recovered == [
+        ("\uac00\ub098\ub2e4", BoundingBox(20, 0, 113, 29.94), 0.9991),
+        ("\ub77c\ub9c8", BoundingBox(123, 0, 179, 29.94), 0.9991),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedThreePlusTwoSplitRecognizer(second_text="\ub77c\ubc14"),
+        ConfirmedThreePlusTwoSplitRecognizer(first_confidence=0.9991),
+        ConfirmedThreePlusTwoSplitRecognizer(segments=((0, 93), (101, 159))),
+        ConfirmedThreePlusTwoSplitRecognizer(segments=((2, 93), (103, 159))),
+    ],
+)
+def test_confirmed_three_plus_two_split_requires_exact_strong_parts(
+    recognizer,
+) -> None:
+    words = [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(20, 0, 179, 29.94),
+            0.9991,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_three_plus_two_split(
+            words,
+            Image.new("RGB", (210, 30)),
+            BoundingBox(0, 0, 210, 29.94),
             recognizer,
         )
         == words
