@@ -1127,6 +1127,122 @@ def test_dictionary_preferred_adverb_noun_role_is_score_bounded(
     assert candidate.lexical_components[0].learner_role == expected_role
 
 
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-5.44, 'noun'), (-5.46, 'adverb')],
+)
+@pytest.mark.parametrize('separator', [' ', '… '])
+def test_local_itda_contextual_noun_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+    separator: str,
+) -> None:
+    following_start = 6 + len(separator)
+    contextual = [
+        (
+            [
+                Token('주제', 'NNG', 0, 2),
+                Token('는', 'JX', 2, 1),
+                Token('깊이', 'MAG', 4, 2),
+                Token('있', 'VA', following_start, 1),
+                Token('고', 'EC', following_start + 1, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('주제', 'NNG', 0, 2),
+                Token('는', 'JX', 2, 1),
+                Token('깊이', 'NNG', 4, 2),
+                Token('있', 'VA', following_start, 1),
+                Token('고', 'EC', following_start + 1, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    local = [
+        (
+            [
+                Token('깊이', 'NNG', 0, 2),
+                Token('있', 'VA', 3, 1),
+                Token('고', 'EC', 4, 1),
+            ],
+            -1.0,
+        ),
+    ]
+    isolated = [([Token('깊이', 'MAG', 0, 2)], -1.0)]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = (
+                local
+                if text == '깊이 있고'
+                else isolated
+                if text == '깊이'
+                else contextual
+            )
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        AdverbNounRoleDictionary('noun'),
+        ContextKiwi([]),
+    ).analyze('주제는 깊이' + separator + '있고', (4, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+@pytest.mark.parametrize(
+    ('following', 'local_tag'),
+    [('있고', 'MAG'), ('남고', 'NNG')],
+)
+def test_local_itda_noun_requires_both_itda_and_local_support(
+    following: str,
+    local_tag: str,
+) -> None:
+    sentence = '주제는 깊이 ' + following
+    contextual = [
+        ([Token('깊이', 'MAG', 4, 2)], -1.0),
+        ([Token('깊이', 'NNG', 4, 2)], -5.44),
+    ]
+    local = [([Token('깊이', local_tag, 0, 2)], -1.0)]
+    isolated = [([Token('깊이', 'MAG', 0, 2)], -1.0)]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            values = isolated if text == '깊이' else local if text != sentence else contextual
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        AdverbNounRoleDictionary('noun'),
+        ContextKiwi([]),
+    ).analyze(sentence, (4, 6))[0]
+
+    assert candidate.lexical_components[0].learner_role == 'adverb'
+
+
+def test_local_itda_context_requires_an_eligible_alternative_before_reanalysis() -> None:
+    contextual = [([Token('깊이', 'MAG', 4, 2)], -1.0)]
+    isolated = [([Token('깊이', 'MAG', 0, 2)], -1.0)]
+
+    class TrackingKiwi(FakeKiwi):
+        def __init__(self) -> None:
+            super().__init__([])
+            self.calls: list[str] = []
+
+        def analyze(self, text: str, top_n: int = 1):
+            self.calls.append(text)
+            values = isolated if text == '깊이' else contextual
+            return values[:top_n]
+
+    kiwi = TrackingKiwi()
+    KoreanAnalyzer(
+        AdverbNounRoleDictionary('noun'),
+        kiwi,
+    ).analyze('주제는 깊이 있고', (4, 6))
+
+    assert '깊이 있고' not in kiwi.calls
+
+
 class VerbRoleDictionary(DictionaryStore):
     def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
         roles = {

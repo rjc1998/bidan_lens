@@ -47,6 +47,7 @@ _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
+_LOCAL_ITDA_NOUN_SCORE_MARGIN = 4.5
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
 _ISOLATED_DESCRIPTIVE_ITDA_SCORE_MARGIN = 11.0
 _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
@@ -154,6 +155,12 @@ class KoreanAnalyzer:
         )
         if wrapper_synthesized:
             candidates = wrapper_candidates
+        candidates = self._promote_local_itda_noun_candidate(
+            sentence,
+            target_span,
+            candidates,
+            max_candidates,
+        )
         if (
             candidates
             and candidates[0].lexical_components
@@ -463,6 +470,85 @@ class KoreanAnalyzer:
             return candidates
         promoted = replace(alternative, score=first.score, uncertain=True)
         return (promoted, first)[:max_candidates]
+
+    def _promote_local_itda_noun_candidate(
+        self,
+        sentence: str,
+        target_span: tuple[int, int],
+        candidates: tuple[AnalysisCandidate, ...],
+        max_candidates: int,
+    ) -> tuple[AnalysisCandidate, ...]:
+        if len(candidates) < 2:
+            return candidates
+        first = candidates[0]
+        if (
+            len(first.lexical_components) != 1
+            or first.lexical_components[0].learner_role != 'adverb'
+        ):
+            return candidates
+        current = first.lexical_components[0]
+        preferred = self.dictionary.lookup(first.lemma, None, 1)
+        if not preferred or preferred[0].part_of_speech != 'noun':
+            return candidates
+        eligible: list[tuple[int, AnalysisCandidate]] = []
+        for index, candidate in enumerate(candidates[1:], start=1):
+            if (
+                first.score - candidate.score > _LOCAL_ITDA_NOUN_SCORE_MARGIN
+                or candidate.lemma != first.lemma
+                or len(candidate.lexical_components) != 1
+            ):
+                continue
+            alternative = candidate.lexical_components[0]
+            if (
+                current.surface == alternative.surface
+                and current.lemma == alternative.lemma
+                and alternative.learner_role == 'noun'
+                and alternative.dictionary_entries
+            ):
+                eligible.append((index, candidate))
+        if not eligible:
+            return candidates
+        start, end = target_span
+        separator_end = end
+        while (
+            separator_end < len(sentence)
+            and unicodedata.category(sentence[separator_end]).startswith('P')
+        ):
+            separator_end += 1
+        following_start = separator_end + 1
+        if (
+            separator_end >= len(sentence)
+            or sentence[separator_end] != ' '
+            or following_start >= len(sentence)
+            or sentence[following_start].isspace()
+        ):
+            return candidates
+        following_end = following_start
+        while (
+            following_end < len(sentence)
+            and not sentence[following_end].isspace()
+        ):
+            following_end += 1
+        following = sentence[following_start:following_end]
+        if not following.startswith('있'):
+            return candidates
+        surface = sentence[start:end]
+        local = self._analyze_candidates(
+            surface + ' ' + following,
+            (0, len(surface)),
+            max_candidates,
+        )
+        if not local or not local[0].dictionary_entries:
+            return candidates
+        local_signature = self._candidate_signature(local[0])
+        for index, candidate in eligible:
+            if self._candidate_signature(candidate) == local_signature:
+                return (
+                    candidate,
+                    *candidates[:index],
+                    *candidates[index + 1 :],
+                )
+        return candidates
 
     def _promote_isolated_verb_role_candidate(
         self,
