@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
     _recover_confirmed_paired_wrapped_four_plus_two_split,
+    _recover_confirmed_paired_wrapped_three_plus_three_split,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_split,
     _recover_confirmed_seven_character_splits,
@@ -3387,6 +3388,321 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
             ConfirmedFivePlusThreePrefixRecognizer(),
         )
         == words
+    )
+
+
+class ConfirmedPairedWrappedThreePlusThreeRecognizer:
+    def __init__(
+        self,
+        *,
+        wrapper_text: str = "\u2014\uac00\ub098\ub2e4\u2014",
+        wrapper_confidence: float = 0.8285,
+        artifact_text: str = "A",
+        artifact_confidence: float = 0.2985,
+        suffix_text: str = "\ubc14\uc0ac\uc544?",
+        suffix_confidence: float = 0.5315,
+        target_variant_text: str = "\uac00\ub098\ub2e4",
+        target_variant_confidence: float = 0.9996,
+        wrapper_variant_text: str = "\u2014\uac00\ub098\ub2e4\u2014",
+        wrapper_variant_confidence: float = 0.7935,
+        suffix_variant_text: str = "\ubc14\uc0ac\uc544?",
+        suffix_variant_confidence: float = 0.9895,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 242),
+            (241, 272),
+            (290, 470),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(wrapper_text, wrapper_confidence),
+            RecognizedText(artifact_text, artifact_confidence),
+            RecognizedText(suffix_text, suffix_confidence),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.9997),
+            RecognizedText(target_variant_text, 0.9998),
+            RecognizedText(target_variant_text, 0.9996),
+            RecognizedText(target_variant_text, 0.9997),
+            RecognizedText(wrapper_variant_text, wrapper_variant_confidence),
+            RecognizedText(wrapper_variant_text, 0.8152),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.9915),
+            RecognizedText(suffix_variant_text, 0.9931),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class SegmentedPairedWrappedThreePlusThreeRecognizer(
+    ConfirmedPairedWrappedThreePlusThreeRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText("\uac00\ub098\ub2e4", 0.999952),
+            RecognizedText("\ub77c\ub9c8", 0.999994),
+            RecognizedText(
+                "/\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544?", 0.680876
+            ),
+            RecognizedText(
+                "/\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544?", 0.646285
+            ),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((41, 208), (226, 336), (354, 824))
+        return super().word_boxes(_image, space_threshold)
+
+
+class PairedWrappedThreePlusThreeDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(10, 5, 850, 63.1087),
+                0.9,
+            ),
+        )
+
+
+_PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES = (
+    BoundingBox(41, 0, 208, 58.1087),
+    BoundingBox(226, 0, 336, 58.1087),
+    BoundingBox(354, 0, 824, 58.1087),
+)
+
+
+def paired_wrapped_three_plus_three_words(
+    *,
+    text: str = "/\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544?",
+    confidence: float = 0.680876,
+    boxes: tuple[BoundingBox, ...] = _PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES,
+    first_text: str = "\uac00\ub098\ub2e4",
+    first_confidence: float = 0.999952,
+    second_text: str = "\ub77c\ub9c8",
+    second_confidence: float = 0.999994,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [
+        (first_text, boxes[0], first_confidence),
+        (second_text, boxes[1], second_confidence),
+        (text, boxes[2], confidence),
+    ]
+
+
+def test_confirmed_paired_wrapped_three_plus_three_recovers() -> None:
+    words = paired_wrapped_three_plus_three_words()
+
+    recovered = _recover_confirmed_paired_wrapped_three_plus_three_split(
+        words,
+        Image.new("RGB", (824, 59)),
+        BoundingBox(0, 0, 824, 58.1087),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(),
+    )
+
+    assert recovered == [
+        *words[:2],
+        (
+            "\u2014\uac00\ub098\ub2e4\u2014",
+            BoundingBox(354, 0, 596, 58.1087),
+            0.680876,
+        ),
+        (
+            "\ubc14\uc0ac\uc544?",
+            BoundingBox(644, 0, 824, 58.1087),
+            0.5315,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_text="/\uac00\ub098\ub2e4\u2014"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_text="\u2014\uac00\ub098\ub77c\u2014"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_text="\u2014\uac00\ub098\ub2e4-"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_text="\u201c\uac00\ub098\ub2e4\u2014"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_confidence=0.8279
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(artifact_text="!"),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(artifact_text="AB"),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            artifact_confidence=0.2979
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            suffix_text="\ubc14\uc0ac\uc790?"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            suffix_confidence=0.5309
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            target_variant_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            target_variant_confidence=0.9994
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_variant_text="\u2014\uac00\ub098\ub77c\u2014"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            wrapper_variant_confidence=0.7929
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            suffix_variant_text="\ubc14\uc0ac\uc790?"
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            suffix_variant_confidence=0.9889
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((2, 242), (241, 272), (290, 470))
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((0, 242), (240, 272), (290, 470))
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((0, 241), (240, 271), (290, 470))
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((0, 242), (241, 274), (290, 470))
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((0, 242), (241, 272), (288, 470))
+        ),
+        ConfirmedPairedWrappedThreePlusThreeRecognizer(
+            segments=((0, 242), (241, 272), (290, 468))
+        ),
+    ],
+)
+def test_confirmed_paired_wrapped_three_plus_three_requires_crop_evidence(
+    recognizer,
+) -> None:
+    words = paired_wrapped_three_plus_three_words()
+
+    assert (
+        _recover_confirmed_paired_wrapped_three_plus_three_split(
+            words,
+            Image.new("RGB", (824, 59)),
+            BoundingBox(0, 0, 824, 58.1087),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        paired_wrapped_three_plus_three_words(
+            first_text="\uac00\ub098"
+        ),
+        paired_wrapped_three_plus_three_words(
+            first_text="\uac00A\ub2e4"
+        ),
+        paired_wrapped_three_plus_three_words(first_confidence=0.9998),
+        paired_wrapped_three_plus_three_words(second_text="\ub77c"),
+        paired_wrapped_three_plus_three_words(second_text="\ub77cA"),
+        paired_wrapped_three_plus_three_words(second_confidence=0.99998),
+        paired_wrapped_three_plus_three_words(
+            text="\u201c\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="A\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="/\uac00A\ub2e4\u2014\ubc14\uc0ac\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="/\uac00\ub098\ub2e4/\ubc14\uc0ac\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="/\uac00\ub098\ub2e4A\ubc14\uc0ac\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="/\uac00\ub098\ub2e4\u2014\ubc14A\uc544?"
+        ),
+        paired_wrapped_three_plus_three_words(
+            text="/\uac00\ub098\ub2e4\u2014\ubc14\uc0ac\uc544A"
+        ),
+        paired_wrapped_three_plus_three_words(confidence=0.6807),
+        paired_wrapped_three_plus_three_words(
+            boxes=(
+                BoundingBox(41, 0, 207, 58.1087),
+                *_PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[1:],
+            )
+        ),
+        paired_wrapped_three_plus_three_words(
+            boxes=(
+                _PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[0],
+                BoundingBox(226, 0, 335, 58.1087),
+                _PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[2],
+            )
+        ),
+        paired_wrapped_three_plus_three_words(
+            boxes=(
+                _PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[0],
+                BoundingBox(225, 0, 335, 58.1087),
+                _PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[2],
+            )
+        ),
+        paired_wrapped_three_plus_three_words(
+            boxes=(
+                *_PAIRED_WRAPPED_THREE_PLUS_THREE_BOXES[:2],
+                BoundingBox(353, 0, 824, 58.1087),
+            )
+        ),
+        paired_wrapped_three_plus_three_words()[:2],
+    ],
+)
+def test_confirmed_paired_wrapped_three_plus_three_requires_word_profile(
+    words,
+) -> None:
+    assert (
+        _recover_confirmed_paired_wrapped_three_plus_three_split(
+            words,
+            Image.new("RGB", (824, 59)),
+            BoundingBox(0, 0, 824, 58.1087),
+            ConfirmedPairedWrappedThreePlusThreeRecognizer(),
+        )
+        == words
+    )
+
+
+def test_engine_recovers_paired_wrapped_three_plus_three_segment() -> None:
+    engine = PaddleOcrEngine(
+        PairedWrappedThreePlusThreeDetector(),
+        SegmentedPairedWrappedThreePlusThreeRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (870, 80)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uac00\ub098\ub2e4",
+        "\ub77c\ub9c8",
+        "\uac00\ub098\ub2e4",
+        "\ubc14\uc0ac\uc544",
+    ]
+    assert document.lines[0].eojeols[2].box == BoundingBox(
+        412.4,
+        5,
+        557.6,
+        63.1087,
     )
 
 
