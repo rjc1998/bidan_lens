@@ -2632,6 +2632,204 @@ def _recover_confirmed_punctuated_three_plus_three_split(
     return recovered
 
 
+def _recover_confirmed_paired_wrapped_four_plus_two_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter) or len(words) != 5:
+        return words
+    expected_lengths = (3, 2, 5, 5)
+    leading = words[:4]
+    text, box, confidence = words[4]
+    gaps = tuple(
+        (last[1].left - first[1].right) / line_box.height
+        for first, last in zip(words, words[1:], strict=False)
+    )
+    width_ratios = tuple(word[1].width / line_box.height for word in words)
+    if (
+        tuple(len(word[0]) for word in leading) != expected_lengths
+        or not all(
+            all(is_hangul(character) for character in word[0]) for word in leading
+        )
+        or any(
+            word[2] < threshold
+            for word, threshold in zip(
+                leading,
+                (0.9997, 0.9995, 0.9988, 0.9986),
+                strict=True,
+            )
+        )
+        or not 2.51 <= width_ratios[0] <= 2.53
+        or not 1.66 <= width_ratios[1] <= 1.68
+        or not 4.36 <= width_ratios[2] <= 4.37
+        or not 4.25 <= width_ratios[3] <= 4.27
+        or not 0.35 <= gaps[0] <= 0.36
+        or not 0.28 <= gaps[1] <= 0.29
+        or not 0.31 <= gaps[2] <= 0.33
+        or not 0.35 <= gaps[3] <= 0.36
+        or len(text) != 8
+        or text[0] not in _BOUNDARY_WRAPPERS
+        or text[0] in _ATTACHED_PARTICLE_WRAPPERS
+        or not all(is_hangul(character) for character in text[1:5])
+        or not unicodedata.category(text[5]).startswith("P")
+        or _BOUNDARY_WRAPPERS.get(text[0]) == text[5]
+        or not all(is_hangul(character) for character in text[6:])
+        or not 0.547 <= confidence <= 0.548
+        or not 7.13 <= width_ratios[4] <= 7.14
+    ):
+        return words
+    crop_left = max(0, math.floor(box.left - line_box.left))
+    crop_right = min(crop.width, math.ceil(box.right - line_box.left))
+    word_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    direct = recognizer.recognize(word_crop)
+    direct_text = direct.text.replace(" ", "")
+    try:
+        segments = segmenter(word_crop, space_threshold=0.001)
+    except TypeError:
+        return words
+    if len(segments) != 2:
+        return words
+    wrapper_segment, suffix_segment = segments
+    gap_ratio = (suffix_segment[0] - wrapper_segment[1]) / line_box.height
+    wrapper_pitch = (wrapper_segment[1] - wrapper_segment[0]) / 6
+    suffix_pitch = (suffix_segment[1] - suffix_segment[0]) / 2
+    pitch_ratio = min(wrapper_pitch, suffix_pitch) / max(
+        wrapper_pitch,
+        suffix_pitch,
+    )
+    if (
+        wrapper_segment[0] > 1
+        or suffix_segment[1] < word_crop.width - 1
+        or not 0.31 <= gap_ratio <= 0.33
+        or not 5.18
+        <= (wrapper_segment[1] - wrapper_segment[0]) / line_box.height
+        <= 5.19
+        or not 1.63
+        <= (suffix_segment[1] - suffix_segment[0]) / line_box.height
+        <= 1.64
+        or not 0.94 <= pitch_ratio <= 0.95
+    ):
+        return words
+    parts = tuple(
+        recognizer.recognize(
+            word_crop.crop((left, 0, right, word_crop.height))
+        )
+        for left, right in segments
+    )
+    wrapper_text = parts[0].text.replace(" ", "")
+    suffix_text = parts[1].text.replace(" ", "")
+    if (
+        not 0.540 <= direct.confidence <= 0.541
+        or direct_text != wrapper_text + suffix_text
+        or not 0.518 <= parts[0].confidence <= 0.519
+        or len(wrapper_text) != 6
+        or _BOUNDARY_WRAPPERS.get(wrapper_text[0]) != wrapper_text[-1]
+        or not all(is_hangul(character) for character in wrapper_text[1:-1])
+        or wrapper_text[1:-1] != text[1:5]
+        or parts[1].confidence < 0.9997
+        or suffix_text != text[6:]
+    ):
+        return words
+    target_boundaries = tuple(
+        (
+            round(line_box.height * left_ratio),
+            round(line_box.height * right_ratio),
+        )
+        for left_ratio, right_ratio in (
+            (0.70, 4.45),
+            (0.75, 4.40),
+            (0.80, 4.35),
+            (0.85, 4.30),
+            (0.90, 4.25),
+        )
+    )
+    wrapper_boundaries = (
+        wrapper_segment[1] - round(line_box.height * 0.05),
+        wrapper_segment[1] + round(line_box.height * 0.05),
+    )
+    suffix_boundaries = (
+        suffix_segment[0] - round(line_box.height * 0.05),
+        suffix_segment[0] + round(line_box.height * 0.05),
+    )
+    target_variants = tuple(
+        recognizer.recognize(
+            word_crop.crop((left, 0, right, word_crop.height))
+        )
+        for left, right in target_boundaries
+    )
+    wrapper_variants = tuple(
+        recognizer.recognize(
+            word_crop.crop(
+                (0, 0, min(word_crop.width, right), word_crop.height)
+            )
+        )
+        for right in wrapper_boundaries
+    )
+    suffix_variants = tuple(
+        recognizer.recognize(
+            word_crop.crop(
+                (max(0, left), 0, word_crop.width, word_crop.height)
+            )
+        )
+        for left in suffix_boundaries
+    )
+    if (
+        any(
+            variant.confidence < 0.9988
+            or variant.text.replace(" ", "") != wrapper_text[1:-1]
+            for variant in target_variants
+        )
+        or any(
+            variant.confidence < 0.526
+            or variant.text.replace(" ", "") != wrapper_text
+            for variant in wrapper_variants
+        )
+        or any(
+            variant.confidence < 0.995
+            or variant.text.replace(" ", "") != suffix_text
+            for variant in suffix_variants
+        )
+    ):
+        return words
+    target_confidence = min(
+        confidence,
+        direct.confidence,
+        *(variant.confidence for variant in target_variants),
+        *(variant.confidence for variant in wrapper_variants),
+    )
+    suffix_confidence = min(
+        confidence,
+        parts[1].confidence,
+        *(variant.confidence for variant in suffix_variants),
+    )
+    return [
+        *leading,
+        (
+            text[:6],
+            BoundingBox(
+                line_box.left + crop_left + wrapper_segment[0],
+                box.top,
+                line_box.left + crop_left + wrapper_segment[1],
+                box.bottom,
+            ),
+            target_confidence,
+        ),
+        (
+            text[6:],
+            BoundingBox(
+                line_box.left + crop_left + suffix_segment[0],
+                box.top,
+                line_box.left + crop_left + suffix_segment[1],
+                box.bottom,
+            ),
+            suffix_confidence,
+        ),
+    ]
+
+
 def _recover_confirmed_mismatched_wrapped_three_plus_one_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -4463,6 +4661,12 @@ class PaddleOcrEngine(OcrEngine):
             words = [word for word in words if word not in covered_words]
             words.append(recovered_word)
         words.sort(key=lambda word: (word[1].top, word[1].left))
+        words = _recover_confirmed_paired_wrapped_four_plus_two_split(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_mismatched_wrapped_three_plus_one_split(
             words,
             crop,
