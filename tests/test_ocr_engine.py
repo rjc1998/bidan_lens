@@ -16,6 +16,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
+    _recover_confirmed_punctuated_three_plus_three_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
@@ -3175,6 +3176,191 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
             Image.new("RGB", (168, 20)),
             BoundingBox(0, 0, 168, height),
             ConfirmedFivePlusThreePrefixRecognizer(),
+        )
+        == words
+    )
+
+
+class ConfirmedPunctuatedThreePlusThreeRecognizer:
+    def __init__(
+        self,
+        *,
+        first_ctc_text: str = "가나다",
+        first_ctc_confidence: float = 0.99985,
+        second_ctc_text: str = "“라마바”",
+        second_ctc_confidence: float = 0.272,
+        prefix_variant_text: str = "가나다",
+        prefix_variant_confidence: float = 0.99966,
+        target_variant_text: str = "라마바",
+        target_variant_confidence: float = 0.9987,
+        segments: tuple[tuple[int, int], ...] = ((20, 185), (203, 475)),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_ctc_text, first_ctc_confidence),
+            RecognizedText(second_ctc_text, second_ctc_confidence),
+            RecognizedText(prefix_variant_text, prefix_variant_confidence),
+            RecognizedText(prefix_variant_text, 0.99962),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.9998),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.005
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class SingleSegmentPunctuatedThreePlusThreeRecognizer(
+    ConfirmedPunctuatedThreePlusThreeRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText("가나다-라마바—", 0.6525),
+            RecognizedText("가나다-라마바—", 0.618),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((20, 475),)
+        return super().word_boxes(_image, space_threshold)
+
+
+class PunctuatedThreePlusThreeDetector:
+    def detect(self, _image):
+        height = 496.48 / 9.095
+        return (DetectedRegion(BoundingBox(10, 5, 506.48, 5 + height), 0.9),)
+
+
+def test_engine_recovers_punctuated_three_plus_three_single_segment_line() -> None:
+    engine = PaddleOcrEngine(
+        PunctuatedThreePlusThreeDetector(),
+        SingleSegmentPunctuatedThreePlusThreeRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (520, 100)))
+
+    assert document.lines[0].text == "가나다 -라마바—"
+    assert [word.text for word in document.lines[0].eojeols] == ["가나다", "라마바"]
+
+
+def test_confirmed_punctuated_three_plus_three_recovers() -> None:
+    height = 496.48 / 9.095
+    words = [
+        (
+            "가나다-라마바—",
+            BoundingBox(0, 0, 496.48, height),
+            0.6525,
+        )
+    ]
+
+    assert _recover_confirmed_punctuated_three_plus_three_split(
+        words,
+        Image.new("RGB", (498, 56)),
+        BoundingBox(0, 0, 496.48, height),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(),
+    ) == [
+        (
+            "가나다",
+            BoundingBox(20, 0, 185, height),
+            0.6525,
+        ),
+        (
+            "-라마바—",
+            BoundingBox(203, 0, 475, height),
+            0.272,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedPunctuatedThreePlusThreeRecognizer(first_ctc_text="가나자"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(first_ctc_confidence=0.9997),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_text="“라마자”"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_text="라마바"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_text="A라마바”"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_text="“라마바A"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_confidence=0.27),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(second_ctc_confidence=0.274),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(prefix_variant_text="가나자"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            prefix_variant_confidence=0.9995
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(target_variant_text="라마자"),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            target_variant_confidence=0.9985
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            segments=((19, 185), (203, 475))
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            segments=((20, 185), (202, 475))
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            segments=((20, 185), (204, 475))
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            segments=((20, 175), (193, 475))
+        ),
+        ConfirmedPunctuatedThreePlusThreeRecognizer(
+            segments=((20, 185), (203, 474))
+        ),
+    ],
+)
+def test_confirmed_punctuated_three_plus_three_requires_profile(recognizer) -> None:
+    height = 496.48 / 9.095
+    words = [
+        (
+            "가나다-라마바—",
+            BoundingBox(0, 0, 496.48, height),
+            0.6525,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_punctuated_three_plus_three_split(
+            words,
+            Image.new("RGB", (498, 56)),
+            BoundingBox(0, 0, 496.48, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "confidence", "height"),
+    [
+        ("가나A-라마바—", 0.6525, 496.48 / 9.095),
+        ("가나다A라마바—", 0.6525, 496.48 / 9.095),
+        ("가나다-라마바A", 0.6525, 496.48 / 9.095),
+        ("가나다-라마바—", 0.6519, 496.48 / 9.095),
+        ("가나다-라마바—", 0.6531, 496.48 / 9.095),
+        ("가나다-라마바—", 0.6525, 54.7),
+    ],
+)
+def test_confirmed_punctuated_three_plus_three_requires_word_shape(
+    text,
+    confidence,
+    height,
+) -> None:
+    words = [(text, BoundingBox(0, 0, 496.48, height), confidence)]
+
+    assert (
+        _recover_confirmed_punctuated_three_plus_three_split(
+            words,
+            Image.new("RGB", (498, 56)),
+            BoundingBox(0, 0, 496.48, height),
+            ConfirmedPunctuatedThreePlusThreeRecognizer(),
         )
         == words
     )
