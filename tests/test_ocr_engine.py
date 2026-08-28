@@ -21,6 +21,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_one_plus_one_split,
     _recover_confirmed_paired_wrapped_four_plus_two_split,
     _recover_confirmed_paired_wrapped_three_plus_three_split,
+    _recover_confirmed_paired_wrapper_four_substitution,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_split,
     _recover_confirmed_right_wrapper_five_substitution,
@@ -5783,6 +5784,404 @@ def test_engine_preserves_confirmed_direct_reading_over_retry_regression() -> No
 
 
 
+
+
+_PAIRED_WRAPPER_HEIGHT = 15.84
+_PAIRED_WRAPPER_SELECTED_INDEXES = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12)
+
+
+def _paired_wrapper_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+_PAIRED_WRAPPER_DIRECT = _paired_wrapper_hangul(0xD400, 4)
+_PAIRED_WRAPPER_RECOVERED = _paired_wrapper_hangul(0xD410, 4)
+_PAIRED_WRAPPER_NEIGHBORS = (
+    _paired_wrapper_hangul(0xD420, 3),
+    _paired_wrapper_hangul(0xD423, 4),
+    _paired_wrapper_hangul(0xD427, 3),
+    _paired_wrapper_hangul(0xD42A, 2),
+    _paired_wrapper_hangul(0xD42C, 4),
+    _paired_wrapper_hangul(0xD430, 5),
+    _paired_wrapper_hangul(0xD435, 1),
+    _paired_wrapper_hangul(0xD436, 2),
+    _paired_wrapper_hangul(0xD438, 7),
+)
+
+
+def paired_wrapper_four_words() -> tuple[
+    list[tuple[str, BoundingBox, float]],
+    list[tuple[str, BoundingBox, float]],
+]:
+    boxes = (
+        BoundingBox(43, 0, 50, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(49, 0, 87, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(86, 0, 150, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(153, 0, 196, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(201, 0, 230, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(234, 0, 293, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(297, 0, 370, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(375, 0, 389, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(393, 0, 420, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(426, 0, 528, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(533, 0, 591, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(590, 0, 600, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(605, 0, 639, _PAIRED_WRAPPER_HEIGHT),
+        BoundingBox(644, 0, 680, _PAIRED_WRAPPER_HEIGHT),
+    )
+    texts = (
+        "A",
+        *_PAIRED_WRAPPER_NEIGHBORS,
+        "[" + _PAIRED_WRAPPER_DIRECT,
+        "|",
+        _paired_wrapper_hangul(0xD43F, 2) + ")",
+        "7",
+    )
+    confidences = (
+        0.348547,
+        0.69239,
+        0.998497,
+        0.999928,
+        0.999994,
+        0.999786,
+        0.999858,
+        0.998661,
+        0.999951,
+        0.999655,
+        0.85953,
+        0.988034,
+        0.584838,
+        0.212375,
+    )
+    raw = list(zip(texts, boxes, confidences, strict=True))
+    return paired_wrapper_selected(raw), raw
+
+
+def paired_wrapper_selected(
+    raw: list[tuple[str, BoundingBox, float]],
+) -> list[tuple[str, BoundingBox, float]]:
+    selected = [raw[index] for index in _PAIRED_WRAPPER_SELECTED_INDEXES]
+    selected[0] = (selected[0][0], selected[0][1], 0.908223)
+    selected[10] = (selected[10][0], selected[10][1], 0.997919)
+    return selected
+
+
+class ConfirmedPairedWrapperFourRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] | None = None,
+        direct_confidences: tuple[float, ...] = (
+            0.997876,
+            0.999535,
+            0.981432,
+            0.999898,
+            0.990671,
+            0.996925,
+            0.843608,
+            0.999881,
+            0.99974,
+        ),
+        enhanced_texts: tuple[str, ...] | None = None,
+        enhanced_confidences: tuple[float, ...] = (
+            0.999436,
+            0.999952,
+            0.998851,
+            0.994735,
+            0.999413,
+        ),
+    ) -> None:
+        wrapped = "[" + _PAIRED_WRAPPER_RECOVERED + "]"
+        direct = direct_texts or (
+            wrapped,
+            wrapped,
+            "[" + _PAIRED_WRAPPER_RECOVERED,
+            "[" + _PAIRED_WRAPPER_RECOVERED,
+            wrapped,
+            wrapped,
+            _PAIRED_WRAPPER_RECOVERED + "]",
+            wrapped,
+            _PAIRED_WRAPPER_RECOVERED,
+        )
+        enhanced = enhanced_texts or (wrapped,) * 5
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct, *enhanced),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_paired_wrapper_four_substitution_recovers_interior() -> None:
+    selected, raw = paired_wrapper_four_words()
+    recognizer = ConfirmedPairedWrapperFourRecognizer()
+
+    recovered = _recover_confirmed_paired_wrapper_four_substitution(
+        selected,
+        raw,
+        Image.new("RGB", (680, 16)),
+        BoundingBox(0, 0, 679.76, _PAIRED_WRAPPER_HEIGHT),
+        recognizer,
+    )
+
+    expected = list(selected)
+    expected[9] = (
+        _PAIRED_WRAPPER_RECOVERED,
+        BoundingBox(544.6, 0, 591, _PAIRED_WRAPPER_HEIGHT),
+        0.843608,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedPairedWrapperFourRecognizer(
+            direct_texts=(
+                "(" + _PAIRED_WRAPPER_RECOVERED + "]",
+                *(["[" + _PAIRED_WRAPPER_RECOVERED + "]"] * 8),
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            direct_texts=(
+                "(" + _PAIRED_WRAPPER_RECOVERED + ")",
+                *(["[" + _PAIRED_WRAPPER_RECOVERED + "]"] * 8),
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            direct_texts=(
+                "[" + _PAIRED_WRAPPER_RECOVERED + "]",
+                "[" + _PAIRED_WRAPPER_DIRECT + "]",
+                *(["[" + _PAIRED_WRAPPER_RECOVERED + "]"] * 7),
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            direct_confidences=(
+                0.9977,
+                0.999535,
+                0.981432,
+                0.999898,
+                0.990671,
+                0.996925,
+                0.843608,
+                0.999881,
+                0.99974,
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            direct_confidences=(
+                0.997876,
+                0.999535,
+                0.981432,
+                0.999898,
+                0.990671,
+                0.996925,
+                0.8435,
+                0.999881,
+                0.99974,
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            enhanced_texts=(
+                "[" + _PAIRED_WRAPPER_DIRECT + "]",
+                *(["[" + _PAIRED_WRAPPER_RECOVERED + "]"] * 4),
+            )
+        ),
+        ConfirmedPairedWrapperFourRecognizer(
+            enhanced_confidences=(0.999436, 0.999952, 0.998851, 0.9946, 0.999413)
+        ),
+    ],
+)
+def test_confirmed_paired_wrapper_four_substitution_requires_crop_consensus(
+    recognizer,
+) -> None:
+    selected, raw = paired_wrapper_four_words()
+
+    assert (
+        _recover_confirmed_paired_wrapper_four_substitution(
+            selected,
+            raw,
+            Image.new("RGB", (680, 16)),
+            BoundingBox(0, 0, 679.76, _PAIRED_WRAPPER_HEIGHT),
+            recognizer,
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-text",
+        "selected-box",
+        "ascii-edge",
+        "neighbor-shape",
+        "candidate-wrapper",
+        "right-category",
+        "following-shape",
+        "raw-confidence",
+        "selected-confidence",
+        "target-width",
+        "target-gap",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_paired_wrapper_four_substitution_requires_exact_profile(
+    case: str,
+) -> None:
+    selected, raw = paired_wrapper_four_words()
+    line_box = BoundingBox(0, 0, 679.76, _PAIRED_WRAPPER_HEIGHT)
+    crop = Image.new("RGB", (680, 16))
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-text":
+        selected[9] = (
+            "[" + _PAIRED_WRAPPER_RECOVERED,
+            selected[9][1],
+            selected[9][2],
+        )
+    elif case == "selected-box":
+        selected[9] = (
+            selected[9][0],
+            BoundingBox(534, 0, 591, _PAIRED_WRAPPER_HEIGHT),
+            selected[9][2],
+        )
+    elif case == "ascii-edge":
+        raw[0] = ("(", raw[0][1], raw[0][2])
+        selected = paired_wrapper_selected(raw)
+    elif case == "neighbor-shape":
+        raw[2] = (raw[2][0][:-1] + "A", raw[2][1], raw[2][2])
+        selected = paired_wrapper_selected(raw)
+    elif case == "candidate-wrapper":
+        raw[10] = ("{" + raw[10][0][1:], raw[10][1], raw[10][2])
+        selected = paired_wrapper_selected(raw)
+    elif case == "right-category":
+        raw[11] = ("]", raw[11][1], raw[11][2])
+        selected = paired_wrapper_selected(raw)
+    elif case == "following-shape":
+        raw[12] = (raw[12][0][:-1] + "|", raw[12][1], raw[12][2])
+        selected = paired_wrapper_selected(raw)
+    elif case == "raw-confidence":
+        raw[10] = (raw[10][0], raw[10][1], 0.8594)
+        selected = paired_wrapper_selected(raw)
+    elif case == "selected-confidence":
+        selected[0] = (selected[0][0], selected[0][1], 0.9081)
+    elif case == "target-width":
+        raw[10] = (
+            raw[10][0],
+            BoundingBox(533, 0, 592, _PAIRED_WRAPPER_HEIGHT),
+            raw[10][2],
+        )
+        selected = paired_wrapper_selected(raw)
+    elif case == "target-gap":
+        raw[10] = (
+            raw[10][0],
+            BoundingBox(532, 0, 591, _PAIRED_WRAPPER_HEIGHT),
+            raw[10][2],
+        )
+        selected = paired_wrapper_selected(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(0, 0, 679.76, 0)
+    else:
+        crop = Image.new("RGB", (599, 16))
+    recognizer = ConfirmedPairedWrapperFourRecognizer()
+
+    assert (
+        _recover_confirmed_paired_wrapper_four_substitution(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class PairedWrapperFourEngineRecognizer:
+    def __init__(self) -> None:
+        _selected, raw = paired_wrapper_four_words()
+        retry_values = {
+            0: RecognizedText("B", 0.452154),
+            1: RecognizedText(raw[1][0], 0.908223),
+            12: RecognizedText(raw[12][0], 0.997919),
+            13: RecognizedText(raw[13][0], 0.1),
+        }
+        values = []
+        for index, (text, _box, confidence) in enumerate(raw):
+            values.append(RecognizedText(text, confidence))
+            if confidence < 0.72:
+                values.append(retry_values[index])
+        values.extend(ConfirmedPairedWrapperFourRecognizer().values)
+        self.values = tuple(values)
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (43, 50),
+            (49, 87),
+            (86, 150),
+            (153, 196),
+            (201, 230),
+            (234, 293),
+            (297, 370),
+            (375, 389),
+            (393, 420),
+            (426, 528),
+            (533, 591),
+            (590, 600),
+            (605, 639),
+            (644, 680),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class PairedWrapperFourEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(78.12, 154.96, 757.88, 170.8),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_paired_wrapper_four_substitution() -> None:
+    recognizer = PairedWrapperFourEngineRecognizer()
+    engine = PaddleOcrEngine(PairedWrapperFourEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    assert document.lines[0].eojeols[9].text == _PAIRED_WRAPPER_RECOVERED
+    assert document.lines[0].eojeols[9].box == BoundingBox(
+        622.72,
+        154.96,
+        669.12,
+        170.8,
+    )
 _RIGHT_WRAPPER_HEIGHT = 22.9
 _RIGHT_WRAPPER_SELECTED_INDEXES = (1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 

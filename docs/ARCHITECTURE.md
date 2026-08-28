@@ -252,6 +252,16 @@ direct base/pad/trim/shift crops plus three enhanced crops must all reproduce th
 individual confidence floors. Any profile, category, geometry, confidence, or crop disagreement
 keeps the original segment. A confirmed replacement retains the candidate's original geometry and
 uses the minimum candidate/crop confidence.
+A separately reviewed paired-wrapper recalibration profile can replace one four-Hangul interior
+only under an exact 14-raw-segment/11-selected-word line profile. The candidate must retain its
+leading wrapper while the adjacent segment supplies the matching right wrapper; surrounding Hangul
+lengths, category, confidence, width, and gap evidence must match the reviewed profile. The base
+paired crop must preserve the candidate's opening wrapper and supply its matching close; nine
+direct base/pad/trim/shift crops and five enhanced crops must all reproduce one different pure
+four-Hangul interior above individual confidence floors. Any profile,
+geometry, category, wrapper, confidence, or crop disagreement keeps the original segment. A
+confirmed replacement retains the original punctuation-stripped interior geometry and uses the
+minimum accepted crop confidence.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
