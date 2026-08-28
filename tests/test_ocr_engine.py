@@ -23,6 +23,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_paired_wrapped_three_plus_three_split,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_split,
+    _recover_confirmed_right_wrapper_five_substitution,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_terminal_punctuated_overlap_pair,
@@ -5780,6 +5781,365 @@ def test_engine_preserves_confirmed_direct_reading_over_retry_regression() -> No
     )
 
 
+
+
+_RIGHT_WRAPPER_HEIGHT = 22.9
+_RIGHT_WRAPPER_SELECTED_INDEXES = (1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+
+
+def _right_wrapper_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+_RIGHT_WRAPPER_PREVIOUS = _right_wrapper_hangul(0xD650, 5)
+_RIGHT_WRAPPER_DIRECT = _right_wrapper_hangul(0xD660, 5)
+_RIGHT_WRAPPER_RECOVERED = _right_wrapper_hangul(0xD670, 5)
+_RIGHT_WRAPPER_FOLLOWING = (
+    _right_wrapper_hangul(0xD680, 1),
+    _right_wrapper_hangul(0xD681, 4),
+    _right_wrapper_hangul(0xD685, 3),
+    _right_wrapper_hangul(0xD688, 1),
+    _right_wrapper_hangul(0xD689, 3),
+    _right_wrapper_hangul(0xD68C, 3),
+    _right_wrapper_hangul(0xD68F, 4),
+    _right_wrapper_hangul(0xD693, 1),
+    _right_wrapper_hangul(0xD694, 2),
+    _right_wrapper_hangul(0xD696, 4) + ".",
+)
+
+
+def right_wrapper_five_words() -> tuple[
+    list[tuple[str, BoundingBox, float]],
+    list[tuple[str, BoundingBox, float]],
+]:
+    boxes = (
+        BoundingBox(64, 0, 70, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(70, 0, 179, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(186, 0, 194, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(194, 0, 298, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(298, 0, 306, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(306, 0, 311, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(317, 0, 340, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(346, 0, 438, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(444, 0, 514, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(520, 0, 539, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(548, 0, 615, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(623, 0, 692, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(698, 0, 789, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(796, 0, 819, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(830, 0, 871, _RIGHT_WRAPPER_HEIGHT),
+        BoundingBox(877, 0, 975, _RIGHT_WRAPPER_HEIGHT),
+    )
+    texts = (
+        "(",
+        _RIGHT_WRAPPER_PREVIOUS,
+        "[",
+        _RIGHT_WRAPPER_DIRECT,
+        "|",
+        ")",
+        *_RIGHT_WRAPPER_FOLLOWING,
+    )
+    confidences = (
+        0.186633,
+        0.99997,
+        0.455827,
+        0.97731,
+        0.444427,
+        0.897864,
+        0.999957,
+        0.999859,
+        0.999786,
+        0.999991,
+        0.999972,
+        0.999934,
+        0.999921,
+        0.999973,
+        0.998287,
+        0.977605,
+    )
+    raw = list(zip(texts, boxes, confidences, strict=True))
+    selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    return selected, raw
+
+
+class ConfirmedRightWrapperFiveRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_RIGHT_WRAPPER_RECOVERED,) * 7,
+        direct_confidences: tuple[float, ...] = (
+            0.999785,
+            0.999914,
+            0.999543,
+            0.999634,
+            0.999663,
+            0.999876,
+            0.994755,
+        ),
+        enhanced_texts: tuple[str, ...] = (_RIGHT_WRAPPER_RECOVERED,) * 3,
+        enhanced_confidences: tuple[float, ...] = (0.999727, 0.999925, 0.996725),
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_right_wrapper_five_substitution_recovers_consensus() -> None:
+    selected, raw = right_wrapper_five_words()
+    recognizer = ConfirmedRightWrapperFiveRecognizer()
+
+    recovered = _recover_confirmed_right_wrapper_five_substitution(
+        selected,
+        raw,
+        Image.new("RGB", (1041, 23)),
+        BoundingBox(0, 0, 1040.52, _RIGHT_WRAPPER_HEIGHT),
+        recognizer,
+    )
+
+    expected = list(selected)
+    expected[1] = (_RIGHT_WRAPPER_RECOVERED, raw[3][1], raw[3][2])
+    assert recovered == expected
+    assert recognizer.calls == 10
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedRightWrapperFiveRecognizer(
+            direct_texts=(
+                _RIGHT_WRAPPER_DIRECT,
+                *(_RIGHT_WRAPPER_RECOVERED,) * 6,
+            )
+        ),
+        ConfirmedRightWrapperFiveRecognizer(
+            direct_texts=(
+                *(_RIGHT_WRAPPER_RECOVERED,) * 6,
+                _RIGHT_WRAPPER_DIRECT,
+            )
+        ),
+        ConfirmedRightWrapperFiveRecognizer(
+            direct_confidences=(
+                0.9996,
+                0.999914,
+                0.999543,
+                0.999634,
+                0.999663,
+                0.999876,
+                0.994755,
+            )
+        ),
+        ConfirmedRightWrapperFiveRecognizer(
+            direct_confidences=(
+                0.999785,
+                0.999914,
+                0.999543,
+                0.999634,
+                0.999663,
+                0.999876,
+                0.9946,
+            )
+        ),
+        ConfirmedRightWrapperFiveRecognizer(
+            enhanced_texts=(
+                _RIGHT_WRAPPER_DIRECT,
+                _RIGHT_WRAPPER_RECOVERED,
+                _RIGHT_WRAPPER_RECOVERED,
+            )
+        ),
+        ConfirmedRightWrapperFiveRecognizer(
+            enhanced_confidences=(0.999727, 0.999925, 0.9966)
+        ),
+    ],
+)
+def test_confirmed_right_wrapper_five_substitution_requires_crop_consensus(
+    recognizer,
+) -> None:
+    selected, raw = right_wrapper_five_words()
+
+    assert (
+        _recover_confirmed_right_wrapper_five_substitution(
+            selected,
+            raw,
+            Image.new("RGB", (1041, 23)),
+            BoundingBox(0, 0, 1040.52, _RIGHT_WRAPPER_HEIGHT),
+            recognizer,
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-mismatch",
+        "left-category",
+        "right-category",
+        "candidate-shape",
+        "candidate-confidence",
+        "following-confidence",
+        "candidate-width",
+        "previous-gap",
+        "terminal-category",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_right_wrapper_five_substitution_requires_exact_profile(
+    case: str,
+) -> None:
+    selected, raw = right_wrapper_five_words()
+    line_box = BoundingBox(0, 0, 1040.52, _RIGHT_WRAPPER_HEIGHT)
+    crop = Image.new("RGB", (1041, 23))
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-mismatch":
+        selected[1] = (_RIGHT_WRAPPER_RECOVERED, selected[1][1], selected[1][2])
+    elif case == "left-category":
+        raw[2] = (chr(0xD69A), raw[2][1], raw[2][2])
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "right-category":
+        raw[4] = (")", raw[4][1], raw[4][2])
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "candidate-shape":
+        raw[3] = (_RIGHT_WRAPPER_DIRECT[:-1], raw[3][1], raw[3][2])
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "candidate-confidence":
+        raw[3] = (raw[3][0], raw[3][1], 0.9772)
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "following-confidence":
+        raw[6] = (raw[6][0], raw[6][1], 0.9996)
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "candidate-width":
+        raw[3] = (
+            raw[3][0],
+            BoundingBox(194, 0, 299, _RIGHT_WRAPPER_HEIGHT),
+            raw[3][2],
+        )
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "previous-gap":
+        raw[2] = (
+            raw[2][0],
+            BoundingBox(187, 0, 194, _RIGHT_WRAPPER_HEIGHT),
+            raw[2][2],
+        )
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "terminal-category":
+        raw[15] = (raw[15][0][:-1] + chr(0xD69B), raw[15][1], raw[15][2])
+        selected = [raw[index] for index in _RIGHT_WRAPPER_SELECTED_INDEXES]
+    elif case == "line-height":
+        line_box = BoundingBox(0, 0, 1040.52, 0)
+    else:
+        crop = Image.new("RGB", (300, 23))
+    recognizer = ConfirmedRightWrapperFiveRecognizer()
+
+    assert (
+        _recover_confirmed_right_wrapper_five_substitution(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class RightWrapperFiveEngineRecognizer:
+    def __init__(self) -> None:
+        _selected, raw = right_wrapper_five_words()
+        direct_by_segment = (
+            raw[0],
+            raw[1],
+            raw[2],
+            raw[3],
+            raw[4],
+            raw[5],
+            *raw[6:14],
+            ("", BoundingBox(819, 0, 822, _RIGHT_WRAPPER_HEIGHT), 0.0),
+            raw[14],
+            raw[15],
+            ("", BoundingBox(982, 0, 1041, _RIGHT_WRAPPER_HEIGHT), 0.0),
+        )
+        values = []
+        for text, _box, confidence in direct_by_segment:
+            values.append(RecognizedText(text, confidence))
+            if confidence < 0.72:
+                values.append(RecognizedText(text, max(0.0, confidence - 0.05)))
+        values.extend(ConfirmedRightWrapperFiveRecognizer().values)
+        self.values = tuple(values)
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (64, 70),
+            (70, 179),
+            (186, 194),
+            (194, 298),
+            (298, 306),
+            (306, 311),
+            (317, 340),
+            (346, 438),
+            (444, 514),
+            (520, 539),
+            (548, 615),
+            (623, 692),
+            (698, 789),
+            (796, 819),
+            (827, 830),
+            (830, 871),
+            (877, 975),
+            (982, 1041),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class RightWrapperFiveEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(56.24, 157.3, 1096.76, 180.2),
+                0.9888,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_right_wrapper_five_substitution() -> None:
+    recognizer = RightWrapperFiveEngineRecognizer()
+    engine = PaddleOcrEngine(RightWrapperFiveEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    assert document.lines[0].eojeols[1].text == _RIGHT_WRAPPER_RECOVERED
+    assert document.lines[0].eojeols[1].box == BoundingBox(
+        250.24,
+        157.3,
+        354.24,
+        180.2,
+    )
 class ConfirmedSubstitutionRecognizer:
     def __init__(self, *values: RecognizedText) -> None:
         self.values = values

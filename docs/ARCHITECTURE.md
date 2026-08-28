@@ -243,6 +243,15 @@ rounded to their original integer CTC coordinates to avoid subpixel arithmetic c
 any line, retry, geometry, category, confidence, or crop-consensus signal differs, the normal
 higher-confidence retry remains selected. The recovered word retains the original segment geometry
 and uses the minimum direct/crop confidence.
+A separately reviewed right-wrapper recalibration profile can replace one five-Hangul segment only
+under an exact 16-raw-segment/12-selected-word line profile. The candidate must sit between three
+reviewed punctuation or symbol fragments with the expected zero-gap geometry, while the surrounding
+Hangul words reproduce exact length, confidence, width, and gap evidence. Recognizing the candidate
+through its touching right fragment must produce a different pure five-Hangul reading, and seven
+direct base/pad/trim/shift crops plus three enhanced crops must all reproduce that alternative above
+individual confidence floors. Any profile, category, geometry, confidence, or crop disagreement
+keeps the original segment. A confirmed replacement retains the candidate's original geometry and
+uses the minimum candidate/crop confidence.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

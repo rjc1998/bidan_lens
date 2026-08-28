@@ -5329,6 +5329,13 @@ class PaddleOcrEngine(OcrEngine):
             line_box,
             self.recognizer,
         )
+        words = _recover_confirmed_right_wrapper_five_substitution(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_paired_wrapped_four_plus_two_split(
             words,
             crop,
@@ -5592,6 +5599,146 @@ def _recover_confirmed_direct_retry_regression(
         min(
             raw_confidences[1],
             *(variant.confidence for variant in variants),
+        ),
+    )
+    return recovered
+
+
+def _recover_confirmed_right_wrapper_five_substitution(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    selected_raw_indexes = (1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
+    if (
+        len(words) != len(selected_raw_indexes)
+        or len(raw_words) != 16
+        or tuple(words) != tuple(raw_words[index] for index in selected_raw_indexes)
+        or line_box.height <= 0
+    ):
+        return words
+    raw_texts = tuple(word[0] for word in raw_words)
+    raw_confidences = tuple(word[2] for word in raw_words)
+    width_ratios = tuple(word[1].width / line_box.height for word in raw_words)
+    gap_ratios = tuple(
+        (following[1].left - current[1].right) / line_box.height
+        for current, following in zip(raw_words, raw_words[1:], strict=False)
+    )
+    hangul_lengths = (0, 5, 0, 5, 0, 0, 1, 4, 3, 1, 3, 3, 4, 1, 2, 4)
+    if (
+        tuple(len(text) for text in raw_texts)
+        != (1, 5, 1, 5, 1, 1, 1, 4, 3, 1, 3, 3, 4, 1, 2, 5)
+        or tuple(sum(is_hangul(character) for character in text) for text in raw_texts)
+        != hangul_lengths
+        or any(
+            not unicodedata.category(raw_texts[index]).startswith("P")
+            for index in (0, 2, 5)
+        )
+        or not unicodedata.category(raw_texts[4]).startswith("S")
+        or not unicodedata.category(raw_texts[15][-1]).startswith("P")
+        or not 0.1866 <= raw_confidences[0] <= 0.1867
+        or raw_confidences[1] < 0.9999
+        or not 0.4558 <= raw_confidences[2] <= 0.4559
+        or not 0.9773 <= raw_confidences[3] <= 0.9774
+        or not 0.4444 <= raw_confidences[4] <= 0.4445
+        or not 0.8978 <= raw_confidences[5] <= 0.8979
+        or any(raw_confidences[index] < 0.9997 for index in range(6, 14))
+        or not 0.9982 <= raw_confidences[14] <= 0.9983
+        or not 0.9776 <= raw_confidences[15] <= 0.9777
+        or not 0.26 <= width_ratios[0] <= 0.27
+        or not 4.75 <= width_ratios[1] <= 4.77
+        or not 0.34 <= width_ratios[2] <= 0.36
+        or not 4.54 <= width_ratios[3] <= 4.55
+        or not 0.34 <= width_ratios[4] <= 0.36
+        or not 0.21 <= width_ratios[5] <= 0.23
+        or not 1.00 <= width_ratios[6] <= 1.01
+        or not 4.01 <= width_ratios[7] <= 4.02
+        or not -0.001 <= gap_ratios[0] <= 0.001
+        or not 0.30 <= gap_ratios[1] <= 0.31
+        or any(not -0.001 <= gap_ratios[index] <= 0.001 for index in (2, 3, 4))
+        or not 0.26 <= gap_ratios[5] <= 0.27
+    ):
+        return words
+    candidate_text, candidate_box, candidate_confidence = raw_words[3]
+    crop_left = round(candidate_box.left - line_box.left)
+    crop_right = round(raw_words[4][1].right - line_box.left)
+    variant_specs = (
+        (0, 0, 0.9997),
+        (-1, 1, 0.9999),
+        (1, -1, 0.9995),
+        (-2, -2, 0.9996),
+        (2, 2, 0.9996),
+        (-2, 2, 0.9998),
+        (2, -2, 0.9947),
+    )
+    variant_bounds = tuple(
+        (crop_left + left_offset, crop_right + right_offset, threshold)
+        for left_offset, right_offset, threshold in variant_specs
+    )
+    if any(
+        left < 0 or right > crop.width or left >= right
+        for left, right, _ in variant_bounds
+    ):
+        return words
+    direct_variants = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right, _ in variant_bounds
+    )
+    recovered_text = direct_variants[0].text.replace(" ", "")
+    if (
+        recovered_text == candidate_text
+        or len(recovered_text) != 5
+        or not all(is_hangul(character) for character in recovered_text)
+        or any(
+            variant.confidence < threshold
+            or variant.text.replace(" ", "") != recovered_text
+            for variant, (*_, threshold) in zip(
+                direct_variants,
+                variant_bounds,
+                strict=True,
+            )
+        )
+    ):
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    enhanced_thresholds = (0.9997, 0.9999, 0.9967)
+    enhanced_variants = tuple(
+        recognizer.recognize(
+            enhanced(crop.crop((left, 0, right, crop.height)))
+        )
+        for (left, right, _), _threshold in zip(
+            variant_bounds[:3],
+            enhanced_thresholds,
+            strict=True,
+        )
+    )
+    if any(
+        variant.confidence < threshold
+        or variant.text.replace(" ", "") != recovered_text
+        for variant, threshold in zip(
+            enhanced_variants,
+            enhanced_thresholds,
+            strict=True,
+        )
+    ):
+        return words
+    recovered = list(words)
+    recovered[1] = (
+        recovered_text,
+        candidate_box,
+        min(
+            candidate_confidence,
+            *(variant.confidence for variant in direct_variants),
+            *(variant.confidence for variant in enhanced_variants),
         ),
     )
     return recovered
