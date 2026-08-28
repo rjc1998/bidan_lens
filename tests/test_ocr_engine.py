@@ -23,6 +23,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_prefix_split,
     _recover_confirmed_three_plus_two_split,
+    _recover_confirmed_three_plus_two_terminal_punctuation_split,
     _recover_confirmed_two_plus_four_splits,
     _recover_confirmed_two_plus_punctuated_two_split,
     _recover_confirmed_two_plus_two_split,
@@ -3032,6 +3033,209 @@ def test_confirmed_three_plus_two_prefix_requires_word_profile(
             Image.new("RGB", (145, 19)),
             BoundingBox(0, 0, 145, height),
             ConfirmedThreePlusTwoPrefixRecognizer(),
+        )
+        == words
+    )
+
+class ConfirmedThreePlusTwoTerminalPunctuationRecognizer:
+    def __init__(
+        self,
+        *,
+        first_text: str = "가나다",
+        first_confidence: float = 0.99993,
+        middle_text: str = "-",
+        middle_confidence: float = 0.4966,
+        last_text: str = "라마.",
+        last_confidence: float = 0.9773,
+        target_variant_text: str = "가나다",
+        target_variant_confidence: float = 0.99994,
+        punctuated_target_variant_text: str = "가나다…",
+        punctuated_target_variant_confidence: float = 0.99994,
+        second_punctuated_target_variant_text: str | None = None,
+        suffix_variant_text: str = "라마.",
+        suffix_variant_confidence: float = 0.9881,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 53),
+            (52, 70),
+            (76, 113),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_text, first_confidence),
+            RecognizedText(middle_text, middle_confidence),
+            RecognizedText(last_text, last_confidence),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.99995),
+            RecognizedText(
+                punctuated_target_variant_text,
+                punctuated_target_variant_confidence,
+            ),
+            RecognizedText(
+                second_punctuated_target_variant_text
+                or punctuated_target_variant_text,
+                0.99995,
+            ),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.996),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.002
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class SegmentedThreePlusTwoTerminalPunctuationRecognizer(
+    ConfirmedThreePlusTwoTerminalPunctuationRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText("가", 0.9999),
+            RecognizedText("가나다라마.", 0.99175),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((0, 15), (20, 133))
+        return super().word_boxes(_image, space_threshold)
+
+
+class ThreePlusTwoTerminalPunctuationDetector:
+    def detect(self, _image):
+        height = 113 / 6.417
+        return (DetectedRegion(BoundingBox(10.4, 5, 143.4, 5 + height), 0.9),)
+
+
+def test_engine_recovers_three_plus_two_terminal_punctuation_line() -> None:
+    engine = PaddleOcrEngine(
+        ThreePlusTwoTerminalPunctuationDetector(),
+        SegmentedThreePlusTwoTerminalPunctuationRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (160, 40)))
+
+    assert document.lines[0].text == "가 가나다… 라마."
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "가",
+        "가나다",
+        "라마",
+    ]
+
+
+def test_confirmed_three_plus_two_terminal_punctuation_recovers() -> None:
+    height = 113 / 6.417
+    words = [
+        ("가나다라마.", BoundingBox(20, 0, 133, height), 0.99175)
+    ]
+
+    assert _recover_confirmed_three_plus_two_terminal_punctuation_split(
+        words,
+        Image.new("RGB", (153, 19)),
+        BoundingBox(0, 0, 153, height),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(),
+    ) == [
+        ("가나다…", BoundingBox(20, 0, 73, height), 0.99175),
+        ("라마.", BoundingBox(96, 0, 133, height), 0.9773),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(first_text="가나마"),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(first_confidence=0.9998),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(middle_text="가"),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(middle_confidence=0.4959),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(last_text="라바."),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(last_confidence=0.9769),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            target_variant_text="가나마"
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            target_variant_confidence=0.9998
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            punctuated_target_variant_text="가나다."
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            punctuated_target_variant_confidence=0.9998
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            second_punctuated_target_variant_text="가나다:"
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            suffix_variant_text="라바."
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            suffix_variant_confidence=0.9879
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            segments=((2, 53), (52, 70), (76, 113))
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            segments=((0, 53), (53, 70), (76, 113))
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            segments=((0, 53), (52, 70), (75, 113))
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            segments=((0, 50), (49, 70), (76, 113))
+        ),
+        ConfirmedThreePlusTwoTerminalPunctuationRecognizer(
+            segments=((0, 53), (52, 70), (76, 111))
+        ),
+    ],
+)
+def test_confirmed_three_plus_two_terminal_punctuation_requires_profile(
+    recognizer,
+) -> None:
+    height = 113 / 6.417
+    words = [
+        ("가나다라마.", BoundingBox(20, 0, 133, height), 0.99175)
+    ]
+
+    assert (
+        _recover_confirmed_three_plus_two_terminal_punctuation_split(
+            words,
+            Image.new("RGB", (153, 19)),
+            BoundingBox(0, 0, 153, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "confidence", "height"),
+    [
+        ("가나다라A.", 0.99175, 113 / 6.417),
+        ("가나다라마A", 0.99175, 113 / 6.417),
+        ("가나다라마.", 0.99169, 113 / 6.417),
+        ("가나다라마.", 0.99181, 113 / 6.417),
+        ("가나다라마.", 0.99175, 113 / 6.405),
+    ],
+)
+def test_confirmed_three_plus_two_terminal_punctuation_requires_word_shape(
+    text,
+    confidence,
+    height,
+) -> None:
+    words = [(text, BoundingBox(20, 0, 133, height), confidence)]
+
+    assert (
+        _recover_confirmed_three_plus_two_terminal_punctuation_split(
+            words,
+            Image.new("RGB", (153, 19)),
+            BoundingBox(0, 0, 153, height),
+            ConfirmedThreePlusTwoTerminalPunctuationRecognizer(),
         )
         == words
     )

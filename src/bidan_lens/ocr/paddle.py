@@ -1862,6 +1862,173 @@ def _recover_confirmed_three_plus_two_prefix_split(
         )
     return recovered
 
+def _recover_confirmed_three_plus_two_terminal_punctuation_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter):
+        return words
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for text, box, confidence in words:
+        width_ratio = box.width / line_box.height
+        if (
+            len(text) != 6
+            or not all(is_hangul(character) for character in text[:5])
+            or not unicodedata.category(text[5]).startswith("P")
+            or not 0.9917 <= confidence <= 0.9918
+            or not 6.41 <= width_ratio <= 6.42
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        crop_left = max(0, math.floor(box.left - line_box.left))
+        crop_right = min(crop.width, math.ceil(box.right - line_box.left))
+        word_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+        try:
+            segments = segmenter(word_crop, space_threshold=0.002)
+        except TypeError:
+            recovered.append((text, box, confidence))
+            continue
+        if len(segments) != 3:
+            recovered.append((text, box, confidence))
+            continue
+        first_segment, middle_segment, last_segment = segments
+        first_gap_ratio = (middle_segment[0] - first_segment[1]) / line_box.height
+        last_gap_ratio = (last_segment[0] - middle_segment[1]) / line_box.height
+        pitches = (
+            (first_segment[1] - first_segment[0]) / 3,
+            middle_segment[1] - middle_segment[0],
+            (last_segment[1] - last_segment[0]) / 3,
+        )
+        pitch_ratio = min(pitches) / max(pitches)
+        if (
+            first_segment[0] > 1
+            or last_segment[1] < word_crop.width - 1
+            or not -0.06 <= first_gap_ratio <= -0.05
+            or not 0.34 <= last_gap_ratio <= 0.35
+            or not 0.68 <= pitch_ratio <= 0.69
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        parts = tuple(
+            recognizer.recognize(
+                word_crop.crop((left, 0, right, word_crop.height))
+            )
+            for left, right in segments
+        )
+        part_texts = tuple(part.text.replace(" ", "") for part in parts)
+        if (
+            parts[0].confidence < 0.9999
+            or not 0.496 <= parts[1].confidence <= 0.497
+            or not 0.977 <= parts[2].confidence <= 0.978
+            or part_texts[0] != text[:3]
+            or len(part_texts[1]) != 1
+            or not unicodedata.category(part_texts[1]).startswith("P")
+            or part_texts[2] != text[3:]
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        target_boundaries = (
+            round(line_box.height * 2.84),
+            round(line_box.height * 3.18),
+        )
+        punctuated_target_boundaries = (
+            round(line_box.height * 3.52),
+            round(line_box.height * 4.09),
+        )
+        suffix_boundaries = (
+            round(line_box.height * 4.09),
+            round(line_box.height * 4.66),
+        )
+        target_variants = tuple(
+            recognizer.recognize(
+                word_crop.crop((0, 0, boundary, word_crop.height))
+            )
+            for boundary in target_boundaries
+        )
+        punctuated_target_variants = tuple(
+            recognizer.recognize(
+                word_crop.crop((0, 0, boundary, word_crop.height))
+            )
+            for boundary in punctuated_target_boundaries
+        )
+        suffix_variants = tuple(
+            recognizer.recognize(
+                word_crop.crop((boundary, 0, word_crop.width, word_crop.height))
+            )
+            for boundary in suffix_boundaries
+        )
+        if (
+            any(
+                variant.confidence < 0.9999
+                or variant.text.replace(" ", "") != text[:3]
+                for variant in target_variants
+            )
+            or any(
+                variant.confidence < 0.9999
+                or len(variant_text) != 4
+                or variant_text[:3] != text[:3]
+                or not unicodedata.category(variant_text[3]).startswith("P")
+                or variant_text[3] == text[5]
+                for variant in punctuated_target_variants
+                for variant_text in (variant.text.replace(" ", ""),)
+            )
+            or len(
+                {
+                    variant.text.replace(" ", "")
+                    for variant in punctuated_target_variants
+                }
+            )
+            != 1
+            or any(
+                variant.confidence < 0.988
+                or variant.text.replace(" ", "") != text[3:]
+                for variant in suffix_variants
+            )
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        punctuated_target = punctuated_target_variants[0].text.replace(" ", "")
+        recovered.extend(
+            (
+                (
+                    punctuated_target,
+                    BoundingBox(
+                        line_box.left + crop_left + first_segment[0],
+                        box.top,
+                        line_box.left + crop_left + first_segment[1],
+                        box.bottom,
+                    ),
+                    min(
+                        confidence,
+                        parts[0].confidence,
+                        *(variant.confidence for variant in target_variants),
+                        *(
+                            variant.confidence
+                            for variant in punctuated_target_variants
+                        ),
+                    ),
+                ),
+                (
+                    text[3:],
+                    BoundingBox(
+                        line_box.left + crop_left + last_segment[0],
+                        box.top,
+                        line_box.left + crop_left + last_segment[1],
+                        box.bottom,
+                    ),
+                    min(
+                        confidence,
+                        parts[2].confidence,
+                        *(variant.confidence for variant in suffix_variants),
+                    ),
+                ),
+            )
+        )
+    return recovered
+
 def _recover_confirmed_five_plus_three_prefix_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -3225,6 +3392,12 @@ def _recover_word_boundaries(
         recognizer,
     )
     words = _recover_confirmed_three_plus_two_prefix_split(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_confirmed_three_plus_two_terminal_punctuation_split(
         words,
         crop,
         line_box,
