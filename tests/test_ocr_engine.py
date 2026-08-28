@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
+    _recover_confirmed_one_plus_one_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
@@ -2756,6 +2757,113 @@ def test_confirmed_numeric_ellipsis_tail_requires_word_shape(words) -> None:
             Image.new("RGB", (121, 19)),
             BoundingBox(0, 0, 121, 17.6),
             ConfirmedNumericEllipsisTailRecognizer(),
+        )
+        == words
+    )
+
+
+class ConfirmedOnePlusOneRecognizer:
+    def __init__(
+        self,
+        *,
+        first_part_text: str = "\uac00",
+        last_part_text: str = "\ub098",
+        first_part_confidence: float = 0.99996,
+        variant_text: str = "\uac00",
+        variant_confidence: float = 0.99981,
+        segments: tuple[tuple[int, int], ...] = ((0, 27), (37, 69)),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_part_text, first_part_confidence),
+            RecognizedText(last_part_text, 0.99998),
+            RecognizedText(variant_text, variant_confidence),
+            RecognizedText("\ub098", 0.99998),
+            RecognizedText("\uac00", 0.9999),
+            RecognizedText("\ub098", 0.99998),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_one_plus_one_recovers_word_boundary() -> None:
+    height = 69 / 2.175
+    words = [("\uac00\ub098", BoundingBox(20, 0, 89, height), 0.99991)]
+
+    assert _recover_confirmed_one_plus_one_split(
+        words,
+        Image.new("RGB", (109, 32)),
+        BoundingBox(0, 0, 109, height),
+        ConfirmedOnePlusOneRecognizer(),
+    ) == [
+        ("\uac00", BoundingBox(20, 0, 47, height), 0.99981),
+        ("\ub098", BoundingBox(57, 0, 89, height), 0.99981),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedOnePlusOneRecognizer(first_part_text="\ub2e4"),
+        ConfirmedOnePlusOneRecognizer(first_part_confidence=0.99994),
+        ConfirmedOnePlusOneRecognizer(variant_text="\ub2e4"),
+        ConfirmedOnePlusOneRecognizer(variant_confidence=0.99979),
+        ConfirmedOnePlusOneRecognizer(segments=((0, 27), (36, 69))),
+        ConfirmedOnePlusOneRecognizer(segments=((0, 26), (37, 69))),
+        ConfirmedOnePlusOneRecognizer(segments=((2, 27), (37, 67))),
+    ],
+)
+def test_confirmed_one_plus_one_requires_exact_profile(recognizer) -> None:
+    height = 69 / 2.175
+    words = [("\uac00\ub098", BoundingBox(20, 0, 89, height), 0.99991)]
+
+    assert (
+        _recover_confirmed_one_plus_one_split(
+            words,
+            Image.new("RGB", (109, 32)),
+            BoundingBox(0, 0, 109, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "height"),
+    [
+        (
+            [("\uac00A", BoundingBox(20, 0, 89, 69 / 2.175), 0.99991)],
+            69 / 2.175,
+        ),
+        (
+            [("\uac00\ub098", BoundingBox(20, 0, 89, 69 / 2.175), 0.99989)],
+            69 / 2.175,
+        ),
+        (
+            [("\uac00\ub098", BoundingBox(20, 0, 89, 69 / 2.175), 0.99993)],
+            69 / 2.175,
+        ),
+        (
+            [("\uac00\ub098", BoundingBox(20, 0, 89, 31), 0.99991)],
+            31,
+        ),
+    ],
+)
+def test_confirmed_one_plus_one_requires_word_profile(words, height) -> None:
+    assert (
+        _recover_confirmed_one_plus_one_split(
+            words,
+            Image.new("RGB", (109, 32)),
+            BoundingBox(0, 0, 109, height),
+            ConfirmedOnePlusOneRecognizer(),
         )
         == words
     )

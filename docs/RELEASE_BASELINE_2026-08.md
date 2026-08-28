@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.15 quick tier records 99.28% whole-eojeol OCR, 99.50% target selection, 95.50%
 functional context, 76.00% exact sentence transcription, 94.50% component accuracy, 95.50%
 exact KRDict fidelity, 91.00% fully correct first popups, 97.00% alternative recovery, and zero
-false promotions. The accepted current rerun is 242.65 ms median / 360.26 ms p95. There
+false promotions. The accepted current rerun is 234.94 ms median / 354.15 ms p95. There
 are nine analysis, eight context, and one target failure. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,16 +57,16 @@ gate pass.
 The v4.15 lock SHA-256 is
 `5c57bdeb06e792960ec8869b0c3914a50170a911f73f1873b25185c011592ba8`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`e10dab2b2604ce3859a27d82f3d8b489d51edd21be27bfa8fce436069db16a37` and
+`2e48239db8f3404d5506847c06193a406cb7fa037b4cb9da4a6aa0c8ba410cae` and
 `8e0f3729a158475dbfb22a2666cdeaaddd73d8ff7b874d6e28d2bff1cc772705`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.15 by numeric ID
 without a fresh review audit.
 
-The complete v4.15 development run against the current OCR and analyzer cleanup records 98.25%
-whole-eojeol OCR, 97.55% target selection, 89.20% functional context, 72.00% exact sentence
-transcription, 93.25% component accuracy, 95.55% exact KRDict fidelity, 84.10% fully correct first
-popups, 94.65% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 241.63 ms median / 366.68 ms p95. The privacy-safe stage totals are 49 target,
+The complete v4.15 development run against the current OCR and analyzer cleanup records 98.26%
+whole-eojeol OCR, 97.60% target selection, 89.25% functional context, 72.05% exact sentence
+transcription, 93.25% component accuracy, 95.55% exact KRDict fidelity, 84.15% fully correct first
+popups, 94.70% alternative recovery, and zero false promotions across 2,000 main cases. The
+accepted rerun is 237.40 ms median / 359.43 ms p95. The privacy-safe stage totals are 48 target,
 167 context, and 102 analysis failures. The analysis failures comprise 44 primary lemmas, 48
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
@@ -80,8 +80,8 @@ punctuation is six of 1,582 (0.38%). The correction, dictionary-conformance, lat
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`f60484b0e412ed879533b40ccb920f36d7d0dfaf62ed43bccfeab5181a584222` and
-`a2ccf568f55c8d3ea8b423b71d8867300cf2d432c64bb523e3d1a8fda21e795c`.
+`9ccaf66b5f8b6b499cced3bd3b72298559f27caa2735ac68461925c4c1d98c2b` and
+`02296ecc994311fa8dc0851c2df5590af5bdcefd0160625204b4ad016afe0b77`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -765,11 +765,20 @@ accepted comparison preserves the digit and removes only `dev-plain-0866`, with 
 stage change; quick diagnostics remain byte-identical. Stress, held-out language, promotion, and
 negative-pointer results are unchanged.
 
-The two accepted geometry passes, substitution batch, two-plus-two split, and numeric-ellipsis
-recovery leave 49 main target failures: 23 wrong-text hits in matching geometry and 26 no-hit
-cases. The wrong-text set contains nine remaining equal-length substitutions and 14
-length-changing substitution or omission cases. The remaining exact segment matches occur only at
-the much weaker 0.001 space threshold and remain rejected. The next development target is
+The remaining weak-threshold exact candidate is a 99.99%-confidence two-Hangul segment whose
+two one-Hangul CTC readings are edge-complete, separated by 31%-32% of line height, within
+84%-85% pitch agreement, at least 99.995% confident, and exactly recombine. Two independent
+midpoint crop boundaries reproduce the same ordered pair at at least 99.98% confidence. These
+additional signals bound the 0.001-threshold recovery that was previously rejected on CTC
+evidence alone. The exact comparison removes only `dev-plain-1303`, with no addition or stage
+change; quick diagnostics remain byte-identical. Stress, held-out language, promotion, and
+negative-pointer results are unchanged.
+
+The two accepted geometry passes, substitution batch, and the three latest split recoveries leave
+48 main target failures: 22 wrong-text hits in matching geometry and 26 no-hit cases. The
+wrong-text set contains nine remaining equal-length substitutions and 13 length-changing
+substitution or omission cases. No remaining segment probe exactly reproduces its expected target.
+The next development target is
 privacy-safe grouping of the length-changing wrong-text evidence; broader hit-test expansion
 remains unsupported.
 

@@ -1630,6 +1630,117 @@ def _recover_confirmed_numeric_ellipsis_tail_split(
     return recovered
 
 
+def _recover_confirmed_one_plus_one_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter):
+        return words
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for text, box, confidence in words:
+        width_ratio = box.width / line_box.height
+        if (
+            len(text) != 2
+            or not all(is_hangul(character) for character in text)
+            or not 0.9999 <= confidence <= 0.99992
+            or not 2.17 <= width_ratio <= 2.18
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        crop_left = max(0, math.floor(box.left - line_box.left))
+        crop_right = min(crop.width, math.ceil(box.right - line_box.left))
+        word_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+        try:
+            segments = segmenter(word_crop, space_threshold=0.001)
+        except TypeError:
+            recovered.append((text, box, confidence))
+            continue
+        if len(segments) != 2:
+            recovered.append((text, box, confidence))
+            continue
+        first_segment, last_segment = segments
+        gap_ratio = (last_segment[0] - first_segment[1]) / line_box.height
+        first_width = first_segment[1] - first_segment[0]
+        last_width = last_segment[1] - last_segment[0]
+        pitch_ratio = min(first_width, last_width) / max(first_width, last_width)
+        if (
+            first_segment[0] > 1
+            or last_segment[1] < word_crop.width - 1
+            or not 0.31 <= gap_ratio <= 0.32
+            or not 0.84 <= pitch_ratio <= 0.85
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        parts = tuple(
+            recognizer.recognize(
+                word_crop.crop((left, 0, right, word_crop.height))
+            )
+            for left, right in segments
+        )
+        part_texts = tuple(part.text.replace(" ", "") for part in parts)
+        if (
+            any(part.confidence < 0.99995 for part in parts)
+            or tuple(map(len, part_texts)) != (1, 1)
+            or any(not is_hangul(part_text) for part_text in part_texts)
+            or "".join(part_texts) != text
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        midpoint = word_crop.width / 2
+        boundaries = (math.floor(midpoint), math.ceil(midpoint) + 1)
+        variants = tuple(
+            (
+                recognizer.recognize(
+                    word_crop.crop((0, 0, boundary, word_crop.height))
+                ),
+                recognizer.recognize(
+                    word_crop.crop(
+                        (boundary, 0, word_crop.width, word_crop.height)
+                    )
+                ),
+            )
+            for boundary in boundaries
+        )
+        if any(
+            min(first.confidence, last.confidence) < 0.9998
+            or (
+                first.text.replace(" ", ""),
+                last.text.replace(" ", ""),
+            )
+            != part_texts
+            for first, last in variants
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        variant_confidence = min(
+            candidate.confidence
+            for variant in variants
+            for candidate in variant
+        )
+        recovered.extend(
+            (
+                part_text,
+                BoundingBox(
+                    line_box.left + crop_left + left,
+                    box.top,
+                    line_box.left + crop_left + right,
+                    box.bottom,
+                ),
+                min(confidence, part.confidence, variant_confidence),
+            )
+            for part_text, part, (left, right) in zip(
+                part_texts,
+                parts,
+                segments,
+                strict=True,
+            )
+        )
+    return recovered
+
+
 def _recover_confirmed_two_plus_two_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -2411,6 +2522,12 @@ def _recover_word_boundaries(
     recognizer: Any,
 ) -> list[tuple[str, BoundingBox, float]]:
     words = _recover_confirmed_numeric_ellipsis_tail_split(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_confirmed_one_plus_one_split(
         words,
         crop,
         line_box,
