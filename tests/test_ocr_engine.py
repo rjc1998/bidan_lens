@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
@@ -3386,6 +3387,273 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
         )
         == words
     )
+
+
+class ConfirmedMismatchedWrappedThreePlusOneRecognizer:
+    def __init__(
+        self,
+        *,
+        opening_text: str = "\u201c\u201d",
+        opening_confidence: float = 0.2715,
+        target_text: str = "\uac00\ub098\ub2e4",
+        target_confidence: float = 0.9996,
+        punctuation_text: str = "\u2019",
+        punctuation_confidence: float = 0.5115,
+        suffix_text: str = "\ub77c",
+        suffix_confidence: float = 0.9989,
+        target_variant_text: str = "\uac00\ub098\ub2e4",
+        target_variant_confidence: float = 0.9989,
+        wrapper_variant_text: str = "\u2018\uac00\ub098\ub2e4\u2019",
+        wrapper_variant_confidence: float = 0.5468,
+        suffix_variant_text: str = "\ub77c",
+        suffix_variant_confidence: float = 0.9989,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 58),
+            (57, 255),
+            (269, 305),
+            (328, 393),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(opening_text, opening_confidence),
+            RecognizedText(target_text, target_confidence),
+            RecognizedText(punctuation_text, punctuation_confidence),
+            RecognizedText(suffix_text, suffix_confidence),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.9993),
+            RecognizedText(wrapper_variant_text, wrapper_variant_confidence),
+            RecognizedText(wrapper_variant_text, 0.6044),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.9992),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class SegmentedMismatchedWrappedThreePlusOneRecognizer(
+    ConfirmedMismatchedWrappedThreePlusOneRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText("\u201c\uac00\ub098\ub2e4\u2019\ub77c", 0.5821),
+            RecognizedText("\u201c\uac00\ub098\ub2e4\u2019\ub77c", 0.5941),
+            RecognizedText("\ub9c8\ubc14\uc0ac", 0.99995),
+            RecognizedText("\uc544\uc790\ucc28", 0.9998),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((20, 413), (442, 657), (681, 893))
+        return super().word_boxes(_image, space_threshold)
+
+
+class MismatchedWrappedThreePlusOneDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(10, 5, 910, 80.72),
+                0.9,
+            ),
+        )
+
+
+def mismatched_wrapped_three_plus_one_words(
+    *,
+    text: str = "\u201c\uac00\ub098\ub2e4\u2019\ub77c",
+    confidence: float = 0.5941,
+    height: float = 75.72,
+    following_box: BoundingBox | None = None,
+    following_confidence: float = 0.99995,
+    trailing_box: BoundingBox | None = None,
+    trailing_confidence: float = 0.9998,
+) -> list[tuple[str, BoundingBox, float]]:
+    following_box = following_box or BoundingBox(442, 0, 657, 75.72)
+    trailing_box = trailing_box or BoundingBox(681, 0, 893, 75.72)
+    return [
+        (text, BoundingBox(20, 0, 413, height), confidence),
+        ("\ub9c8\ubc14\uc0ac", following_box, following_confidence),
+        ("\uc544\uc790\ucc28", trailing_box, trailing_confidence),
+    ]
+
+
+def test_confirmed_mismatched_wrapped_three_plus_one_recovers() -> None:
+    words = mismatched_wrapped_three_plus_one_words()
+
+    recovered = _recover_confirmed_mismatched_wrapped_three_plus_one_split(
+        words,
+        Image.new("RGB", (900, 76)),
+        BoundingBox(0, 0, 900, 75.72),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            "\u201c\uac00\ub098\ub2e4\u2019",
+            BoundingBox(20, 0, 325, 75.72),
+            0.5468,
+        ),
+        ("\ub77c", BoundingBox(348, 0, 413, 75.72), 0.5941),
+        words[1],
+        words[2],
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            opening_text="\u201cA"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            opening_confidence=0.2709
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            target_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            target_confidence=0.9994
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            punctuation_text="."
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            punctuation_confidence=0.5109
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            suffix_text="\ub9c8"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            suffix_confidence=0.9987
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            target_variant_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            target_variant_confidence=0.9987
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            wrapper_variant_text="\u2018\uac00\ub098\ub77c\u2019"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            wrapper_variant_confidence=0.539
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            suffix_variant_text="\ub9c8"
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            suffix_variant_confidence=0.9987
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            segments=((2, 58), (57, 255), (269, 305), (328, 393))
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            segments=((0, 58), (56, 255), (269, 305), (328, 393))
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            segments=((0, 58), (57, 255), (268, 305), (328, 393))
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            segments=((0, 58), (57, 255), (269, 305), (327, 393))
+        ),
+        ConfirmedMismatchedWrappedThreePlusOneRecognizer(
+            segments=((0, 58), (57, 255), (269, 305), (328, 391))
+        ),
+    ],
+)
+def test_confirmed_mismatched_wrapped_three_plus_one_requires_crop_evidence(
+    recognizer,
+) -> None:
+    words = mismatched_wrapped_three_plus_one_words()
+
+    assert (
+        _recover_confirmed_mismatched_wrapped_three_plus_one_split(
+            words,
+            Image.new("RGB", (900, 76)),
+            BoundingBox(0, 0, 900, 75.72),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        mismatched_wrapped_three_plus_one_words(
+            text="A\uac00\ub098\ub2e4\u2019\ub77c"
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            text="\u201c\uac00A\ub2e4\u2019\ub77c"
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            text="\u201c\uac00\ub098\ub2e4A\ub77c"
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            text="\u201c\uac00\ub098\ub2e4\u201d\ub77c"
+        ),
+        mismatched_wrapped_three_plus_one_words(confidence=0.5939),
+        mismatched_wrapped_three_plus_one_words(
+            following_confidence=0.9998
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            following_box=BoundingBox(441, 0, 656, 75.72)
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            following_box=BoundingBox(442, 0, 656, 75.72)
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            trailing_confidence=0.9996
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            trailing_box=BoundingBox(680, 0, 892, 75.72)
+        ),
+        mismatched_wrapped_three_plus_one_words(
+            trailing_box=BoundingBox(681, 0, 892, 75.72)
+        ),
+        mismatched_wrapped_three_plus_one_words()[:2],
+    ],
+)
+def test_confirmed_mismatched_wrapped_three_plus_one_requires_word_profile(
+    words,
+) -> None:
+    assert (
+        _recover_confirmed_mismatched_wrapped_three_plus_one_split(
+            words,
+            Image.new("RGB", (900, 76)),
+            BoundingBox(0, 0, 900, 75.72),
+            ConfirmedMismatchedWrappedThreePlusOneRecognizer(),
+        )
+        == words
+    )
+
+
+def test_engine_recovers_mismatched_wrapped_three_plus_one_segment() -> None:
+    engine = PaddleOcrEngine(
+        MismatchedWrappedThreePlusOneDetector(),
+        SegmentedMismatchedWrappedThreePlusOneRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (930, 100)))
+    target = document.lines[0].eojeols[0]
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uac00\ub098\ub2e4",
+        "\ub77c",
+        "\ub9c8\ubc14\uc0ac",
+        "\uc544\uc790\ucc28",
+    ]
+    assert target.box == BoundingBox(91, 5, 274, 80.72)
 
 
 class ConfirmedWrappedFivePlusFourRecognizer:
