@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
@@ -3388,6 +3389,326 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
             ConfirmedFivePlusThreePrefixRecognizer(),
         )
         == words
+    )
+
+
+class ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_text: str = "/\uac00\ub098-\ub77c\ub9c8?",
+        direct_confidence: float = 0.5355,
+        opening_text: str = "/",
+        opening_confidence: float = 0.4215,
+        middle_text: str = "\uac00\ub098.",
+        middle_confidence: float = 0.9235,
+        suffix_text: str = "\ub77c\ub9c8?",
+        suffix_confidence: float = 0.9938,
+        target_variant_text: str = "\uac00\ub098",
+        target_variant_confidence: float = 0.9995,
+        wrapper_variant_text: str = "\u2014\uac00\ub098\u2014",
+        wrapper_variant_confidence: float = 0.6218,
+        suffix_variant_text: str = "\ub77c\ub9c8?",
+        suffix_variant_confidence: float = 0.9935,
+        default_segments: tuple[tuple[int, int], ...] = ((5, 221),),
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 38),
+            (37, 130),
+            (141, 216),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(direct_text, direct_confidence),
+            RecognizedText(opening_text, opening_confidence),
+            RecognizedText(middle_text, middle_confidence),
+            RecognizedText(suffix_text, suffix_confidence),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.9996),
+            RecognizedText(target_variant_text, 0.9997),
+            RecognizedText(target_variant_text, 0.9998),
+            RecognizedText(target_variant_text, 0.9999),
+            RecognizedText(target_variant_text, 0.9998),
+            RecognizedText(target_variant_text, 0.9999),
+            RecognizedText(wrapper_variant_text, wrapper_variant_confidence),
+            RecognizedText(wrapper_variant_text, 0.4807),
+            RecognizedText(wrapper_variant_text, 0.5438),
+            RecognizedText(wrapper_variant_text, 0.5048),
+            RecognizedText(wrapper_variant_text, 0.3765),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.9927),
+            RecognizedText(suffix_variant_text, 0.9926),
+            RecognizedText(suffix_variant_text, 0.9908),
+            RecognizedText(suffix_variant_text, 0.9938),
+        )
+        self.default_segments = default_segments
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return self.default_segments
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class IsolatedPairedWrappedTwoPlusTwoRecognizer(
+    ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText(
+                "/\uac00\ub098\u2014\ub77c\ub9c8?", 0.385632
+            ),
+            RecognizedText(
+                "/\uac00\ub098\u2014\ub77c\ub9c8?", 0.80905
+            ),
+            *self.values,
+        )
+
+
+class IsolatedPairedWrappedTwoPlusTwoDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(115.08, 251.8043, 345.92, 285.2608),
+                0.9,
+            ),
+        )
+
+
+def isolated_paired_wrapped_two_plus_two_words(
+    *,
+    text: str = "/\uac00\ub098\u2014\ub77c\ub9c8?",
+    confidence: float = 0.80905,
+    box: BoundingBox | None = None,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [
+        (
+            text,
+            box or BoundingBox(0, 0, 230.84, 33.4565),
+            confidence,
+        )
+    ]
+
+
+def test_confirmed_isolated_paired_wrapped_two_plus_two_recovers() -> None:
+    words = isolated_paired_wrapped_two_plus_two_words()
+
+    recovered = _recover_confirmed_isolated_paired_wrapped_two_plus_two_split(
+        words,
+        Image.new("RGB", (231, 35)),
+        BoundingBox(0, 0, 230.84, 33.4565),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            "\u2014\uac00\ub098\u2014",
+            BoundingBox(5, 0, 135, 33.4565),
+            0.3765,
+        ),
+        (
+            "\ub77c\ub9c8?",
+            BoundingBox(146, 0, 221, 33.4565),
+            0.80905,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="A\uac00\ub098-\ub77c\ub9c8?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="/\uac00\ub2e4-\ub77c\ub9c8?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="/\uac00\ub098\u2014\ub77c\ub9c8?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="/\uac00\ub098A\ub77c\ub9c8?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="/\uac00\ub098-\ub77c\uc0ac?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_text="/\uac00\ub098/\ub77c\ub9c8?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            direct_confidence=0.5349
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            opening_text="-"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            opening_confidence=0.4209
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            middle_text="\uac00\ub2e4."
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            middle_text="\uac00\ub098A"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            middle_text="\uac00\ub098\u2014"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            middle_text="\uac00\ub098-"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            middle_confidence=0.9229
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            suffix_text="\ub77c\uc0ac?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            suffix_confidence=0.9929
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            target_variant_text="\uac00\ub2e4"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            target_variant_confidence=0.9993
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            wrapper_variant_text="/\uac00\ub098/"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            wrapper_variant_text="\u201c\uac00\ub098\u201d"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            wrapper_variant_text="\u2014\uac00\ub2e4\u2014"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            wrapper_variant_text="\u2014\uac00\ub098-"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            wrapper_variant_confidence=0.3759
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            suffix_variant_text="\ub77c\uc0ac?"
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            suffix_variant_confidence=0.9899
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            default_segments=((4, 220),)
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            default_segments=((5, 220),)
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            default_segments=((5, 222),)
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            default_segments=((5, 150), (160, 221))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((2, 38), (37, 130), (141, 216))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((0, 38), (35, 130), (141, 216))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((0, 37), (36, 130), (141, 216))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((0, 38), (37, 131), (141, 216))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((0, 38), (37, 130), (140, 216))
+        ),
+        ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(
+            segments=((0, 38), (37, 130), (141, 214))
+        ),
+    ],
+)
+def test_confirmed_isolated_paired_wrapped_two_plus_two_requires_crop_evidence(
+    recognizer,
+) -> None:
+    words = isolated_paired_wrapped_two_plus_two_words()
+
+    assert (
+        _recover_confirmed_isolated_paired_wrapped_two_plus_two_split(
+            words,
+            Image.new("RGB", (231, 35)),
+            BoundingBox(0, 0, 230.84, 33.4565),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        isolated_paired_wrapped_two_plus_two_words(
+            text="\u201c\uac00\ub098\u2014\ub77c\ub9c8?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="A\uac00\ub098\u2014\ub77c\ub9c8?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="/\uac00A\u2014\ub77c\ub9c8?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="/\uac00\ub098/\ub77c\ub9c8?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="/\uac00\ub098A\ub77c\ub9c8?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="/\uac00\ub098\u2014\ub77cA?"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(
+            text="/\uac00\ub098\u2014\ub77c\ub9c8A"
+        ),
+        isolated_paired_wrapped_two_plus_two_words(confidence=0.8089),
+        isolated_paired_wrapped_two_plus_two_words(
+            box=BoundingBox(0, 0, 230.4, 33.4565)
+        ),
+        isolated_paired_wrapped_two_plus_two_words() * 2,
+    ],
+)
+def test_confirmed_isolated_paired_wrapped_two_plus_two_requires_word_profile(
+    words,
+) -> None:
+    assert (
+        _recover_confirmed_isolated_paired_wrapped_two_plus_two_split(
+            words,
+            Image.new("RGB", (231, 35)),
+            BoundingBox(0, 0, 230.84, 33.4565),
+            ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer(),
+        )
+        == words
+    )
+
+
+def test_engine_recovers_isolated_paired_wrapped_two_plus_two_segment() -> None:
+    engine = PaddleOcrEngine(
+        IsolatedPairedWrappedTwoPlusTwoDetector(),
+        IsolatedPairedWrappedTwoPlusTwoRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (400, 350)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uac00\ub098",
+        "\ub77c\ub9c8",
+    ]
+    assert document.lines[0].eojeols[0].box == BoundingBox(
+        152.57999999999998,
+        251.8043,
+        217.57999999999998,
+        285.2608,
     )
 
 
