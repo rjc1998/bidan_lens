@@ -19,6 +19,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_punctuated_three_plus_three_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
+    _recover_confirmed_terminal_punctuated_overlap_pair,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_prefix_split,
@@ -5116,5 +5117,168 @@ def test_engine_uses_raw_wrapper_evidence_without_discarding_other_retry() -> No
         "\uace0\uce5c\ub9d0",
         "\uac00\ub098\ub2e4\ub77c",
         "\ub2e4\uc74c\ub9d0",
+    ]
+    assert recognizer.calls == len(recognizer.values)
+
+
+class ConfirmedTerminalPunctuatedOverlapRecognizer:
+    def __init__(
+        self,
+        *,
+        combined_text: str = "\uac00\ub098\ub2e4:",
+        combined_confidence: float = 0.7884,
+        enhanced_text: str = "\uac00\ub098\ub2e4:",
+        enhanced_confidence: float = 0.9586,
+        padded_text: str = "\uac00\ub098\ub2e4:",
+        padded_confidence: float = 0.9963,
+    ) -> None:
+        self.values = (
+            RecognizedText(combined_text, combined_confidence),
+            RecognizedText(enhanced_text, enhanced_confidence),
+            RecognizedText(padded_text, padded_confidence),
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def _terminal_punctuated_overlap_words():
+    return [
+        ("\uc774\uc804", BoundingBox(0, 0, 50, 20), 0.999),
+        ("\uac00", BoundingBox(55.68, 0, 70, 20), 0.9045),
+        ("\ub098\ub2e4:", BoundingBox(69.054, 0, 116.28, 20), 0.4872),
+        ("0", BoundingBox(116.28, 0, 126, 20), 0.2502),
+    ]
+
+
+def test_confirmed_terminal_punctuated_overlap_pair_recovers() -> None:
+    words = _terminal_punctuated_overlap_words()
+
+    recovered = _recover_confirmed_terminal_punctuated_overlap_pair(
+        words,
+        Image.new("RGB", (130, 20)),
+        BoundingBox(0, 0, 130, 20),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            "\uac00\ub098\ub2e4:",
+            BoundingBox(55.68, 0, 116.28, 20),
+            0.4872,
+        ),
+        words[3],
+    ]
+
+
+@pytest.mark.parametrize(
+    ("index", "replacement"),
+    [
+        (1, ("\uac00\ub098", BoundingBox(55.68, 0, 70, 20), 0.9045)),
+        (2, ("\ub098\ub2e4\ub77c", BoundingBox(69.054, 0, 116.28, 20), 0.4872)),
+        (3, ("\ub9c8", BoundingBox(116.28, 0, 126, 20), 0.2502)),
+        (1, ("\uac00", BoundingBox(55.68, 0, 70, 20), 0.8999)),
+        (2, ("\ub098\ub2e4:", BoundingBox(69.054, 0, 116.28, 20), 0.4799)),
+        (3, ("0", BoundingBox(116.28, 0, 126, 20), 0.2399)),
+        (1, ("\uac00", BoundingBox(55.68, 0, 69.98, 20), 0.9045)),
+        (0, ("\uc774\uc804", BoundingBox(0, 0, 50.1, 20), 0.999)),
+        (3, ("0", BoundingBox(116.32, 0, 126, 20), 0.2502)),
+        (2, ("\ub098\ub2e4:", BoundingBox(69.054, 0, 116.5, 20), 0.4872)),
+    ],
+)
+def test_confirmed_terminal_punctuated_overlap_pair_requires_profile(
+    index,
+    replacement,
+) -> None:
+    words = _terminal_punctuated_overlap_words()
+    words[index] = replacement
+    recognizer = ConfirmedTerminalPunctuatedOverlapRecognizer()
+
+    assert (
+        _recover_confirmed_terminal_punctuated_overlap_pair(
+            words,
+            Image.new("RGB", (130, 20)),
+            BoundingBox(0, 0, 130, 20),
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedTerminalPunctuatedOverlapRecognizer(combined_text="\uac00\ub098\ub77c:"),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(combined_confidence=0.7879),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(enhanced_text="\uac00\ub098\ub77c:"),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(enhanced_confidence=0.9579),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(padded_text="\uac00\ub098\ub77c:"),
+        ConfirmedTerminalPunctuatedOverlapRecognizer(padded_confidence=0.9959),
+    ],
+)
+def test_confirmed_terminal_punctuated_overlap_pair_requires_crop_agreement(
+    recognizer,
+) -> None:
+    words = _terminal_punctuated_overlap_words()
+
+    assert (
+        _recover_confirmed_terminal_punctuated_overlap_pair(
+            words,
+            Image.new("RGB", (130, 20)),
+            BoundingBox(0, 0, 130, 20),
+            recognizer,
+        )
+        == words
+    )
+
+
+class RawTerminalPunctuatedOverlapRecognizer:
+    def __init__(self) -> None:
+        self.values = (
+            RecognizedText("\uc774\uc804", 0.999),
+            RecognizedText("\uac00", 0.9045),
+            RecognizedText("\ub098\ub2e4:", 0.4872),
+            RecognizedText("\ub098\ub2e4", 0.99),
+            RecognizedText("0", 0.2502),
+            RecognizedText("", 0.99),
+            RecognizedText("\uac00\ub098\ub2e4:", 0.7884),
+            RecognizedText("\uac00\ub098\ub2e4:", 0.9586),
+            RecognizedText("\uac00\ub098\ub2e4:", 0.9963),
+        )
+        self.calls = 0
+
+    def word_boxes(self, _image):
+        return (
+            (0, 50),
+            (55.68, 70),
+            (69.054, 116.28),
+            (116.28, 126),
+        )
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class RawTerminalPunctuatedOverlapDetector:
+    def detect(self, _image):
+        return (DetectedRegion(BoundingBox(0, 0, 130, 20), 0.99),)
+
+
+def test_engine_uses_raw_terminal_punctuated_overlap_evidence() -> None:
+    recognizer = RawTerminalPunctuatedOverlapRecognizer()
+    engine = PaddleOcrEngine(RawTerminalPunctuatedOverlapDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (130, 20)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uc774\uc804",
+        "\uac00\ub098\ub2e4",
     ]
     assert recognizer.calls == len(recognizer.values)

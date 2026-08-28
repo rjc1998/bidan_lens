@@ -600,6 +600,94 @@ def _recover_confirmed_wrapped_four_syllable_triplet(
     return recovered
 
 
+def _recover_confirmed_terminal_punctuated_overlap_pair(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 2 < len(words):
+            previous = words[index - 1]
+            first, last = words[index : index + 2]
+            following = words[index + 2]
+            overlap = (first[1].right - last[1].left) / line_box.height
+            previous_gap = (first[1].left - previous[1].right) / line_box.height
+            following_gap = (following[1].left - last[1].right) / line_box.height
+            width_ratio = (last[1].right - first[1].left) / line_box.height
+            matches_profile = (
+                len(first[0]) == 1
+                and is_hangul(first[0])
+                and len(last[0]) == 3
+                and all(is_hangul(character) for character in last[0][:2])
+                and unicodedata.category(last[0][-1]).startswith('P')
+                and len(following[0]) == 1
+                and unicodedata.category(following[0]).startswith('N')
+                and 0.9 <= first[2] <= 0.91
+                and 0.48 <= last[2] <= 0.49
+                and 0.24 <= following[2] <= 0.26
+                and 0.047 <= overlap <= 0.048
+                and 0.28 <= previous_gap <= 0.29
+                and -0.001 <= following_gap <= 0.001
+                and 3.02 <= width_ratio <= 3.04
+            )
+            if matches_profile:
+                crop_left = max(0, math.floor(first[1].left - line_box.left))
+                crop_right = min(crop.width, math.ceil(last[1].right - line_box.left))
+                combined_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+                combined = recognizer.recognize(combined_crop)
+
+                def enhanced(value: Image.Image) -> Image.Image:
+                    resized = ImageOps.autocontrast(value.convert('L')).resize(
+                        (value.width * 2, value.height * 2),
+                        Image.Resampling.BICUBIC,
+                    )
+                    return ImageEnhance.Contrast(resized).enhance(1.2).convert('RGB')
+
+                enhanced_combined = recognizer.recognize(enhanced(combined_crop))
+                padded_crop = crop.crop(
+                    (
+                        max(0, crop_left - 1),
+                        0,
+                        min(crop.width, crop_right + 1),
+                        crop.height,
+                    )
+                )
+                enhanced_padded = recognizer.recognize(enhanced(padded_crop))
+                expected = first[0] + last[0]
+                combined_text = combined.text.replace(' ', '')
+                enhanced_text = enhanced_combined.text.replace(' ', '')
+                padded_text = enhanced_padded.text.replace(' ', '')
+                if (
+                    combined.confidence >= 0.788
+                    and enhanced_combined.confidence >= 0.958
+                    and enhanced_padded.confidence >= 0.996
+                    and combined_text == expected
+                    and enhanced_text == expected
+                    and padded_text == expected
+                ):
+                    recovered.append(
+                        (
+                            expected,
+                            BoundingBox.union((first[1], last[1])),
+                            min(
+                                first[2],
+                                last[2],
+                                combined.confidence,
+                                enhanced_combined.confidence,
+                                enhanced_padded.confidence,
+                            ),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
 def _recover_overlapping_word_triplets(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -4146,8 +4234,14 @@ class PaddleOcrEngine(OcrEngine):
                         recognized.confidence,
                     )
                 )
-        recovered_raw_words = _recover_confirmed_wrapped_four_syllable_triplet(
+        recovered_raw_words = _recover_confirmed_terminal_punctuated_overlap_pair(
             raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        recovered_raw_words = _recover_confirmed_wrapped_four_syllable_triplet(
+            recovered_raw_words,
             crop,
             line_box,
             self.recognizer,
