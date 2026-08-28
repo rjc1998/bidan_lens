@@ -11,6 +11,7 @@ from bidan_lens.ocr.paddle import (
     _discard_confirmed_overlapping_character_duplicates,
     _merge_line_group,
     _normalize,
+    _recover_confirmed_central_paired_wrapped_two_split,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
@@ -3389,6 +3390,286 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
             ConfirmedFivePlusThreePrefixRecognizer(),
         )
         == words
+    )
+
+
+_CENTRAL_PREFIX = "".join(map(chr, (0xAC00, 0xB098, 0xB2E4, 0xB77C)))
+_CENTRAL_TARGET = "".join(map(chr, (0xB9C8, 0xBC14)))
+_CENTRAL_SUFFIX = "".join(map(chr, (0xC0AC, 0xC544, 0xC790, 0xCC28)))
+_CENTRAL_FIRST = _CENTRAL_PREFIX + chr(0xB9C8)
+_CENTRAL_FOLLOWING = "".join(map(chr, (0xAC00, 0xB098)))
+_CENTRAL_TRAILING = "".join(map(chr, (0xB2E4, 0xB77C, 0xB9C8, 0xBC14)))
+_CENTRAL_RAW = (
+    _CENTRAL_PREFIX
+    + chr(0x201C)
+    + _CENTRAL_TARGET
+    + chr(0x2019)
+    + _CENTRAL_SUFFIX
+)
+_CENTRAL_MIDDLE = chr(0x2018) + _CENTRAL_TARGET
+_CENTRAL_WRAPPER = chr(0x201C) + _CENTRAL_TARGET + chr(0x201D)
+
+
+class ConfirmedCentralPairedWrappedTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        prefix_text: str = _CENTRAL_PREFIX,
+        prefix_confidence: float = 0.999253,
+        middle_text: str = _CENTRAL_MIDDLE,
+        middle_confidence: float = 0.839075,
+        closing_text: str = chr(0x2019),
+        closing_confidence: float = 0.951414,
+        suffix_text: str = _CENTRAL_SUFFIX,
+        suffix_confidence: float = 0.998996,
+        prefix_variant_text: str = _CENTRAL_PREFIX,
+        prefix_variant_confidence: float = 0.995875,
+        target_variant_text: str = _CENTRAL_TARGET,
+        target_variant_confidence: float = 0.999595,
+        wrapper_variant_text: str = _CENTRAL_WRAPPER,
+        wrapper_variant_confidence: float = 0.58446,
+        suffix_variant_text: str = _CENTRAL_SUFFIX,
+        suffix_variant_confidence: float = 0.971297,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 107),
+            (115, 176),
+            (175, 190),
+            (199, 303),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(prefix_text, prefix_confidence),
+            RecognizedText(middle_text, middle_confidence),
+            RecognizedText(closing_text, closing_confidence),
+            RecognizedText(suffix_text, suffix_confidence),
+            *(
+                RecognizedText(prefix_variant_text, prefix_variant_confidence)
+                for _ in range(5)
+            ),
+            *(
+                RecognizedText(target_variant_text, target_variant_confidence)
+                for _ in range(5)
+            ),
+            *(
+                RecognizedText(wrapper_variant_text, wrapper_variant_confidence)
+                for _ in range(6)
+            ),
+            *(
+                RecognizedText(suffix_variant_text, suffix_variant_confidence)
+                for _ in range(5)
+            ),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.001:
+            return self.segments
+        return ((0, _image.width),)
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class CentralPairedWrappedTwoRecognizer(
+    ConfirmedCentralPairedWrappedTwoRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText(_CENTRAL_FIRST, 0.999845),
+            RecognizedText(_CENTRAL_RAW, 0.636831),
+            RecognizedText(_CENTRAL_RAW, 0.766935),
+            RecognizedText(_CENTRAL_FOLLOWING, 0.99977),
+            RecognizedText(_CENTRAL_TRAILING, 0.999783),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((40, 170), (181, 484), (494, 548), (556, 662))
+        return super().word_boxes(_image, space_threshold)
+
+
+class CentralPairedWrappedTwoDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(81.52, 236.7391, 784.48, 263.1522),
+                0.9,
+            ),
+        )
+
+
+def central_paired_wrapped_two_words(
+    *,
+    first_text: str = _CENTRAL_FIRST,
+    candidate_text: str = _CENTRAL_RAW,
+    candidate_confidence: float = 0.766935,
+    candidate_box: BoundingBox | None = None,
+    following_text: str = _CENTRAL_FOLLOWING,
+    following_confidence: float = 0.99977,
+    trailing_text: str = _CENTRAL_TRAILING,
+    trailing_confidence: float = 0.999783,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [
+        (first_text, BoundingBox(40, 0, 170, 26.4131), 0.999845),
+        (
+            candidate_text,
+            candidate_box or BoundingBox(181, 0, 484, 26.4131),
+            candidate_confidence,
+        ),
+        (
+            following_text,
+            BoundingBox(494, 0, 548, 26.4131),
+            following_confidence,
+        ),
+        (
+            trailing_text,
+            BoundingBox(556, 0, 662, 26.4131),
+            trailing_confidence,
+        ),
+    ]
+
+
+def test_confirmed_central_paired_wrapped_two_recovers() -> None:
+    recovered = _recover_confirmed_central_paired_wrapped_two_split(
+        central_paired_wrapped_two_words(),
+        Image.new("RGB", (704, 28)),
+        BoundingBox(0, 0, 704, 26.4131),
+        ConfirmedCentralPairedWrappedTwoRecognizer(),
+    )
+
+    assert recovered[1:] == [
+        (
+            _CENTRAL_PREFIX,
+            BoundingBox(181, 0, 288, 26.4131),
+            0.766935,
+        ),
+        (
+            _CENTRAL_WRAPPER,
+            BoundingBox(296, 0, 371, 26.4131),
+            0.58446,
+        ),
+        (
+            _CENTRAL_SUFFIX,
+            BoundingBox(380, 0, 484, 26.4131),
+            0.766935,
+        ),
+        *central_paired_wrapped_two_words()[2:],
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedCentralPairedWrappedTwoRecognizer(prefix_confidence=0.9991),
+        ConfirmedCentralPairedWrappedTwoRecognizer(middle_confidence=0.8389),
+        ConfirmedCentralPairedWrappedTwoRecognizer(closing_confidence=0.9509),
+        ConfirmedCentralPairedWrappedTwoRecognizer(suffix_confidence=0.9988),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            prefix_variant_text=_CENTRAL_PREFIX[:-1] + chr(0xB9C8)
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            target_variant_confidence=0.9994
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            wrapper_variant_text=chr(0x201C) + _CENTRAL_TARGET + chr(0x2019)
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            wrapper_variant_confidence=0.5839
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            suffix_variant_confidence=0.9709
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            segments=((0, 107), (114, 176), (175, 190), (199, 303))
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            segments=((0, 107), (115, 176), (174, 190), (199, 303))
+        ),
+        ConfirmedCentralPairedWrappedTwoRecognizer(
+            segments=((0, 107), (115, 176), (175, 190), (198, 303))
+        ),
+    ],
+)
+def test_confirmed_central_paired_wrapped_two_requires_crop_evidence(
+    recognizer,
+) -> None:
+    words = central_paired_wrapped_two_words()
+
+    assert (
+        _recover_confirmed_central_paired_wrapped_two_split(
+            words,
+            Image.new("RGB", (704, 28)),
+            BoundingBox(0, 0, 704, 26.4131),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        central_paired_wrapped_two_words(first_text=_CENTRAL_PREFIX),
+        central_paired_wrapped_two_words(
+            candidate_text=(
+                _CENTRAL_PREFIX
+                + chr(0x201C)
+                + _CENTRAL_TARGET
+                + chr(0x201D)
+                + _CENTRAL_SUFFIX
+            )
+        ),
+        central_paired_wrapped_two_words(candidate_confidence=0.7668),
+        central_paired_wrapped_two_words(
+            candidate_box=BoundingBox(181, 0, 485, 26.4131)
+        ),
+        central_paired_wrapped_two_words(following_text=chr(0xAC00)),
+        central_paired_wrapped_two_words(following_confidence=0.9996),
+        central_paired_wrapped_two_words(trailing_text=_CENTRAL_TRAILING[:-1]),
+        central_paired_wrapped_two_words(trailing_confidence=0.9996),
+        central_paired_wrapped_two_words()[:3],
+    ],
+)
+def test_confirmed_central_paired_wrapped_two_requires_word_profile(
+    words,
+) -> None:
+    assert (
+        _recover_confirmed_central_paired_wrapped_two_split(
+            words,
+            Image.new("RGB", (704, 28)),
+            BoundingBox(0, 0, 704, 26.4131),
+            ConfirmedCentralPairedWrappedTwoRecognizer(),
+        )
+        == words
+    )
+
+
+def test_engine_recovers_central_paired_wrapped_two_segment() -> None:
+    engine = PaddleOcrEngine(
+        CentralPairedWrappedTwoDetector(),
+        CentralPairedWrappedTwoRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (900, 350)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        _CENTRAL_FIRST,
+        _CENTRAL_PREFIX,
+        _CENTRAL_TARGET,
+        _CENTRAL_SUFFIX,
+        _CENTRAL_FOLLOWING,
+        _CENTRAL_TRAILING,
+    ]
+    assert document.lines[0].eojeols[2].box == BoundingBox(
+        396.27,
+        236.7391,
+        433.77,
+        263.1522,
     )
 
 

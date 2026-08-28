@@ -223,6 +223,16 @@ only when Hangul occurs on both sides. A missing mandatory space before auxiliar
 restored only after a multi-syllable `-야` ending. These recoveries retain proportional
 per-character geometry and apply to the line fallback as well as segmented recognition; none
 changes the global visual-gap threshold.
+A separately reviewed central-wrapper profile can split a two-syllable target from a merged word
+only under an exact four-word neighbor-confidence, width, gap, and character-category profile. A
+word-local 0.001 CTC-space probe must recover the exact four-Hangul prefix, a paired wrapper reading
+with the same two target syllables, its closing punctuation, and the exact four-Hangul suffix under
+separate geometry and confidence floors. Five prefix, five target, six complete-wrapper, and five
+suffix crops must independently reproduce their respective readings. The low-threshold wrapper and
+complete-wrapper crops may disagree on quote style only when each wrapper is internally paired and
+both preserve the exact two-syllable interior. The recovered wrapper uses its observed full geometry,
+so learner-facing punctuation removal retains exact inner target glyph boxes. All unmatched profile,
+geometry, recognition, pairing, or crop evidence leaves the original OCR word unchanged.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
