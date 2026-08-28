@@ -233,6 +233,16 @@ complete-wrapper crops may disagree on quote style only when each wrapper is int
 both preserve the exact two-syllable interior. The recovered wrapper uses its observed full geometry,
 so learner-facing punctuation removal retains exact inner target glyph boxes. All unmatched profile,
 geometry, recognition, pairing, or crop evidence leaves the original OCR word unchanged.
+A separately reviewed direct-retry profile can retain a lower-confidence three-Hangul default
+segment only when a higher-confidence enhanced retry changes all three characters under an exact
+six-segment line-confidence, width, gap, and category profile. The neighboring evidence includes a
+four-Hangul word, a single uppercase marker, one structured ASCII identifier, and one- and
+two-Hangul trailing words. Five separately bounded one-pixel pad, trim, and shift crops must exactly
+reproduce the direct reading above individual confidence floors. Detector-relative segment edges are
+rounded to their original integer CTC coordinates to avoid subpixel arithmetic changing a crop. If
+any line, retry, geometry, category, confidence, or crop-consensus signal differs, the normal
+higher-confidence retry remains selected. The recovered word retains the original segment geometry
+and uses the minimum direct/crop confidence.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

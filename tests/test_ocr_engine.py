@@ -12,6 +12,7 @@ from bidan_lens.ocr.paddle import (
     _merge_line_group,
     _normalize,
     _recover_confirmed_central_paired_wrapped_two_split,
+    _recover_confirmed_direct_retry_regression,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
@@ -5524,6 +5525,258 @@ def test_confirmed_two_plus_two_split_requires_word_confidence() -> None:
             ConfirmedTwoPlusTwoRecognizer(),
         )
         == words
+    )
+
+
+_RETRY_FIRST = "".join(map(chr, (0xAC00, 0xB098, 0xB2E4, 0xB77C)))
+_RETRY_DIRECT = "".join(map(chr, (0xB9C8, 0xBC14, 0xC0AC)))
+_RETRY_SELECTED = "".join(map(chr, (0xC544, 0xC790, 0xCC28)))
+_RETRY_ONE = chr(0xCE74)
+_RETRY_TWO = "".join(map(chr, (0xD0C0, 0xD30C)))
+_RETRY_STRUCTURED = "A12-345?"
+_RETRY_HEIGHT = 35.21739130434784
+
+
+class ConfirmedDirectRetryRegressionRecognizer:
+    def __init__(
+        self,
+        *,
+        variant_texts: tuple[str, ...] | None = None,
+        variant_confidences: tuple[float, ...] = (0.601, 0.627, 0.592, 0.684, 0.569),
+    ) -> None:
+        texts = variant_texts or (_RETRY_DIRECT,) * 5
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                texts,
+                variant_confidences,
+                strict=True,
+            )
+        )
+        self.recognition_calls = 0
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class DirectRetryRegressionRecognizer(
+    ConfirmedDirectRetryRegressionRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText(_RETRY_FIRST, 0.999655),
+            RecognizedText(_RETRY_DIRECT, 0.575256),
+            RecognizedText(_RETRY_SELECTED, 0.765657),
+            RecognizedText("K", 0.985161),
+            RecognizedText(_RETRY_STRUCTURED, 0.982269),
+            RecognizedText(_RETRY_ONE, 0.999974),
+            RecognizedText(_RETRY_TWO, 0.999927),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return (
+                (34, 163),
+                (180, 274),
+                (290, 310),
+                (309, 446),
+                (460, 491),
+                (505, 566),
+            )
+        return ((0, _image.width),)
+
+
+class DirectRetryRegressionDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    88.4,
+                    153.58695652173913,
+                    691.6,
+                    188.80434782608697,
+                ),
+                0.9,
+            ),
+        )
+
+
+def direct_retry_regression_words() -> tuple[
+    list[tuple[str, BoundingBox, float]],
+    list[tuple[str, BoundingBox, float]],
+]:
+    boxes = (
+        BoundingBox(34, 0, 163, _RETRY_HEIGHT),
+        BoundingBox(180, 0, 274, _RETRY_HEIGHT),
+        BoundingBox(290, 0, 310, _RETRY_HEIGHT),
+        BoundingBox(309, 0, 446, _RETRY_HEIGHT),
+        BoundingBox(460, 0, 491, _RETRY_HEIGHT),
+        BoundingBox(505, 0, 566, _RETRY_HEIGHT),
+    )
+    raw = [
+        (_RETRY_FIRST, boxes[0], 0.999655),
+        (_RETRY_DIRECT, boxes[1], 0.575256),
+        ("K", boxes[2], 0.985161),
+        (_RETRY_STRUCTURED, boxes[3], 0.982269),
+        (_RETRY_ONE, boxes[4], 0.999974),
+        (_RETRY_TWO, boxes[5], 0.999927),
+    ]
+    selected = list(raw)
+    selected[1] = (_RETRY_SELECTED, boxes[1], 0.765657)
+    return selected, raw
+
+
+def test_confirmed_direct_retry_regression_preserves_stable_direct_reading() -> None:
+    selected, raw = direct_retry_regression_words()
+
+    recovered = _recover_confirmed_direct_retry_regression(
+        selected,
+        raw,
+        Image.new("RGB", (604, 36)),
+        BoundingBox(0, 0, 603.2, _RETRY_HEIGHT),
+        ConfirmedDirectRetryRegressionRecognizer(),
+    )
+
+    expected = list(selected)
+    expected[1] = (_RETRY_DIRECT, raw[1][1], 0.569)
+    assert recovered == expected
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_texts=(
+                _RETRY_SELECTED,
+                _RETRY_DIRECT,
+                _RETRY_DIRECT,
+                _RETRY_DIRECT,
+                _RETRY_DIRECT,
+            )
+        ),
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_confidences=(0.599, 0.627, 0.592, 0.684, 0.569)
+        ),
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_confidences=(0.601, 0.619, 0.592, 0.684, 0.569)
+        ),
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_confidences=(0.601, 0.627, 0.589, 0.684, 0.569)
+        ),
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_confidences=(0.601, 0.627, 0.592, 0.679, 0.569)
+        ),
+        ConfirmedDirectRetryRegressionRecognizer(
+            variant_confidences=(0.601, 0.627, 0.592, 0.684, 0.568)
+        ),
+    ],
+)
+def test_confirmed_direct_retry_regression_requires_all_crop_evidence(
+    recognizer,
+) -> None:
+    selected, raw = direct_retry_regression_words()
+
+    assert (
+        _recover_confirmed_direct_retry_regression(
+            selected,
+            raw,
+            Image.new("RGB", (604, 36)),
+            BoundingBox(0, 0, 603.2, _RETRY_HEIGHT),
+            recognizer,
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "box-mismatch",
+        "no-disagreement",
+        "raw-confidence",
+        "selected-confidence",
+        "first-shape",
+        "marker",
+        "structured-shape",
+        "candidate-width",
+        "candidate-gap",
+        "trailing-confidence",
+    ],
+)
+def test_confirmed_direct_retry_regression_requires_exact_line_profile(
+    case: str,
+) -> None:
+    selected, raw = direct_retry_regression_words()
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "box-mismatch":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(181, 0, 274, _RETRY_HEIGHT),
+            raw[1][2],
+        )
+    elif case == "no-disagreement":
+        selected[1] = (raw[1][0], raw[1][1], selected[1][2])
+    elif case == "raw-confidence":
+        raw[1] = (raw[1][0], raw[1][1], 0.5751)
+    elif case == "selected-confidence":
+        selected[1] = (selected[1][0], selected[1][1], 0.7655)
+    elif case == "first-shape":
+        raw[0] = selected[0] = (_RETRY_FIRST[:-1], raw[0][1], raw[0][2])
+    elif case == "marker":
+        raw[2] = selected[2] = ("M", raw[2][1], raw[2][2])
+    elif case == "structured-shape":
+        raw[3] = selected[3] = ("ABCDEFGH", raw[3][1], raw[3][2])
+    elif case == "candidate-width":
+        box = BoundingBox(180, 0, 275, _RETRY_HEIGHT)
+        raw[1] = (raw[1][0], box, raw[1][2])
+        selected[1] = (selected[1][0], box, selected[1][2])
+    elif case == "candidate-gap":
+        box = BoundingBox(289, 0, 310, _RETRY_HEIGHT)
+        raw[2] = (raw[2][0], box, raw[2][2])
+        selected[2] = (selected[2][0], box, selected[2][2])
+    else:
+        raw[5] = selected[5] = (raw[5][0], raw[5][1], 0.9998)
+
+    assert (
+        _recover_confirmed_direct_retry_regression(
+            selected,
+            raw,
+            Image.new("RGB", (604, 36)),
+            BoundingBox(0, 0, 603.2, _RETRY_HEIGHT),
+            ConfirmedDirectRetryRegressionRecognizer(),
+        )
+        == selected
+    )
+
+
+def test_engine_preserves_confirmed_direct_reading_over_retry_regression() -> None:
+    engine = PaddleOcrEngine(
+        DirectRetryRegressionDetector(),
+        DirectRetryRegressionRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (800, 350)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        _RETRY_FIRST,
+        _RETRY_DIRECT,
+        _RETRY_ONE,
+        _RETRY_TWO,
+    ]
+    assert document.lines[0].eojeols[1].box == BoundingBox(
+        268.4,
+        153.58695652173913,
+        362.4,
+        188.80434782608697,
     )
 
 
