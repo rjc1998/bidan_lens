@@ -19,6 +19,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_three_plus_two_split,
     _recover_confirmed_two_plus_four_splits,
     _recover_confirmed_two_plus_punctuated_two_split,
+    _recover_confirmed_two_plus_two_split,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -166,6 +167,31 @@ class SingleSegmentAuxiliaryRecognizer:
         return RecognizedText("\ub450\uc5b4\uc57c\ud588\ub2e4!", 0.99)
 
 
+class TwoPlusTwoDetector:
+    def detect(self, _image):
+        return (DetectedRegion(BoundingBox(10, 5, 340, 82.48), 0.9),)
+
+
+class SingleSegmentTwoPlusTwoRecognizer:
+    def __init__(self) -> None:
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.01:
+            return ((0, 165), (164, 330))
+        return ((0, 330),)
+
+    def recognize(self, _image):
+        values = (
+            RecognizedText("\uac00\ub098\ub2e4\ub77c", 0.99987),
+            RecognizedText("\uac00\ub098", 0.99994),
+            RecognizedText("\ub2e4\ub77c", 0.99995),
+        )
+        result = values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
 def test_engine_retries_once_and_returns_hangul_document() -> None:
     recognizer = RetryingRecognizer()
     engine = PaddleOcrEngine(Detector(), recognizer)
@@ -185,6 +211,21 @@ def test_engine_recovers_auxiliary_spacing_on_single_segment_line() -> None:
     assert [word.text for word in document.lines[0].eojeols] == [
         "\ub450\uc5b4\uc57c",
         "\ud588\ub2e4",
+    ]
+
+
+def test_engine_recovers_confirmed_two_plus_two_single_segment_line() -> None:
+    engine = PaddleOcrEngine(
+        TwoPlusTwoDetector(),
+        SingleSegmentTwoPlusTwoRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (360, 100)))
+
+    assert document.lines[0].text == "\uac00\ub098 \ub2e4\ub77c"
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uac00\ub098",
+        "\ub2e4\ub77c",
     ]
 
 
@@ -2608,6 +2649,96 @@ def test_confirmed_four_plus_four_split_requires_word_confidence() -> None:
             Image.new('RGB', (160, 15)),
             BoundingBox(0, 0, 160, 15),
             ConfirmedFourPlusFourRecognizer(),
+        )
+        == words
+    )
+
+
+class ConfirmedTwoPlusTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        second_text: str = "\ub2e4\ub77c",
+        second_confidence: float = 0.99995,
+        segments: tuple[tuple[int, int], ...] = ((0, 165), (164, 330)),
+    ) -> None:
+        self.values = (
+            RecognizedText("\uac00\ub098", 0.99994),
+            RecognizedText(second_text, second_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.01
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_two_plus_two_split_recovers_reviewed_profile() -> None:
+    height = 77.48
+    words = [
+        ("\uac00\ub098\ub2e4\ub77c", BoundingBox(20, 0, 350, height), 0.99987),
+    ]
+
+    assert _recover_confirmed_two_plus_two_split(
+        words,
+        Image.new("RGB", (370, 79)),
+        BoundingBox(0, 0, 370, height),
+        ConfirmedTwoPlusTwoRecognizer(),
+    ) == [
+        ("\uac00\ub098", BoundingBox(20, 0, 185, height), 0.99987),
+        ("\ub2e4\ub77c", BoundingBox(184, 0, 350, height), 0.99987),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedTwoPlusTwoRecognizer(second_text="\ub2e4\ub9c8"),
+        ConfirmedTwoPlusTwoRecognizer(second_confidence=0.99989),
+        ConfirmedTwoPlusTwoRecognizer(segments=((0, 165), (163, 330))),
+        ConfirmedTwoPlusTwoRecognizer(segments=((0, 164), (164, 330))),
+        ConfirmedTwoPlusTwoRecognizer(segments=((2, 165), (164, 328))),
+    ],
+)
+def test_confirmed_two_plus_two_split_requires_exact_reviewed_profile(
+    recognizer,
+) -> None:
+    words = [(
+        "\uac00\ub098\ub2e4\ub77c",
+        BoundingBox(20, 0, 350, 77.48),
+        0.99987,
+    )]
+
+    assert (
+        _recover_confirmed_two_plus_two_split(
+            words,
+            Image.new("RGB", (370, 79)),
+            BoundingBox(0, 0, 370, 77.48),
+            recognizer,
+        )
+        == words
+    )
+
+
+def test_confirmed_two_plus_two_split_requires_word_confidence() -> None:
+    words = [(
+        "\uac00\ub098\ub2e4\ub77c",
+        BoundingBox(20, 0, 350, 77.48),
+        0.99979,
+    )]
+
+    assert (
+        _recover_confirmed_two_plus_two_split(
+            words,
+            Image.new("RGB", (370, 79)),
+            BoundingBox(0, 0, 370, 77.48),
+            ConfirmedTwoPlusTwoRecognizer(),
         )
         == words
     )
