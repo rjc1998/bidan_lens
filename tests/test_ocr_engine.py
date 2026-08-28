@@ -12,6 +12,7 @@ from bidan_lens.ocr.paddle import (
     _merge_line_group,
     _normalize,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
@@ -2649,6 +2650,112 @@ def test_confirmed_four_plus_four_split_requires_word_confidence() -> None:
             Image.new('RGB', (160, 15)),
             BoundingBox(0, 0, 160, 15),
             ConfirmedFourPlusFourRecognizer(),
+        )
+        == words
+    )
+
+
+class ConfirmedNumericEllipsisTailRecognizer:
+    def __init__(
+        self,
+        *,
+        padded_text: str = "\uac00\ub098\ub2e4",
+        padded_confidence: float = 0.9892,
+        first_part_text: str = "\uac00\ub098\ub2e4\u2026",
+        last_part_text: str = "1",
+        segments: tuple[tuple[int, int], ...] = ((0, 72), (71, 81)),
+    ) -> None:
+        self.values = (
+            RecognizedText("\uac00\ub098\ub2e4", 0.9902),
+            RecognizedText(padded_text, padded_confidence),
+            RecognizedText(first_part_text, 0.9958),
+            RecognizedText(last_part_text, 0.9978),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.04
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_numeric_ellipsis_tail_recovers_word_boundary() -> None:
+    height = 17.6
+    words = [
+        ("\uac00\ub098\ub2e41\u2026", BoundingBox(20, 0, 101, height), 0.9947),
+    ]
+
+    assert _recover_confirmed_numeric_ellipsis_tail_split(
+        words,
+        Image.new("RGB", (121, 19)),
+        BoundingBox(0, 0, 121, height),
+        ConfirmedNumericEllipsisTailRecognizer(),
+    ) == [
+        ("\uac00\ub098\ub2e4\u2026", BoundingBox(20, 0, 92, height), 0.9892),
+        ("1", BoundingBox(91, 0, 101, height), 0.9892),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedNumericEllipsisTailRecognizer(
+            padded_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedNumericEllipsisTailRecognizer(padded_confidence=0.9889),
+        ConfirmedNumericEllipsisTailRecognizer(
+            first_part_text="\uac00\ub098\ub2e41"
+        ),
+        ConfirmedNumericEllipsisTailRecognizer(last_part_text="2"),
+        ConfirmedNumericEllipsisTailRecognizer(
+            segments=((0, 72), (70, 81))
+        ),
+        ConfirmedNumericEllipsisTailRecognizer(
+            segments=((0, 71), (71, 81))
+        ),
+        ConfirmedNumericEllipsisTailRecognizer(
+            segments=((2, 72), (71, 79))
+        ),
+    ],
+)
+def test_confirmed_numeric_ellipsis_tail_requires_exact_profile(
+    recognizer,
+) -> None:
+    words = [
+        ("\uac00\ub098\ub2e41\u2026", BoundingBox(20, 0, 101, 17.6), 0.9947),
+    ]
+
+    assert (
+        _recover_confirmed_numeric_ellipsis_tail_split(
+            words,
+            Image.new("RGB", (121, 19)),
+            BoundingBox(0, 0, 121, 17.6),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        [("\uac00\ub098\ub2e4A\u2026", BoundingBox(20, 0, 101, 17.6), 0.9947)],
+        [("\uac00\ub098\ub2e41!", BoundingBox(20, 0, 101, 17.6), 0.9947)],
+        [("\uac00\ub098\ub2e41\u2026", BoundingBox(20, 0, 101, 17.6), 0.9939)],
+    ],
+)
+def test_confirmed_numeric_ellipsis_tail_requires_word_shape(words) -> None:
+    assert (
+        _recover_confirmed_numeric_ellipsis_tail_split(
+            words,
+            Image.new("RGB", (121, 19)),
+            BoundingBox(0, 0, 121, 17.6),
+            ConfirmedNumericEllipsisTailRecognizer(),
         )
         == words
     )
