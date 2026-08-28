@@ -26,6 +26,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_two_plus_four_splits,
     _recover_confirmed_two_plus_punctuated_two_split,
     _recover_confirmed_two_plus_two_split,
+    _recover_confirmed_wrapped_five_plus_four_split,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -3180,6 +3181,203 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
         == words
     )
 
+
+class ConfirmedWrappedFivePlusFourRecognizer:
+    def __init__(
+        self,
+        *,
+        first_ctc_text: str = "-가나다라마-",
+        first_ctc_confidence: float = 0.6445,
+        middle_ctc_text: str = "",
+        middle_ctc_confidence: float = 0.0,
+        suffix_ctc_text: str = "바사아자",
+        suffix_ctc_confidence: float = 0.9994,
+        wrapper_variant_text: str = "-가나다라마—",
+        wrapper_variant_confidence: float = 0.56,
+        target_variant_text: str = "가나다라마",
+        target_variant_confidence: float = 0.9997,
+        suffix_variant_text: str = "바사아자",
+        suffix_variant_confidence: float = 0.9988,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 347),
+            (346, 384),
+            (402, 620),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_ctc_text, first_ctc_confidence),
+            RecognizedText(middle_ctc_text, middle_ctc_confidence),
+            RecognizedText(suffix_ctc_text, suffix_ctc_confidence),
+            RecognizedText(wrapper_variant_text, wrapper_variant_confidence),
+            RecognizedText(wrapper_variant_text, 0.66),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.9998),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.9995),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class SegmentedWrappedFivePlusFourRecognizer(ConfirmedWrappedFivePlusFourRecognizer):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText("—가나다라마-바사아자", 0.8675),
+            RecognizedText("c", 0.139),
+            RecognizedText("c", 0.139),
+            *self.values,
+        )
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((35, 655), (680, 703))
+        return super().word_boxes(_image, space_threshold)
+
+
+class WrappedFivePlusFourDetector:
+    def detect(self, _image):
+        height = 620 / 9.785
+        return (DetectedRegion(BoundingBox(10.6, 5, 712.4, 5 + height), 0.9),)
+
+
+def test_engine_recovers_wrapped_five_plus_four_segmented_line() -> None:
+    engine = PaddleOcrEngine(
+        WrappedFivePlusFourDetector(),
+        SegmentedWrappedFivePlusFourRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (730, 100)))
+
+    assert document.lines[0].text == "—가나다라마- 바사아자"
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "가나다라마",
+        "바사아자",
+    ]
+
+
+def test_confirmed_wrapped_five_plus_four_recovers() -> None:
+    height = 620 / 9.785
+    words = [
+        (
+            "—가나다라마-바사아자",
+            BoundingBox(20, 0, 640, height),
+            0.8675,
+        )
+    ]
+
+    assert _recover_confirmed_wrapped_five_plus_four_split(
+        words,
+        Image.new("RGB", (660, 64)),
+        BoundingBox(0, 0, 660, height),
+        ConfirmedWrappedFivePlusFourRecognizer(),
+    ) == [
+        (
+            "—가나다라마-",
+            BoundingBox(20, 0, 404, height),
+            0.56,
+        ),
+        (
+            "바사아자",
+            BoundingBox(422, 0, 640, height),
+            0.8675,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedWrappedFivePlusFourRecognizer(first_ctc_text="-가나다라자-"),
+        ConfirmedWrappedFivePlusFourRecognizer(first_ctc_confidence=0.6439),
+        ConfirmedWrappedFivePlusFourRecognizer(middle_ctc_text="-"),
+        ConfirmedWrappedFivePlusFourRecognizer(middle_ctc_confidence=0.001),
+        ConfirmedWrappedFivePlusFourRecognizer(suffix_ctc_text="바사아차"),
+        ConfirmedWrappedFivePlusFourRecognizer(suffix_ctc_confidence=0.9992),
+        ConfirmedWrappedFivePlusFourRecognizer(wrapper_variant_text="-가나다라자-"),
+        ConfirmedWrappedFivePlusFourRecognizer(wrapper_variant_confidence=0.549),
+        ConfirmedWrappedFivePlusFourRecognizer(target_variant_text="가나다라자"),
+        ConfirmedWrappedFivePlusFourRecognizer(target_variant_confidence=0.9995),
+        ConfirmedWrappedFivePlusFourRecognizer(suffix_variant_text="바사아차"),
+        ConfirmedWrappedFivePlusFourRecognizer(suffix_variant_confidence=0.9986),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((2, 347), (346, 384), (402, 620))
+        ),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((0, 347), (345, 384), (402, 620))
+        ),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((0, 347), (346, 384), (401, 620))
+        ),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((0, 347), (346, 384), (403, 620))
+        ),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((0, 347), (346, 374), (392, 620))
+        ),
+        ConfirmedWrappedFivePlusFourRecognizer(
+            segments=((0, 347), (346, 384), (402, 618))
+        ),
+    ],
+)
+def test_confirmed_wrapped_five_plus_four_requires_profile(recognizer) -> None:
+    height = 620 / 9.785
+    words = [
+        (
+            "—가나다라마-바사아자",
+            BoundingBox(20, 0, 640, height),
+            0.8675,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_wrapped_five_plus_four_split(
+            words,
+            Image.new("RGB", (660, 64)),
+            BoundingBox(0, 0, 660, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("text", "confidence", "height"),
+    [
+        ("A가나다라마-바사아자", 0.8675, 620 / 9.785),
+        ("—가나다라A-바사아자", 0.8675, 620 / 9.785),
+        ("—가나다라마A바사아자", 0.8675, 620 / 9.785),
+        ("—가나다라마-바사아A", 0.8675, 620 / 9.785),
+        ("—가나다라마-바사아자", 0.8669, 620 / 9.785),
+        ("—가나다라마-바사아자", 0.8681, 620 / 9.785),
+        ("—가나다라마-바사아자", 0.8675, 63.5),
+    ],
+)
+def test_confirmed_wrapped_five_plus_four_requires_word_shape(
+    text,
+    confidence,
+    height,
+) -> None:
+    words = [(text, BoundingBox(20, 0, 640, height), confidence)]
+
+    assert (
+        _recover_confirmed_wrapped_five_plus_four_split(
+            words,
+            Image.new("RGB", (660, 64)),
+            BoundingBox(0, 0, 660, height),
+            ConfirmedWrappedFivePlusFourRecognizer(),
+        )
+        == words
+    )
 
 class ConfirmedPunctuatedThreePlusThreeRecognizer:
     def __init__(
