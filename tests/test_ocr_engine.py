@@ -15,6 +15,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
+    _recover_confirmed_punctuated_three_plus_three_plus_one_split,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
@@ -3178,6 +3179,219 @@ def test_confirmed_five_plus_three_prefix_requires_word_profile(
         == words
     )
 
+
+class ConfirmedPunctuatedThreePlusThreePlusOneRecognizer:
+    def __init__(
+        self,
+        *,
+        first_ctc_text: str = "\uac00\ub098\ub2e4",
+        first_ctc_confidence: float = 0.99955,
+        second_ctc_text: str = ";\ub77c\ub9c8\ubc14",
+        second_ctc_confidence: float = 0.973,
+        third_ctc_text: str = "?",
+        third_ctc_confidence: float = 0.9785,
+        fourth_ctc_text: str = "\uc0ac",
+        fourth_ctc_confidence: float = 0.99995,
+        prefix_variant_text: str = "\uac00\ub098\ub2e4,",
+        prefix_variant_confidence: float = 0.89,
+        target_variant_text: str = "\ub77c\ub9c8\ubc14",
+        target_variant_confidence: float = 0.99995,
+        suffix_variant_text: str = "\uc0ac",
+        suffix_variant_confidence: float = 0.99995,
+        segments: tuple[tuple[int, int], ...] = (
+            (0, 80),
+            (87, 178),
+            (177, 194),
+            (202, 225),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_ctc_text, first_ctc_confidence),
+            RecognizedText(second_ctc_text, second_ctc_confidence),
+            RecognizedText(third_ctc_text, third_ctc_confidence),
+            RecognizedText(fourth_ctc_text, fourth_ctc_confidence),
+            RecognizedText(prefix_variant_text, 0.95),
+            RecognizedText(prefix_variant_text, prefix_variant_confidence),
+            RecognizedText(target_variant_text, target_variant_confidence),
+            RecognizedText(target_variant_text, 0.99997),
+            RecognizedText(suffix_variant_text, suffix_variant_confidence),
+            RecognizedText(suffix_variant_text, 0.99999),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.001
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_punctuated_three_plus_three_plus_one_recovers() -> None:
+    height = 225 / 8.52
+    words = [
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14.\uc0ac",
+            BoundingBox(20, 0, 245, height),
+            0.8445,
+        )
+    ]
+
+    assert _recover_confirmed_punctuated_three_plus_three_plus_one_split(
+        words,
+        Image.new("RGB", (265, 27)),
+        BoundingBox(0, 0, 265, height),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(),
+    ) == [
+        (
+            "\uac00\ub098\ub2e4,",
+            BoundingBox(20, 0, 120, height),
+            0.8445,
+        ),
+        (
+            "\ub77c\ub9c8\ubc14.",
+            BoundingBox(120, 0, 220, height),
+            0.8445,
+        ),
+        (
+            "\uc0ac",
+            BoundingBox(220, 0, 245, height),
+            0.8445,
+        ),
+    ]
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            first_ctc_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            first_ctc_confidence=0.9994
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            second_ctc_text=";\ub77c\uac00\ubc14"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            second_ctc_confidence=0.9719
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            third_ctc_text="A"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            third_ctc_confidence=0.9779
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            fourth_ctc_text="\uc790"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            fourth_ctc_confidence=0.9998
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            prefix_variant_text="\uac00\ub098\ub77c,"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            prefix_variant_confidence=0.879
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            target_variant_text="\ub77c\ub9c8\uc790"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            target_variant_confidence=0.9998
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            suffix_variant_text="\uc790"
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            suffix_variant_confidence=0.9998
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            segments=((0, 80), (86, 178), (177, 194), (202, 225))
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            segments=((0, 80), (87, 177), (177, 194), (202, 225))
+        ),
+        ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(
+            segments=((2, 80), (87, 178), (177, 194), (202, 223))
+        ),
+    ],
+)
+def test_confirmed_punctuated_three_plus_three_plus_one_requires_profile(
+    recognizer,
+) -> None:
+    height = 225 / 8.52
+    words = [
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14.\uc0ac",
+            BoundingBox(20, 0, 245, height),
+            0.8445,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_punctuated_three_plus_three_plus_one_split(
+            words,
+            Image.new("RGB", (265, 27)),
+            BoundingBox(0, 0, 265, height),
+            recognizer,
+        )
+        == words
+    )
+
+@pytest.mark.parametrize(
+    ("text", "confidence", "height"),
+    [
+        (
+            "\uac00\ub098A,\ub77c\ub9c8\ubc14.\uc0ac",
+            0.8445,
+            225 / 8.52,
+        ),
+        (
+            "\uac00\ub098\ub2e4A\ub77c\ub9c8\ubc14.\uc0ac",
+            0.8445,
+            225 / 8.52,
+        ),
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14A\uc0ac",
+            0.8445,
+            225 / 8.52,
+        ),
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14.\uc0ac",
+            0.8439,
+            225 / 8.52,
+        ),
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14.\uc0ac",
+            0.8451,
+            225 / 8.52,
+        ),
+        (
+            "\uac00\ub098\ub2e4,\ub77c\ub9c8\ubc14.\uc0ac",
+            0.8445,
+            26.3,
+        ),
+    ],
+)
+def test_confirmed_punctuated_three_plus_three_plus_one_requires_word_shape(
+    text,
+    confidence,
+    height,
+) -> None:
+    words = [(text, BoundingBox(20, 0, 245, height), confidence)]
+
+    assert (
+        _recover_confirmed_punctuated_three_plus_three_plus_one_split(
+            words,
+            Image.new("RGB", (265, 27)),
+            BoundingBox(0, 0, 265, height),
+            ConfirmedPunctuatedThreePlusThreePlusOneRecognizer(),
+        )
+        == words
+    )
 
 class ConfirmedTwoPlusTwoRecognizer:
     def __init__(
