@@ -487,10 +487,117 @@ def _merge_structured_fragments(
                 )
                 index += 2
                 continue
-        if text != 'K':
+        if text != "K":
             merged.append((text, box, confidence))
         index += 1
     return merged
+
+
+def _recover_confirmed_wrapped_four_syllable_triplet(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 3 < len(words):
+            previous = words[index - 1]
+            first, middle, last = words[index : index + 3]
+            following = words[index + 3]
+            first_overlap = (first[1].right - middle[1].left) / line_box.height
+            last_overlap = (middle[1].right - last[1].left) / line_box.height
+            previous_gap = (first[1].left - previous[1].right) / line_box.height
+            following_gap = (following[1].left - last[1].right) / line_box.height
+            width_ratio = (last[1].right - first[1].left) / line_box.height
+            matches_profile = (
+                len(first[0]) == 2
+                and unicodedata.category(first[0][0]).startswith("P")
+                and is_hangul(first[0][1])
+                and len(middle[0]) == 3
+                and all(is_hangul(character) for character in middle[0])
+                and len(last[0]) == 2
+                and any(unicodedata.category(character).startswith("P") for character in last[0])
+                and first[2] >= 0.988
+                and middle[2] >= 0.979
+                and 0.43 <= last[2] <= 0.44
+                and 0.05 <= first_overlap <= 0.052
+                and 0.05 <= last_overlap <= 0.052
+                and previous_gap >= 0.15
+                and following_gap >= 0.2
+                and 4.33 <= width_ratio <= 4.35
+            )
+            if matches_profile:
+                crop_left = max(
+                    0,
+                    math.floor(first[1].left - line_box.left),
+                )
+                crop_right = min(
+                    crop.width,
+                    math.ceil(last[1].right - line_box.left),
+                )
+                first_middle = recognizer.recognize(
+                    crop.crop(
+                        (
+                            crop_left,
+                            0,
+                            min(
+                                crop.width,
+                                math.ceil(middle[1].right - line_box.left),
+                            ),
+                            crop.height,
+                        )
+                    )
+                )
+                middle_last = recognizer.recognize(
+                    crop.crop(
+                        (
+                            max(
+                                0,
+                                math.floor(middle[1].left - line_box.left),
+                            ),
+                            0,
+                            crop_right,
+                            crop.height,
+                        )
+                    )
+                )
+                combined = recognizer.recognize(crop.crop((crop_left, 0, crop_right, crop.height)))
+                first_middle_text = first_middle.text.replace(" ", "")
+                middle_last_text = middle_last.text.replace(" ", "")
+                combined_text = combined.text.replace(" ", "")
+                if (
+                    first_middle.confidence >= 0.997
+                    and middle_last.confidence >= 0.988
+                    and combined.confidence >= 0.995
+                    and len(combined_text) == 6
+                    and unicodedata.category(combined_text[0]).startswith("P")
+                    and unicodedata.category(combined_text[-1]).startswith("P")
+                    and all(is_hangul(character) for character in combined_text[1:-1])
+                    and first[0] == combined_text[:2]
+                    and middle[0] == combined_text[2:-1]
+                    and first_middle_text == combined_text[:-1]
+                    and middle_last_text == combined_text[2:]
+                ):
+                    recovered.append(
+                        (
+                            combined_text,
+                            BoundingBox.union((first[1], middle[1], last[1])),
+                            min(
+                                first[2],
+                                middle[2],
+                                first_middle.confidence,
+                                middle_last.confidence,
+                                combined.confidence,
+                            ),
+                        )
+                    )
+                    index += 3
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
 
 
 def _recover_overlapping_word_triplets(
@@ -3475,6 +3582,12 @@ def _recover_word_boundaries(
         line_box,
         recognizer,
     )
+    words = _recover_confirmed_wrapped_four_syllable_triplet(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
     words = _recover_overlapping_word_triplets(words, crop, line_box, recognizer)
     words = _discard_confirmed_overlapping_character_duplicates(
         words,
@@ -3978,35 +4091,48 @@ class PaddleOcrEngine(OcrEngine):
         self.recognizer = recognizer
         self.retry_threshold = retry_threshold
 
-    def _segmented_line(
-        self, crop: Image.Image, line_box: BoundingBox
-    ) -> OcrLine | None:
-        segmenter = getattr(self.recognizer, 'word_boxes', None)
+    def _segmented_line(self, crop: Image.Image, line_box: BoundingBox) -> OcrLine | None:
+        segmenter = getattr(self.recognizer, "word_boxes", None)
         if not callable(segmenter):
             return None
         segments = segmenter(crop)
         if len(segments) <= 1:
             return None
         words: list[tuple[str, BoundingBox, float]] = []
+        raw_candidate_words: list[tuple[str, BoundingBox, float]] = []
         for left, right in segments:
             word_crop = crop.crop((left, 0, right, crop.height))
             recognized = self.recognizer.recognize(word_crop)
+            raw_text = recognized.text.replace(" ", "")
+            if raw_text:
+                raw_candidate_words.append(
+                    (
+                        raw_text,
+                        BoundingBox(
+                            line_box.left + left,
+                            line_box.top,
+                            line_box.left + right,
+                            line_box.bottom,
+                        ),
+                        recognized.confidence,
+                    )
+                )
             if recognized.confidence < self.retry_threshold:
-                retry_image = ImageOps.autocontrast(word_crop.convert('L')).resize(
+                retry_image = ImageOps.autocontrast(word_crop.convert("L")).resize(
                     (word_crop.width * 2, word_crop.height * 2), Image.Resampling.BICUBIC
                 )
                 retry_image = ImageEnhance.Contrast(retry_image).enhance(1.2)
-                retry = self.recognizer.recognize(retry_image.convert('RGB'))
+                retry = self.recognizer.recognize(retry_image.convert("RGB"))
                 if retry.confidence > recognized.confidence:
                     recognized = retry
-            text = recognized.text.replace(' ', '')
+            text = recognized.text.replace(" ", "")
             if text and (
                 contains_hangul(text)
                 or (
                     recognized.confidence >= _context_confidence_threshold(text)
                     and _structured_ascii_context(text)
                 )
-                or (text == 'K' and recognized.confidence >= 0.8)
+                or (text == "K" and recognized.confidence >= 0.8)
             ):
                 words.append(
                     (
@@ -4020,6 +4146,27 @@ class PaddleOcrEngine(OcrEngine):
                         recognized.confidence,
                     )
                 )
+        recovered_raw_words = _recover_confirmed_wrapped_four_syllable_triplet(
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        for recovered_word in recovered_raw_words:
+            replacement_box = recovered_word[1]
+            covered_words = [
+                word
+                for word in words
+                if replacement_box.left <= word[1].left
+                and word[1].right <= replacement_box.right
+                and replacement_box.top < word[1].bottom
+                and word[1].top < replacement_box.bottom
+            ]
+            if len(covered_words) < 2:
+                continue
+            words = [word for word in words if word not in covered_words]
+            words.append(recovered_word)
+        words.sort(key=lambda word: (word[1].top, word[1].left))
         words = _recover_confirmed_wrapped_five_plus_four_split(
             words,
             crop,

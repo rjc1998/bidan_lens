@@ -469,74 +469,92 @@ def test_segmentation_view_contains_geometry_but_no_text(tmp_path: Path) -> None
             return ((0, 30), (35, 80))
 
         def recognize(self, image):
-            return RecognizedText('private', image.width / 100)
+            return RecognizedText("private", image.width / 100)
 
     engine = SimpleNamespace(detector=Detector(), recognizer=Recognizer())
-    sample = SimpleNamespace(sample_id='dev-plain-0012', image=image)
+    sample = SimpleNamespace(sample_id="dev-plain-0012", image=image)
+    sample.target = SimpleNamespace(text="private")
 
     value = structural_segmentation_view(engine, sample)  # type: ignore[arg-type]
 
     assert value == {
-        'sample_id': 'dev-plain-0012',
-        'image_size': [100, 30],
-        'region_count': 1,
-        'regions': [
+        "sample_id": "dev-plain-0012",
+        "image_size": [100, 30],
+        "region_count": 1,
+        "regions": [
             {
-                'index': 0,
-                'box': [10.0, 5.0, 90.0, 25.0],
-                'confidence': 0.9877,
-                'segment_count': 2,
-                'segments': [
+                "index": 0,
+                "box": [10.0, 5.0, 90.0, 25.0],
+                "confidence": 0.9877,
+                "segment_count": 2,
+                "segments": [
                     [10.0, 5.0, 40.0, 25.0],
                     [45.0, 5.0, 90.0, 25.0],
                 ],
-                'recognition': [
+                "recognition": [
                     {
-                        'length': 7,
-                        'confidence': 0.3,
-                        'space_count': 0,
-                        'tokens': [
+                        "length": 7,
+                        "confidence": 0.3,
+                        "space_count": 0,
+                        "tokens": [
                             {
-                                'length': 7,
-                                'hangul_count': 0,
-                                'ascii_alnum_count': 7,
-                                'ascii_punctuation_count': 0,
-                                'unicode_letter_count': 7,
-                                'unicode_number_count': 0,
-                                'unicode_punctuation_count': 0,
-                                'unicode_symbol_count': 0,
-                                'hangul_jamo_count': 0,
-                                'cjk_ideograph_count': 0,
-                                'latin_letter_count': 7,
+                                "length": 7,
+                                "hangul_count": 0,
+                                "ascii_alnum_count": 7,
+                                "ascii_punctuation_count": 0,
+                                "unicode_letter_count": 7,
+                                "unicode_number_count": 0,
+                                "unicode_punctuation_count": 0,
+                                "unicode_symbol_count": 0,
+                                "hangul_jamo_count": 0,
+                                "cjk_ideograph_count": 0,
+                                "latin_letter_count": 7,
                             }
                         ],
+                        "target_evidence": {
+                            "equals_expected_target": True,
+                            "contains_expected_target": True,
+                            "expected_target_occurrences": 1,
+                            "expected_target_span": [0, 7],
+                            "expected_target_prefix": [],
+                            "expected_target_suffix": [],
+                        },
                     },
                     {
-                        'length': 7,
-                        'confidence': 0.45,
-                        'space_count': 0,
-                        'tokens': [
+                        "length": 7,
+                        "confidence": 0.45,
+                        "space_count": 0,
+                        "tokens": [
                             {
-                                'length': 7,
-                                'hangul_count': 0,
-                                'ascii_alnum_count': 7,
-                                'ascii_punctuation_count': 0,
-                                'unicode_letter_count': 7,
-                                'unicode_number_count': 0,
-                                'unicode_punctuation_count': 0,
-                                'unicode_symbol_count': 0,
-                                'hangul_jamo_count': 0,
-                                'cjk_ideograph_count': 0,
-                                'latin_letter_count': 7,
+                                "length": 7,
+                                "hangul_count": 0,
+                                "ascii_alnum_count": 7,
+                                "ascii_punctuation_count": 0,
+                                "unicode_letter_count": 7,
+                                "unicode_number_count": 0,
+                                "unicode_punctuation_count": 0,
+                                "unicode_symbol_count": 0,
+                                "hangul_jamo_count": 0,
+                                "cjk_ideograph_count": 0,
+                                "latin_letter_count": 7,
                             }
                         ],
+                        "target_evidence": {
+                            "equals_expected_target": True,
+                            "contains_expected_target": True,
+                            "expected_target_occurrences": 1,
+                            "expected_target_span": [0, 7],
+                            "expected_target_prefix": [],
+                            "expected_target_suffix": [],
+                        },
                     },
                 ],
-                'overlap_triplets': [],
-                'overlap_pairs': [],
-                'close_pairs': [],
-                'punctuation_retries': [],
-                'segment_gaps': [5.0],
+                "overlap_triplets": [],
+                "overlap_pairs": [],
+                "close_pairs": [],
+                "punctuation_retries": [],
+                "segment_gaps": [5.0],
             }
         ],
     }
+    assert "private" not in json.dumps(value, ensure_ascii=False)

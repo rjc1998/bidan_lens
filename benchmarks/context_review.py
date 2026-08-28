@@ -529,12 +529,36 @@ def structural_segmentation_view(
     engine: PaddleOcrEngine,
     sample: PlainSample,
 ) -> dict[str, object]:
-    '''Return detector and segment geometry without OCR or oracle text.'''
+    """Return detector and segment geometry without OCR or oracle text."""
+    expected_target = _normal(sample.target.text)
+
+    def target_evidence(value: str) -> dict[str, object]:
+        compact = _normal(value.replace(" ", ""))
+        target_start = compact.find(expected_target) if expected_target else -1
+        return {
+            "equals_expected_target": compact == expected_target,
+            "contains_expected_target": bool(expected_target and expected_target in compact),
+            "expected_target_occurrences": (
+                compact.count(expected_target) if expected_target else 0
+            ),
+            "expected_target_span": (
+                [target_start, target_start + len(expected_target)] if target_start >= 0 else None
+            ),
+            "expected_target_prefix": (
+                _token_structure(compact[:target_start]) if target_start >= 0 else []
+            ),
+            "expected_target_suffix": (
+                _token_structure(compact[target_start + len(expected_target) :])
+                if target_start >= 0
+                else []
+            ),
+        }
+
     with Image.open(sample.image) as source:
-        image = source.convert('RGB')
+        image = source.convert("RGB")
     regions = engine.detector.detect(image)
     values = []
-    segmenter = getattr(engine.recognizer, 'word_boxes', None)
+    segmenter = getattr(engine.recognizer, "word_boxes", None)
     for index, region in enumerate(regions):
         crop = image.crop(
             (
@@ -557,112 +581,100 @@ def structural_segmentation_view(
         recognized_segments = []
         recognized_texts = []
         for left, right in segments:
-            recognized = engine.recognizer.recognize(
-                crop.crop((left, 0, right, crop.height))
-            )
-            recognized_texts.append(recognized.text.replace(' ', ''))
+            recognized = engine.recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+            recognized_texts.append(recognized.text.replace(" ", ""))
             recognized_segments.append(
                 {
-                    'length': len(recognized.text),
-                    'confidence': round(float(recognized.confidence), 6),
-                    'space_count': sum(item.isspace() for item in recognized.text),
-                    'tokens': _token_structure(recognized.text),
+                    "length": len(recognized.text),
+                    "confidence": round(float(recognized.confidence), 6),
+                    "space_count": sum(item.isspace() for item in recognized.text),
+                    "tokens": _token_structure(recognized.text),
+                    "target_evidence": target_evidence(recognized.text),
                 }
             )
         overlap_triplets = []
+        overlap_triplet_texts = []
         for segment_index in range(len(segments) - 2):
             first, middle, last = segments[segment_index : segment_index + 3]
             if middle[0] - first[1] >= 0 or last[0] - middle[1] >= 0:
                 continue
-            combined = engine.recognizer.recognize(
-                crop.crop((first[0], 0, last[1], crop.height))
-            )
-            combined_text = combined.text.replace(' ', '')
-            first_text, middle_text, last_text = recognized_texts[
-                segment_index : segment_index + 3
-            ]
+            combined = engine.recognizer.recognize(crop.crop((first[0], 0, last[1], crop.height)))
+            combined_text = combined.text.replace(" ", "")
+            overlap_triplet_texts.append((segment_index, combined_text))
+            first_text, middle_text, last_text = recognized_texts[segment_index : segment_index + 3]
             overlap_triplets.append(
                 {
-                    'segment_indices': [
+                    "segment_indices": [
                         segment_index,
                         segment_index + 1,
                         segment_index + 2,
                     ],
-                    'combined_length': len(combined_text),
-                    'combined_confidence': round(float(combined.confidence), 6),
-                    'equals_first_middle': combined_text == first_text + middle_text,
-                    'equals_middle_last': combined_text == middle_text + last_text,
-                    'equals_all': combined_text
-                    == first_text + middle_text + last_text,
-                    'tokens': _token_structure(combined_text),
+                    "combined_length": len(combined_text),
+                    "combined_confidence": round(float(combined.confidence), 6),
+                    "equals_first_middle": combined_text == first_text + middle_text,
+                    "equals_middle_last": combined_text == middle_text + last_text,
+                    "equals_all": combined_text == first_text + middle_text + last_text,
+                    "tokens": _token_structure(combined_text),
+                    "target_evidence": target_evidence(combined_text),
                 }
             )
         overlap_pairs = []
-        for segment_index, (first, last) in enumerate(
-            zip(segments, segments[1:], strict=False)
-        ):
+        for segment_index, (first, last) in enumerate(zip(segments, segments[1:], strict=False)):
             if last[0] - first[1] >= 0:
                 continue
-            combined = engine.recognizer.recognize(
-                crop.crop((first[0], 0, last[1], crop.height))
-            )
-            combined_text = combined.text.replace(' ', '')
+            combined = engine.recognizer.recognize(crop.crop((first[0], 0, last[1], crop.height)))
+            combined_text = combined.text.replace(" ", "")
             overlap_pairs.append(
                 {
-                    'segment_indices': [segment_index, segment_index + 1],
-                    'overlap_ratio': round(
-                        float((first[1] - last[0]) / region.box.height), 4
+                    "segment_indices": [segment_index, segment_index + 1],
+                    "overlap_ratio": round(float((first[1] - last[0]) / region.box.height), 4),
+                    "combined_length": len(combined_text),
+                    "combined_confidence": round(float(combined.confidence), 6),
+                    "equals_first": combined_text == recognized_texts[segment_index],
+                    "equals_last": combined_text == recognized_texts[segment_index + 1],
+                    "equals_concatenation": combined_text
+                    == recognized_texts[segment_index] + recognized_texts[segment_index + 1],
+                    "equals_triplet_prefix": any(
+                        triplet_start == segment_index
+                        and combined_text == triplet_text[: len(combined_text)]
+                        for triplet_start, triplet_text in overlap_triplet_texts
                     ),
-                    'combined_length': len(combined_text),
-                    'combined_confidence': round(float(combined.confidence), 6),
-                    'equals_first': combined_text
-                    == recognized_texts[segment_index],
-                    'equals_last': combined_text
-                    == recognized_texts[segment_index + 1],
-                    'equals_concatenation': combined_text
-                    == recognized_texts[segment_index]
-                    + recognized_texts[segment_index + 1],
-                    'tokens': _token_structure(combined_text),
+                    "equals_triplet_suffix": any(
+                        triplet_start + 1 == segment_index
+                        and combined_text == triplet_text[-len(combined_text) :]
+                        for triplet_start, triplet_text in overlap_triplet_texts
+                    ),
+                    "tokens": _token_structure(combined_text),
+                    "target_evidence": target_evidence(combined_text),
                 }
             )
         close_pairs = []
-        for segment_index, (first, last) in enumerate(
-            zip(segments, segments[1:], strict=False)
-        ):
+        for segment_index, (first, last) in enumerate(zip(segments, segments[1:], strict=False)):
             gap = last[0] - first[1]
             if not 0 <= gap <= region.box.height * 0.22:
                 continue
-            combined = engine.recognizer.recognize(
-                crop.crop((first[0], 0, last[1], crop.height))
-            )
-            combined_text = combined.text.replace(' ', '')
+            combined = engine.recognizer.recognize(crop.crop((first[0], 0, last[1], crop.height)))
+            combined_text = combined.text.replace(" ", "")
             close_pairs.append(
                 {
-                    'segment_indices': [segment_index, segment_index + 1],
-                    'gap_ratio': round(float(gap / region.box.height), 4),
-                    'combined_length': len(combined_text),
-                    'combined_confidence': round(float(combined.confidence), 6),
-                    'equals_first': combined_text
-                    == recognized_texts[segment_index],
-                    'equals_last': combined_text
-                    == recognized_texts[segment_index + 1],
-                    'equals_concatenation': combined_text
-                    == recognized_texts[segment_index]
-                    + recognized_texts[segment_index + 1],
-                    'starts_with_first': combined_text.startswith(
-                        recognized_texts[segment_index]
-                    ),
-                    'ends_with_last': combined_text.endswith(
-                        recognized_texts[segment_index + 1]
-                    ),
-                    'added_suffix_punctuation': bool(
+                    "segment_indices": [segment_index, segment_index + 1],
+                    "gap_ratio": round(float(gap / region.box.height), 4),
+                    "combined_length": len(combined_text),
+                    "combined_confidence": round(float(combined.confidence), 6),
+                    "equals_first": combined_text == recognized_texts[segment_index],
+                    "equals_last": combined_text == recognized_texts[segment_index + 1],
+                    "equals_concatenation": combined_text
+                    == recognized_texts[segment_index] + recognized_texts[segment_index + 1],
+                    "starts_with_first": combined_text.startswith(recognized_texts[segment_index]),
+                    "ends_with_last": combined_text.endswith(recognized_texts[segment_index + 1]),
+                    "added_suffix_punctuation": bool(
                         recognized_texts[segment_index]
                         and combined_text.startswith(recognized_texts[segment_index])
-                        and len(combined_text)
-                        == len(recognized_texts[segment_index]) + 1
-                        and unicodedata.category(combined_text[-1]).startswith('P')
+                        and len(combined_text) == len(recognized_texts[segment_index]) + 1
+                        and unicodedata.category(combined_text[-1]).startswith("P")
                     ),
-                    'tokens': _token_structure(combined_text),
+                    "tokens": _token_structure(combined_text),
+                    "target_evidence": target_evidence(combined_text),
                 }
             )
         punctuation_retries = []
@@ -687,65 +699,63 @@ def structural_segmentation_view(
             )
             punctuation_retries.append(
                 {
-                    'segment_indices': [segment_index],
-                    'padding': padding,
-                    'length': len(padded.text),
-                    'confidence': round(float(padded.confidence), 6),
-                    'tokens': _token_structure(padded.text),
+                    "segment_indices": [segment_index],
+                    "padding": padding,
+                    "length": len(padded.text),
+                    "confidence": round(float(padded.confidence), 6),
+                    "tokens": _token_structure(padded.text),
+                    "target_evidence": target_evidence(padded.text),
                 }
             )
         values.append(
             {
-                'index': index,
-                'box': _box_view(region.box),
-                'confidence': round(float(region.confidence), 4),
-                'segment_count': len(segments),
-                'segments': boxes,
-                'recognition': recognized_segments,
-                'overlap_triplets': overlap_triplets,
-                'overlap_pairs': overlap_pairs,
-                'close_pairs': close_pairs,
-                'punctuation_retries': punctuation_retries,
-                'segment_gaps': [
+                "index": index,
+                "box": _box_view(region.box),
+                "confidence": round(float(region.confidence), 4),
+                "segment_count": len(segments),
+                "segments": boxes,
+                "recognition": recognized_segments,
+                "overlap_triplets": overlap_triplets,
+                "overlap_pairs": overlap_pairs,
+                "close_pairs": close_pairs,
+                "punctuation_retries": punctuation_retries,
+                "segment_gaps": [
                     round(float(right[0] - left[2]), 2)
                     for left, right in zip(boxes, boxes[1:], strict=False)
                 ],
             }
         )
     return {
-        'sample_id': sample.sample_id,
-        'image_size': list(image.size),
-        'region_count': len(regions),
-        'regions': values,
+        "sample_id": sample.sample_id,
+        "image_size": list(image.size),
+        "region_count": len(regions),
+        "regions": values,
     }
 
 
 def _display_case(case: ContextReviewCase, output: Callable[[str], None]) -> None:
     sample = case.sample
     value = {
-        'sample_id': sample.sample_id,
-        'render': {
-            'renderer': sample.render.renderer,
-            'layout': sample.render.layout,
-            'punctuation': sample.render.punctuation,
-            'font': sample.render.font,
-            'size_px': sample.render.size_px,
+        "sample_id": sample.sample_id,
+        "render": {
+            "renderer": sample.render.renderer,
+            "layout": sample.render.layout,
+            "punctuation": sample.render.punctuation,
+            "font": sample.render.font,
+            "size_px": sample.render.size_px,
         },
-        'expected': {
-            'sentence': sample.target.sentence,
-            'target': sample.target.text,
-            'target_span': list(sample.target.sentence_span),
-            'lines': [
-                {'text': line.text, 'box': _box_view(line.box)} for line in sample.lines
-            ],
+        "expected": {
+            "sentence": sample.target.sentence,
+            "target": sample.target.text,
+            "target_span": list(sample.target.sentence_span),
+            "lines": [{"text": line.text, "box": _box_view(line.box)} for line in sample.lines],
         },
-        'actual': {
-            'sentence': case.target.sentence,
-            'target': case.target.surface,
-            'target_span': [case.target.sentence_start, case.target.sentence_end],
-            'lines': [
-                {'text': line.text, 'box': _box_view(line.box)}
-                for line in case.document.lines
+        "actual": {
+            "sentence": case.target.sentence,
+            "target": case.target.surface,
+            "target_span": [case.target.sentence_start, case.target.sentence_end],
+            "lines": [
+                {"text": line.text, "box": _box_view(line.box)} for line in case.document.lines
             ],
         },
     }

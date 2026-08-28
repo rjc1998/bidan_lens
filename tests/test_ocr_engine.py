@@ -28,6 +28,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_two_plus_punctuated_two_split,
     _recover_confirmed_two_plus_two_split,
     _recover_confirmed_wrapped_five_plus_four_split,
+    _recover_confirmed_wrapped_four_syllable_triplet,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -4876,3 +4877,244 @@ def test_relative_gap_two_plus_two_pair_rejects_ordinary_space() -> None:
         )
         == words
     )
+
+
+class ConfirmedWrappedFourSyllableTripletRecognizer:
+    def __init__(
+        self,
+        *,
+        first_middle_text: str = '"\uac00\ub098\ub2e4\ub77c',
+        first_middle_confidence: float = 0.9977,
+        middle_last_text: str = '\ub098\ub2e4\ub77c"',
+        middle_last_confidence: float = 0.9883,
+        combined_text: str = '"\uac00\ub098\ub2e4\ub77c"',
+        combined_confidence: float = 0.9959,
+    ) -> None:
+        self.values = (
+            RecognizedText(first_middle_text, first_middle_confidence),
+            RecognizedText(middle_last_text, middle_last_confidence),
+            RecognizedText(combined_text, combined_confidence),
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def _wrapped_four_syllable_triplet_words():
+    return [
+        (
+            "\uc774\uc804\ub9d0",
+            BoundingBox(0, 0, 50, 20),
+            0.999,
+        ),
+        (
+            '"\uac00',
+            BoundingBox(53, 0, 77, 20),
+            0.9882,
+        ),
+        (
+            "\ub098\ub2e4\ub77c",
+            BoundingBox(76, 0, 129, 20),
+            0.9791,
+        ),
+        (
+            '"0',
+            BoundingBox(128, 0, 139.8, 20),
+            0.4337,
+        ),
+        (
+            "\ub2e4\uc74c\ub9d0",
+            BoundingBox(143.8, 0, 194, 20),
+            0.999,
+        ),
+    ]
+
+
+def test_confirmed_wrapped_four_syllable_triplet_recovers() -> None:
+    words = _wrapped_four_syllable_triplet_words()
+
+    recovered = _recover_confirmed_wrapped_four_syllable_triplet(
+        words,
+        Image.new("RGB", (200, 20)),
+        BoundingBox(0, 0, 200, 20),
+        ConfirmedWrappedFourSyllableTripletRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            '"\uac00\ub098\ub2e4\ub77c"',
+            BoundingBox(53, 0, 139.8, 20),
+            0.9791,
+        ),
+        words[4],
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedWrappedFourSyllableTripletRecognizer(
+            first_middle_text='"\uac00\ub098\ub2e4\ub9c8'
+        ),
+        ConfirmedWrappedFourSyllableTripletRecognizer(first_middle_confidence=0.9969),
+        ConfirmedWrappedFourSyllableTripletRecognizer(middle_last_text='\ub098\ub2e4\ub9c8"'),
+        ConfirmedWrappedFourSyllableTripletRecognizer(middle_last_confidence=0.9879),
+        ConfirmedWrappedFourSyllableTripletRecognizer(combined_text="\"\uac00\ub098\ub2e4\ub77c'"),
+        ConfirmedWrappedFourSyllableTripletRecognizer(combined_confidence=0.9949),
+    ],
+)
+def test_confirmed_wrapped_four_syllable_triplet_requires_crop_agreement(
+    recognizer,
+) -> None:
+    words = _wrapped_four_syllable_triplet_words()
+
+    assert (
+        _recover_confirmed_wrapped_four_syllable_triplet(
+            words,
+            Image.new("RGB", (200, 20)),
+            BoundingBox(0, 0, 200, 20),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("index", "replacement"),
+    [
+        (
+            1,
+            (
+                "\uac00\ub098",
+                BoundingBox(53, 0, 77, 20),
+                0.9882,
+            ),
+        ),
+        (
+            1,
+            (
+                '"\uac00',
+                BoundingBox(53, 0, 77, 20),
+                0.9879,
+            ),
+        ),
+        (
+            2,
+            (
+                "\ub098\ub2e4\ub77c",
+                BoundingBox(76, 0, 129, 20),
+                0.9789,
+            ),
+        ),
+        (
+            3,
+            (
+                '"0',
+                BoundingBox(128, 0, 139.8, 20),
+                0.4401,
+            ),
+        ),
+        (
+            1,
+            (
+                '"\uac00',
+                BoundingBox(53, 0, 76.9, 20),
+                0.9882,
+            ),
+        ),
+        (
+            0,
+            (
+                "\uc774\uc804\ub9d0",
+                BoundingBox(0, 0, 50.2, 20),
+                0.999,
+            ),
+        ),
+        (
+            4,
+            (
+                "\ub2e4\uc74c\ub9d0",
+                BoundingBox(143.7, 0, 194, 20),
+                0.999,
+            ),
+        ),
+        (
+            3,
+            (
+                '"0',
+                BoundingBox(128, 0, 139.5, 20),
+                0.4337,
+            ),
+        ),
+    ],
+)
+def test_confirmed_wrapped_four_syllable_triplet_requires_word_profile(
+    index,
+    replacement,
+) -> None:
+    words = _wrapped_four_syllable_triplet_words()
+    words[index] = replacement
+
+    assert (
+        _recover_confirmed_wrapped_four_syllable_triplet(
+            words,
+            Image.new("RGB", (200, 20)),
+            BoundingBox(0, 0, 200, 20),
+            ConfirmedWrappedFourSyllableTripletRecognizer(),
+        )
+        == words
+    )
+
+
+class RawWrapperEvidenceRecognizer:
+    def __init__(self) -> None:
+        self.values = (
+            RecognizedText("\uc774\uc804\ub9d0", 0.6),
+            RecognizedText("\uace0\uce5c\ub9d0", 0.999),
+            RecognizedText('"\uac00', 0.9882),
+            RecognizedText("\ub098\ub2e4\ub77c", 0.9791),
+            RecognizedText("/0", 0.4337),
+            RecognizedText("??", 0.8),
+            RecognizedText("\ub2e4\uc74c\ub9d0", 0.999),
+            RecognizedText('"\uac00\ub098\ub2e4\ub77c', 0.9977),
+            RecognizedText("\ub098\ub2e4\ub77c/", 0.9883),
+            RecognizedText('"\uac00\ub098\ub2e4\ub77c/', 0.9959),
+        )
+        self.calls = 0
+
+    def word_boxes(self, _image):
+        return (
+            (0, 50),
+            (53, 77),
+            (76, 129),
+            (128, 139.8),
+            (143.8, 194),
+        )
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class RawWrapperEvidenceDetector:
+    def detect(self, _image):
+        return (DetectedRegion(BoundingBox(0, 0, 200, 20), 0.99),)
+
+
+def test_engine_uses_raw_wrapper_evidence_without_discarding_other_retry() -> None:
+    recognizer = RawWrapperEvidenceRecognizer()
+    engine = PaddleOcrEngine(RawWrapperEvidenceDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (200, 20)))
+
+    assert [word.text for word in document.lines[0].eojeols] == [
+        "\uace0\uce5c\ub9d0",
+        "\uac00\ub098\ub2e4\ub77c",
+        "\ub2e4\uc74c\ub9d0",
+    ]
+    assert recognizer.calls == len(recognizer.values)

@@ -62,23 +62,23 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.15 200-case quick tier records 99.28% whole-eojeol OCR, 99.50% target
 selection, 95.50% functional context, 76.00% exact sentence transcription, 94.50% component
-accuracy, 95.50% exact KRDict fidelity, and 91.00% fully correct first popups, with 232.74 ms
-median / 349.32 ms p95 automated latency. Alternative-candidate recovery is 97.00% and false
+accuracy, 95.50% exact KRDict fidelity, and 91.00% fully correct first popups, with 229.20 ms
+median / 347.92 ms p95 automated latency. Alternative-candidate recovery is 97.00% and false
 promotions remain zero. Its remaining failures are nine analysis cases (four primary lemmas and
 five component roles), eight context cases, and one target case. Aggregate and per-category negative
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`0c6234f75884ac39a7a8a7c4acd8b2a8f54874b6da52f935a86f3da54baf29f8`; the
+`539558c7b62adbcd88fcecb9a765f5434630e8214d1667011a69b987baba64e8`; the
 privacy-safe diagnostic SHA-256 is
 `8e0f3729a158475dbfb22a2666cdeaaddd73d8ff7b874d6e28d2bff1cc772705`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.32% whole-eojeol OCR, 97.90% target selection, 89.50%
+cleanup. Its 2,000 main cases record 98.32% whole-eojeol OCR, 97.95% target selection, 89.50%
 functional context, 72.05% exact sentence transcription, 93.25% component accuracy, 95.55% exact
-KRDict fidelity, 84.40% fully correct first popups, and 95.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 239.55 ms median /
-357.62 ms p95. Privacy-safe diagnostics contain 42 target, 168 context, and 102 analysis failures;
+KRDict fidelity, 84.40% fully correct first popups, and 95.05% alternative recovery. False
+promotions remain zero and the accepted follow-up is 236.42 ms median /
+355.29 ms p95. Privacy-safe diagnostics contain 41 target, 169 context, and 102 analysis failures;
 the analysis stages are 44 primary lemmas, 48 component roles, four component counts, and six
 grammar roles. No component-surface failures remain. The five stable IDs with negative
 activations also fail target selection, with one activation each.
@@ -92,23 +92,23 @@ near-miss probes remain at zero, whitespace is two of 1,931 (0.10%), and punctua
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The full aggregate report SHA-256 is
-`b152f278ae658b54d4d7fa09738de708b3ef7e36c7c8d384ec8baca179a55fbf`; the
+`b9b38bf321be088535264dcf4af7a01a095aebf77c6d8739e53c28dee00323c0`; the
 privacy-safe diagnostic SHA-256 is
-`6cc5c4aa75c91e0574fc02aab0247af6ff62892130b9a06b0671765a10632345`.
+`8274d40731c9e6b047f3599df2d13b73840e61a4c8e7e5da5cf7b7e798da7b98`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
 initialization and categorized one stable ID at a time, writing each categorical decision
-immediately. The current 206-decision review contains 89 non-target OCR transcription errors, 68
+immediately. The current 207-decision review contains 90 non-target OCR transcription errors, 68
 punctuation or structured-text cases, 42 missed or merged OCR word boundaries, and seven incorrect
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 168 active context
+IDs, categorical decisions, and counts. The current full diagnostics have 169 active context
 cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
 38 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
 review scope and every current stable ID. The decision report SHA-256 is
-`057ec9baf741ff98d3f487348dce81125784449a94d0e3dace478e6032d5b86d`.
+`7ffd5e9f5088d43e356e711f07ee8ebb1ecd460733ea2152e0ee72e61b975191`.
 
 Three independently reviewed reconstruction cases contained a one-character eojeol centered
 inside a two-character eojeol while exactly repeating its punctuation-normalized suffix. The
@@ -654,6 +654,27 @@ remaining non-target substitution is recorded as a transcription error, and the 
 audit is complete. Quick diagnostics are byte-identical; stress, held-out language, promotion, and
 latency gates do not regress.
 
+
+Privacy-safe target evidence now reports only boolean expected-target matches, numeric target spans,
+prefix/suffix Unicode-category summaries, and cross-probe agreement; it emits no target or
+recognized text. Grouping the seven length-changing wrong-text cases with that evidence isolates
+one 12 px browser case whose target is split across a punctuation-plus-one-Hangul fragment, a
+three-Hangul fragment, and a low-confidence punctuation artifact. Both overlaps are 5.16% of line
+height and the surrounding gaps are 15.49% and 20.65%. The left-plus-middle and middle-plus-right
+crops agree with the corresponding full-union prefix and suffix at 99.77% and 98.83% confidence,
+while the full punctuation-Hangul-punctuation union is 99.59% confident. The bounded recovery uses
+the raw fragments only as corroborating evidence, replaces the two covered retry-selected words
+with the confirmed wrapper, and preserves unrelated enhanced-retry results.
+
+The exact full comparison moves only `dev-plain-1457` from target to context and adds or changes
+no other diagnostic. Its separate non-target one-Hangul sliver is retained because the confirming
+union is only 57.64% confident, well below the accepted duplicate-cleanup floor; the text-free
+review categorizes it as a non-target OCR transcription error. Target selection rises to 97.95%
+and alternative recovery to 95.05%, while popup correctness remains 84.40%. Quick diagnostics are
+byte-identical; OCR, functional context, components, dictionary fidelity, stress, held-out
+language, promotions, negative pointers, and latency gates do not regress. The full context audit
+now has 169 active cases, 207 decisions, 38 resolved IDs, and no missing decision.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs. The target
 recovery above exposes one existing non-target transcription error at context, leaving a net
 reduction of 53 active cases. The preceding cleanup permits a one-pixel overlap of at most 7.5%
@@ -1074,12 +1095,12 @@ safe complete candidate or bounded general promotion. Thirteen of the 20 reviewe
 Kiwi errors are now resolved without a regression. The remaining seven were rechecked against
 contextual, isolated, and local dictionary evidence; those signals either reinforce the current
 reading or leave a semantic ambiguity that has no bounded structural correction. The two
-geometry-clustering passes, substitution batch, and the nine latest split recoveries resolve 16
-targets and leave 42 main target failures: 16 wrong-text hits in matching geometry and 26 no-hit
-cases. The wrong-text set contains nine remaining equal-length substitutions and seven length-changing
+geometry-clustering passes, substitution batch, and the ten latest split recoveries resolve 17
+targets and leave 41 main target failures: 15 wrong-text hits in matching geometry and 26 no-hit
+cases. The wrong-text set contains nine remaining equal-length substitutions and six length-changing
 substitution or omission cases. No remaining segment probe exactly reproduces its expected target.
 The next development target is
-privacy-safe grouping of the length-changing wrong-text evidence in the required render strata;
+privacy-safe grouping of the six length-changing wrong-text cases in the required render strata;
 the remaining clusters require stronger OCR evidence rather than hit-test expansion.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
