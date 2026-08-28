@@ -18,6 +18,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_substitution_readings,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
+    _recover_confirmed_three_plus_two_prefix_split,
     _recover_confirmed_three_plus_two_split,
     _recover_confirmed_two_plus_four_splits,
     _recover_confirmed_two_plus_punctuated_two_split,
@@ -2868,6 +2869,168 @@ def test_confirmed_one_plus_one_requires_word_profile(words, height) -> None:
         == words
     )
 
+
+class ConfirmedThreePlusTwoPrefixRecognizer:
+    def __init__(
+        self,
+        *,
+        first_ctc_text: str = "\uac00\ub098\ub2e4\u2026",
+        last_ctc_text: str = "\ub77c\ub9c8",
+        first_ctc_confidence: float = 0.55138,
+        last_ctc_confidence: float = 0.9904,
+        variant_first_text: str = "\uac00\ub098\ub2e4",
+        variant_last_text: str = "\ub77c\ub9c8",
+        variant_confidence: float = 0.99893,
+        segments: tuple[tuple[int, int], ...] = ((0, 72), (71, 105)),
+    ) -> None:
+        self.values = (
+            RecognizedText(first_ctc_text, first_ctc_confidence),
+            RecognizedText(last_ctc_text, last_ctc_confidence),
+            RecognizedText(variant_first_text, 0.99953),
+            RecognizedText(variant_last_text, 0.99949),
+            RecognizedText(variant_first_text, 0.99932),
+            RecognizedText(variant_last_text, variant_confidence),
+        )
+        self.segments = segments
+        self.recognition_calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        assert space_threshold == 0.04
+        return self.segments
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+def test_confirmed_three_plus_two_prefix_recovers_word_boundary() -> None:
+    height = 105 / 5.965
+    words = [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(20, 0, 125, height),
+            0.99905,
+        )
+    ]
+
+    assert _recover_confirmed_three_plus_two_prefix_split(
+        words,
+        Image.new("RGB", (145, 19)),
+        BoundingBox(0, 0, 145, height),
+        ConfirmedThreePlusTwoPrefixRecognizer(),
+    ) == [
+        (
+            "\uac00\ub098\ub2e4",
+            BoundingBox(20, 0, 71, height),
+            0.99893,
+        ),
+        (
+            "\ub77c\ub9c8",
+            BoundingBox(91, 0, 125, height),
+            0.9904,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedThreePlusTwoPrefixRecognizer(
+            first_ctc_text="\uac00\ub098\ub2e4\ub77c"
+        ),
+        ConfirmedThreePlusTwoPrefixRecognizer(first_ctc_confidence=0.5499),
+        ConfirmedThreePlusTwoPrefixRecognizer(last_ctc_text="\ub77c\ubc14"),
+        ConfirmedThreePlusTwoPrefixRecognizer(last_ctc_confidence=0.9899),
+        ConfirmedThreePlusTwoPrefixRecognizer(variant_first_text="\uac00\ub098\ub77c"),
+        ConfirmedThreePlusTwoPrefixRecognizer(variant_last_text="\ub77c\ubc14"),
+        ConfirmedThreePlusTwoPrefixRecognizer(variant_confidence=0.9988),
+        ConfirmedThreePlusTwoPrefixRecognizer(segments=((0, 72), (70, 105))),
+        ConfirmedThreePlusTwoPrefixRecognizer(segments=((0, 71), (70, 105))),
+        ConfirmedThreePlusTwoPrefixRecognizer(segments=((2, 72), (71, 103))),
+    ],
+)
+def test_confirmed_three_plus_two_prefix_requires_exact_profile(
+    recognizer,
+) -> None:
+    height = 105 / 5.965
+    words = [
+        (
+            "\uac00\ub098\ub2e4\ub77c\ub9c8",
+            BoundingBox(20, 0, 125, height),
+            0.99905,
+        )
+    ]
+
+    assert (
+        _recover_confirmed_three_plus_two_prefix_split(
+            words,
+            Image.new("RGB", (145, 19)),
+            BoundingBox(0, 0, 145, height),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "height"),
+    [
+        (
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77cA",
+                    BoundingBox(20, 0, 125, 105 / 5.965),
+                    0.99905,
+                )
+            ],
+            105 / 5.965,
+        ),
+        (
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                    BoundingBox(20, 0, 125, 105 / 5.965),
+                    0.9989,
+                )
+            ],
+            105 / 5.965,
+        ),
+        (
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                    BoundingBox(20, 0, 125, 105 / 5.965),
+                    0.99911,
+                )
+            ],
+            105 / 5.965,
+        ),
+        (
+            [
+                (
+                    "\uac00\ub098\ub2e4\ub77c\ub9c8",
+                    BoundingBox(20, 0, 125, 17.5),
+                    0.99905,
+                )
+            ],
+            17.5,
+        ),
+    ],
+)
+def test_confirmed_three_plus_two_prefix_requires_word_profile(
+    words,
+    height,
+) -> None:
+    assert (
+        _recover_confirmed_three_plus_two_prefix_split(
+            words,
+            Image.new("RGB", (145, 19)),
+            BoundingBox(0, 0, 145, height),
+            ConfirmedThreePlusTwoPrefixRecognizer(),
+        )
+        == words
+    )
 
 class ConfirmedTwoPlusTwoRecognizer:
     def __init__(
