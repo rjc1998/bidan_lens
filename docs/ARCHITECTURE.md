@@ -297,6 +297,14 @@ or crop disagreement keeps the selected reading. A confirmed replacement restore
 retains the existing candidate geometry, and uses the minimum candidate or crop confidence; the
 ordinary punctuation splitter then exposes the corrected interior without making punctuation a
 hover target.
+A separately reviewed punctuation-trimmed single-glyph profile can replace one
+Hangul-plus-punctuation candidate only under an exact 12-raw-word/12-selected-word line profile.
+The candidate must have the reviewed one-pixel overlap and surrounding Hangul lengths, confidence,
+width, and gap evidence. Seven direct and seven enhanced detector-relative trim/shift crops must
+all reproduce the candidate's existing Hangul glyph above individual confidence floors. This rule
+does not infer different text: it removes the punctuation and replaces equal-width character
+geometry with the central consensus crop. Any profile, geometry, category, confidence, or crop
+disagreement keeps the ordinary punctuation split.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

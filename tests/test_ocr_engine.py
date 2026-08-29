@@ -26,6 +26,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_paired_wrapper_four_substitution,
     _recover_confirmed_punctuated_three_plus_three_plus_one_split,
     _recover_confirmed_punctuated_three_plus_three_split,
+    _recover_confirmed_punctuation_trimmed_single,
     _recover_confirmed_right_wrapper_five_substitution,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
@@ -9125,3 +9126,324 @@ def test_engine_recovers_confirmed_terminal_wrapped_four_substitution() -> None:
         167.47826052173913,
     )
     assert target.confidence == 0.531670
+
+
+_PUNCTUATION_TRIMMED_HEIGHT = 26.413043478260875
+_PUNCTUATION_TRIMMED_LINE = BoundingBox(
+    58.16, 0, 1070.84, _PUNCTUATION_TRIMMED_HEIGHT
+)
+
+
+def _punctuation_trimmed_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+_PUNCTUATION_TRIMMED_TARGET = _punctuation_trimmed_hangul(0xC800, 1)
+_PUNCTUATION_TRIMMED_OTHER = _punctuation_trimmed_hangul(0xC810, 1)
+
+
+def punctuation_trimmed_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(121.16, 0, 164.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(173.16, 0, 239.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(248.16, 0, 340.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(346.16, 0, 415.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(414.16, 0, 451.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(461.16, 0, 483.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(492.16, 0, 535.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(543.16, 0, 610.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(618.16, 0, 708.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(716.16, 0, 783.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(790.16, 0, 881.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        BoundingBox(888.16, 0, 1007.16, _PUNCTUATION_TRIMMED_HEIGHT),
+    )
+    texts = (
+        _punctuation_trimmed_hangul(0xC820, 2),
+        _punctuation_trimmed_hangul(0xC822, 3),
+        _punctuation_trimmed_hangul(0xC825, 4),
+        _punctuation_trimmed_hangul(0xC829, 3),
+        _PUNCTUATION_TRIMMED_TARGET + ".",
+        _punctuation_trimmed_hangul(0xC82C, 1),
+        _punctuation_trimmed_hangul(0xC82D, 2),
+        _punctuation_trimmed_hangul(0xC82F, 3),
+        _punctuation_trimmed_hangul(0xC832, 4),
+        _punctuation_trimmed_hangul(0xC836, 3),
+        _punctuation_trimmed_hangul(0xC839, 4),
+        _punctuation_trimmed_hangul(0xC83D, 5) + ".",
+    )
+    confidences = (
+        0.999867,
+        0.999846,
+        0.998404,
+        0.999819,
+        0.902827,
+        0.999919,
+        0.999416,
+        0.999855,
+        0.999052,
+        0.999715,
+        0.999966,
+        0.982917,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+_PUNCTUATION_TRIMMED_DIRECT_CONFIDENCES = (
+    0.999933,
+    0.999929,
+    0.999919,
+    0.999913,
+    0.999882,
+    0.999849,
+    0.999868,
+)
+_PUNCTUATION_TRIMMED_ENHANCED_CONFIDENCES = (
+    0.999913,
+    0.999889,
+    0.999893,
+    0.999920,
+    0.999812,
+    0.999787,
+    0.999821,
+)
+
+
+class ConfirmedPunctuationTrimmedRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_PUNCTUATION_TRIMMED_TARGET,) * 7,
+        direct_confidences: tuple[float, ...] = (
+            _PUNCTUATION_TRIMMED_DIRECT_CONFIDENCES
+        ),
+        enhanced_texts: tuple[str, ...] = (_PUNCTUATION_TRIMMED_TARGET,) * 7,
+        enhanced_confidences: tuple[float, ...] = (
+            _PUNCTUATION_TRIMMED_ENHANCED_CONFIDENCES
+        ),
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_punctuation_trimmed_single_recovers_geometry() -> None:
+    words = punctuation_trimmed_words()
+    recognizer = ConfirmedPunctuationTrimmedRecognizer()
+
+    recovered = _recover_confirmed_punctuation_trimmed_single(
+        words,
+        words,
+        Image.new("RGB", (1013, 28)),
+        _PUNCTUATION_TRIMMED_LINE,
+        recognizer,
+    )
+
+    expected = list(words)
+    expected[4] = (
+        _PUNCTUATION_TRIMMED_TARGET,
+        BoundingBox(420.16, 0, 445.16, _PUNCTUATION_TRIMMED_HEIGHT),
+        0.902827,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "direct-disagreement",
+        "direct-confidence",
+        "enhanced-disagreement",
+        "enhanced-confidence",
+        "non-hangul",
+        "candidate-disagreement",
+    ],
+)
+def test_confirmed_punctuation_trimmed_single_requires_crop_consensus(
+    case: str,
+) -> None:
+    direct_texts = [_PUNCTUATION_TRIMMED_TARGET] * 7
+    direct_confidences = list(_PUNCTUATION_TRIMMED_DIRECT_CONFIDENCES)
+    enhanced_texts = [_PUNCTUATION_TRIMMED_TARGET] * 7
+    enhanced_confidences = list(_PUNCTUATION_TRIMMED_ENHANCED_CONFIDENCES)
+    words = punctuation_trimmed_words()
+    if case == "direct-disagreement":
+        direct_texts[2] = _PUNCTUATION_TRIMMED_OTHER
+    elif case == "direct-confidence":
+        direct_confidences[0] = 0.9998
+    elif case == "enhanced-disagreement":
+        enhanced_texts[3] = _PUNCTUATION_TRIMMED_OTHER
+    elif case == "enhanced-confidence":
+        enhanced_confidences[0] = 0.9998
+    elif case == "non-hangul":
+        direct_texts = ["A"] * 7
+        enhanced_texts = ["A"] * 7
+    else:
+        words[4] = (
+            _PUNCTUATION_TRIMMED_OTHER + ".",
+            words[4][1],
+            words[4][2],
+        )
+    recognizer = ConfirmedPunctuationTrimmedRecognizer(
+        direct_texts=tuple(direct_texts),
+        direct_confidences=tuple(direct_confidences),
+        enhanced_texts=tuple(enhanced_texts),
+        enhanced_confidences=tuple(enhanced_confidences),
+    )
+
+    assert (
+        _recover_confirmed_punctuation_trimmed_single(
+            words,
+            words,
+            Image.new("RGB", (1013, 28)),
+            _PUNCTUATION_TRIMMED_LINE,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-mismatch",
+        "shape",
+        "punctuation",
+        "confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_punctuation_trimmed_single_requires_exact_profile(
+    case: str,
+) -> None:
+    words = punctuation_trimmed_words()
+    raw = list(words)
+    crop = Image.new("RGB", (1013, 28))
+    line_box = _PUNCTUATION_TRIMMED_LINE
+    if case == "selected-count":
+        words.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-mismatch":
+        words[0] = (words[0][0], words[0][1], 0.9998)
+    elif case == "shape":
+        words[0] = raw[0] = (raw[0][0][:-1] + "A", raw[0][1], raw[0][2])
+    elif case == "punctuation":
+        words[4] = raw[4] = (
+            _PUNCTUATION_TRIMMED_TARGET + "A",
+            raw[4][1],
+            raw[4][2],
+        )
+    elif case == "confidence":
+        words[4] = raw[4] = (raw[4][0], raw[4][1], 0.9026)
+    elif case == "width":
+        box = BoundingBox(414.16, 0, 450.16, _PUNCTUATION_TRIMMED_HEIGHT)
+        words[4] = raw[4] = (raw[4][0], box, raw[4][2])
+    elif case == "gap":
+        box = BoundingBox(462.16, 0, 483.16, _PUNCTUATION_TRIMMED_HEIGHT)
+        words[5] = raw[5] = (raw[5][0], box, raw[5][2])
+    elif case == "line-height":
+        line_box = BoundingBox(58.16, 0, 1070.84, 0)
+    else:
+        crop = Image.new("RGB", (380, 28))
+    recognizer = ConfirmedPunctuationTrimmedRecognizer()
+
+    assert (
+        _recover_confirmed_punctuation_trimmed_single(
+            words,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+class PunctuationTrimmedEngineRecognizer:
+    def __init__(self) -> None:
+        initial = [
+            RecognizedText(text, confidence)
+            for text, _box, confidence in punctuation_trimmed_words()
+        ]
+        initial.extend((RecognizedText("", 0.0), RecognizedText("", 0.0)))
+        self.values = (
+            tuple(initial) + ConfirmedPunctuationTrimmedRecognizer().values
+        )
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (63, 106),
+            (115, 181),
+            (190, 282),
+            (288, 357),
+            (356, 393),
+            (403, 425),
+            (434, 477),
+            (485, 552),
+            (560, 650),
+            (658, 725),
+            (732, 823),
+            (830, 949),
+            (958, 1013),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class PunctuationTrimmedEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    58.16,
+                    152.6086956521739,
+                    1070.84,
+                    179.02173913043478,
+                ),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_punctuation_trimmed_single() -> None:
+    recognizer = PunctuationTrimmedEngineRecognizer()
+    engine = PaddleOcrEngine(PunctuationTrimmedEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[4]
+    assert target.text == _PUNCTUATION_TRIMMED_TARGET
+    assert target.box == BoundingBox(
+        420.15999999999997,
+        152.6086956521739,
+        445.15999999999997,
+        179.02173913043478,
+    )
+    assert target.confidence == 0.902827
