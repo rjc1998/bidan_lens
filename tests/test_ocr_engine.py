@@ -19,6 +19,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_leading_punctuated_single_split,
+    _recover_confirmed_low_confidence_three_plus_five_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
@@ -10311,3 +10312,357 @@ def test_engine_recovers_confirmed_leading_punctuated_single_split() -> None:
         182.54,
     )
     assert following.confidence == 0.998760
+
+
+_LOW_CONFIDENCE_HEIGHT = 19.37
+_LOW_CONFIDENCE_LINE = BoundingBox(
+    84.76,
+    0,
+    639.24,
+    _LOW_CONFIDENCE_HEIGHT,
+)
+
+
+def _low_confidence_hangul(start: int, count: int) -> str:
+    return "".join(chr(start + offset) for offset in range(count))
+
+
+_LOW_CONFIDENCE_TARGET = _low_confidence_hangul(0xC800, 3)
+_LOW_CONFIDENCE_FOLLOWING = _low_confidence_hangul(0xC803, 5)
+_LOW_CONFIDENCE_OTHER = _low_confidence_hangul(0xC880, 3)
+
+
+def low_confidence_three_plus_five_raw_words():
+    boxes = (
+        BoundingBox(121.76, 0, 147.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(153.76, 0, 193.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(198.76, 0, 268.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(272.76, 0, 341.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(347.76, 0, 415.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(421.76, 0, 549.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(554.76, 0, 568.76, _LOW_CONFIDENCE_HEIGHT),
+        BoundingBox(573.76, 0, 604.76, _LOW_CONFIDENCE_HEIGHT),
+    )
+    texts = (
+        _low_confidence_hangul(0xC810, 2),
+        _low_confidence_hangul(0xC812, 3),
+        _low_confidence_hangul(0xC815, 5),
+        _low_confidence_hangul(0xC81A, 5),
+        _low_confidence_hangul(0xC81F, 5),
+        _LOW_CONFIDENCE_TARGET + _LOW_CONFIDENCE_FOLLOWING,
+        _low_confidence_hangul(0xC824, 1),
+        _low_confidence_hangul(0xC825, 2) + ".",
+    )
+    confidences = (
+        0.999550,
+        0.999772,
+        0.999274,
+        0.999742,
+        0.999276,
+        0.988116,
+        0.998118,
+        0.988535,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+class ConfirmedLowConfidenceThreePlusFiveRecognizer:
+    def __init__(
+        self,
+        *,
+        case: str | None = None,
+        boundary_mismatch: bool = False,
+        default_mismatch: bool = False,
+    ) -> None:
+        target_values = [
+            value
+            for _ in range(7)
+            for value in (
+                RecognizedText(_LOW_CONFIDENCE_TARGET, 0.9999),
+                RecognizedText(_LOW_CONFIDENCE_TARGET, 0.9999),
+            )
+        ]
+        following_values = [
+            value
+            for _ in range(7)
+            for value in (
+                RecognizedText(_LOW_CONFIDENCE_FOLLOWING, 0.9995),
+                RecognizedText(_LOW_CONFIDENCE_FOLLOWING, 0.9996),
+            )
+        ]
+        values = target_values + following_values
+        indexes = {
+            "target-direct-text": 0,
+            "target-enhanced-text": 1,
+            "target-direct-confidence": 2,
+            "target-enhanced-confidence": 3,
+            "following-direct-text": 14,
+            "following-enhanced-text": 15,
+            "following-direct-confidence": 16,
+            "following-enhanced-confidence": 17,
+        }
+        if case in indexes:
+            index = indexes[case]
+            current = values[index]
+            if case.endswith("text"):
+                replacement = (
+                    _LOW_CONFIDENCE_OTHER
+                    if case.startswith("target")
+                    else _LOW_CONFIDENCE_OTHER + _LOW_CONFIDENCE_OTHER[:2]
+                )
+                values[index] = RecognizedText(replacement, current.confidence)
+            else:
+                confidence = 0.9995 if case.startswith("target") else (
+                    0.9986 if "direct" in case else 0.9993
+                )
+                values[index] = RecognizedText(current.text, confidence)
+        self.values = tuple(values)
+        self.calls = 0
+        self.word_box_thresholds: list[float] = []
+        self.boundary_mismatch = boundary_mismatch
+        self.default_mismatch = default_mismatch
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        self.word_box_thresholds.append(space_threshold)
+        if space_threshold == 0.04:
+            return (
+                ((0, 62), (61, 128))
+                if self.default_mismatch
+                else ((0, 128),)
+            )
+        if self.boundary_mismatch and space_threshold == 0.02:
+            return ((0, 128),)
+        return ((0, 62), (61, 128))
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_low_confidence_three_plus_five_split_recovers_boundary() -> None:
+    raw = low_confidence_three_plus_five_raw_words()
+    recognizer = ConfirmedLowConfidenceThreePlusFiveRecognizer()
+
+    recovered = _recover_confirmed_low_confidence_three_plus_five_split(
+        list(raw),
+        raw,
+        Image.new("RGB", (556, 20)),
+        _LOW_CONFIDENCE_LINE,
+        recognizer,
+    )
+
+    expected = list(raw)
+    expected[5:6] = [
+        (
+            _LOW_CONFIDENCE_TARGET,
+            BoundingBox(421.76, 0, 465.76, _LOW_CONFIDENCE_HEIGHT),
+            0.988116,
+        ),
+        (
+            _LOW_CONFIDENCE_FOLLOWING,
+            BoundingBox(482.76, 0, 549.76, _LOW_CONFIDENCE_HEIGHT),
+            0.988116,
+        ),
+    ]
+    assert recovered == expected
+    assert recognizer.calls == 28
+    assert recognizer.word_box_thresholds == [
+        0.001,
+        0.005,
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "target-direct-text",
+        "target-enhanced-text",
+        "target-direct-confidence",
+        "target-enhanced-confidence",
+        "following-direct-text",
+        "following-enhanced-text",
+        "following-direct-confidence",
+        "following-enhanced-confidence",
+    ],
+)
+def test_confirmed_low_confidence_three_plus_five_split_requires_consensus(
+    case: str,
+) -> None:
+    raw = low_confidence_three_plus_five_raw_words()
+    recognizer = ConfirmedLowConfidenceThreePlusFiveRecognizer(case=case)
+
+    assert (
+        _recover_confirmed_low_confidence_three_plus_five_split(
+            list(raw),
+            raw,
+            Image.new("RGB", (556, 20)),
+            _LOW_CONFIDENCE_LINE,
+            recognizer,
+        )
+        == raw
+    )
+    assert recognizer.calls == 28
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "ordinary-mismatch",
+        "raw-shape",
+        "candidate-confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-bounds",
+        "ctc-boundary",
+        "ctc-default",
+    ],
+)
+def test_confirmed_low_confidence_three_plus_five_split_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = low_confidence_three_plus_five_raw_words()
+    selected = list(raw)
+    crop = Image.new("RGB", (556, 20))
+    line_box = _LOW_CONFIDENCE_LINE
+    recognizer = ConfirmedLowConfidenceThreePlusFiveRecognizer(
+        boundary_mismatch=case == "ctc-boundary",
+        default_mismatch=case == "ctc-default",
+    )
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "ordinary-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.9996)
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        selected = list(raw)
+    elif case == "candidate-confidence":
+        raw[5] = (raw[5][0], raw[5][1], 0.9879)
+        selected = list(raw)
+    elif case == "width":
+        raw[5] = (
+            raw[5][0],
+            BoundingBox(421.76, 0, 548.76, _LOW_CONFIDENCE_HEIGHT),
+            raw[5][2],
+        )
+        selected = list(raw)
+    elif case == "gap":
+        raw[6] = (
+            raw[6][0],
+            BoundingBox(553.76, 0, 568.76, _LOW_CONFIDENCE_HEIGHT),
+            raw[6][2],
+        )
+        selected = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(84.76, 0, 639.24, 0)
+    elif case == "crop-bounds":
+        crop = Image.new("RGB", (464, 20))
+
+    assert (
+        _recover_confirmed_low_confidence_three_plus_five_split(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class LowConfidenceThreePlusFiveNoSegmenter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def recognize(self, _image):
+        self.calls += 1
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_low_confidence_three_plus_five_split_requires_segmenter() -> None:
+    raw = low_confidence_three_plus_five_raw_words()
+    recognizer = LowConfidenceThreePlusFiveNoSegmenter()
+
+    assert (
+        _recover_confirmed_low_confidence_three_plus_five_split(
+            list(raw),
+            raw,
+            Image.new("RGB", (556, 20)),
+            _LOW_CONFIDENCE_LINE,
+            recognizer,
+        )
+        == raw
+    )
+    assert recognizer.calls == 0
+
+
+class LowConfidenceThreePlusFiveEngineRecognizer(
+    ConfirmedLowConfidenceThreePlusFiveRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        helper_values = self.values
+        raw = low_confidence_three_plus_five_raw_words()
+        initial_values = [
+            RecognizedText(text, confidence) for text, _box, confidence in raw
+        ]
+        initial_values.extend((RecognizedText("", 0.0), RecognizedText("", 0.0)))
+        self.values = tuple(initial_values) + helper_values
+        self.calls = 0
+        self.word_box_thresholds = []
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return (
+                (37, 63),
+                (69, 109),
+                (114, 184),
+                (188, 257),
+                (263, 331),
+                (337, 465),
+                (470, 484),
+                (489, 520),
+                (521, 556),
+            )
+        return super().word_boxes(_image, space_threshold)
+
+
+class LowConfidenceThreePlusFiveEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(84.76, 147.33, 639.24, 166.7),
+                0.994632,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_low_confidence_three_plus_five_split() -> None:
+    recognizer = LowConfidenceThreePlusFiveEngineRecognizer()
+    engine = PaddleOcrEngine(
+        LowConfidenceThreePlusFiveEngineDetector(),
+        recognizer,
+    )
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[5]
+    following = document.lines[0].eojeols[6]
+    assert target.text == _LOW_CONFIDENCE_TARGET
+    assert target.box == BoundingBox(421.76, 147.33, 465.76, 166.7)
+    assert target.confidence == 0.988116
+    assert following.text == _LOW_CONFIDENCE_FOLLOWING
+    assert following.box == BoundingBox(482.76, 147.33, 549.76, 166.7)
+    assert following.confidence == 0.988116

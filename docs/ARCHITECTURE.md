@@ -323,6 +323,16 @@ existing parts in both direct and enhanced recognition above individual confiden
 The punctuation remains in sentence context but outside hoverable target geometry; the following
 Hangul box begins at its independently confirmed CTC boundary. Any profile, boundary, geometry,
 category, confidence, or crop disagreement keeps the fused candidate unchanged.
+
+A separately reviewed low-confidence three-plus-five split can separate a leading three-Hangul
+target from a following five-Hangul eojeol across an unrecognized ellipsis only under an exact
+eight-raw-word/eight-selected-word line profile. Five low CTC-space thresholds must expose the
+same overlapping subword boundaries while the next threshold remains fused. Seven target crops
+and seven following-word crops must reproduce the exact existing parts in both direct and enhanced
+recognition above their respective confidence floors. Target geometry ends before the punctuation
+probe and the following Hangul box begins at its independently confirmed CTC boundary. Any profile,
+boundary, geometry, category, confidence, or crop disagreement keeps the fused candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
