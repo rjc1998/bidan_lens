@@ -286,6 +286,17 @@ all reproduce one different pure three-Hangul reading above individual confidenc
 profile, geometry, category, punctuation, confidence, or crop disagreement keeps the selected
 retry. A confirmed replacement restores the original punctuation, retains the existing geometry,
 and uses the minimum accepted raw, retry, or crop confidence.
+A separately reviewed terminal paired-wrapper recalibration profile can replace one four-Hangul
+interior only under an exact 13-raw-word/12-selected-word line profile. The selected line must
+omit one punctuation-only segment and contain exactly one same-geometry, same-shape enhanced retry;
+the final candidate must contain a matched wrapper pair around the four-Hangul interior. Reviewed
+neighboring character categories, confidence, width, and gap evidence must also match. Seven direct
+boundary crops and seven enhanced crops must all reproduce one different pure four-Hangul reading
+above individual confidence floors. Any profile, retry, geometry, category, wrapper, confidence,
+or crop disagreement keeps the selected reading. A confirmed replacement restores the wrappers,
+retains the existing candidate geometry, and uses the minimum candidate or crop confidence; the
+ordinary punctuation splitter then exposes the corrected interior without making punctuation a
+hover target.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

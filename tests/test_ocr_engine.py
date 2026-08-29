@@ -31,6 +31,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_substitution_readings,
     _recover_confirmed_terminal_punctuated_overlap_pair,
     _recover_confirmed_terminal_three_substitution,
+    _recover_confirmed_terminal_wrapped_four_substitution,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_prefix_split,
@@ -8738,3 +8739,389 @@ def test_engine_uses_raw_terminal_punctuated_overlap_evidence() -> None:
         "\uac00\ub098\ub2e4",
     ]
     assert recognizer.calls == len(recognizer.values)
+
+
+_TERMINAL_WRAPPED_FOUR_HEIGHT = 14.08695652173913
+_TERMINAL_WRAPPED_FOUR_LINE = BoundingBox(
+    86.96, 0, 624.04, _TERMINAL_WRAPPED_FOUR_HEIGHT
+)
+_TERMINAL_WRAPPED_FOUR_SELECTED_INDEXES = (
+    0,
+    1,
+    2,
+    3,
+    4,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+)
+
+
+def _terminal_wrapped_four_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+_TERMINAL_WRAPPED_FOUR_DIRECT = _terminal_wrapped_four_hangul(0xC900, 4)
+_TERMINAL_WRAPPED_FOUR_RETRY = _terminal_wrapped_four_hangul(0xC910, 3)
+_TERMINAL_WRAPPED_FOUR_RECOVERED = _terminal_wrapped_four_hangul(0xC920, 4)
+_TERMINAL_WRAPPED_FOUR_PREFIX = _terminal_wrapped_four_hangul(0xC930, 3)
+
+
+def terminal_wrapped_four_words() -> tuple[
+    list[tuple[str, BoundingBox, float]],
+    list[tuple[str, BoundingBox, float]],
+]:
+    boxes = (
+        BoundingBox(121.96, 0, 213.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(217.96, 0, 263.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(266.96, 0, 290.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(289.96, 0, 304.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(307.96, 0, 320.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(323.96, 0, 335.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(338.96, 0, 350.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(349.96, 0, 389.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(392.96, 0, 415.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(418.96, 0, 453.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(456.96, 0, 468.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(471.96, 0, 494.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+        BoundingBox(498.96, 0, 589.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+    )
+    texts = (
+        _terminal_wrapped_four_hangul(0xC940, 8),
+        _terminal_wrapped_four_hangul(0xC948, 4),
+        _terminal_wrapped_four_hangul(0xC94C, 2),
+        _terminal_wrapped_four_hangul(0xC94E, 1),
+        "12",
+        ",",
+        _terminal_wrapped_four_hangul(0xC94F, 1),
+        _terminal_wrapped_four_hangul(0xC950, 2) + "A1",
+        _terminal_wrapped_four_hangul(0xC952, 2),
+        _terminal_wrapped_four_hangul(0xC954, 3),
+        _terminal_wrapped_four_hangul(0xC957, 1),
+        _terminal_wrapped_four_hangul(0xC958, 2),
+        (
+            _TERMINAL_WRAPPED_FOUR_PREFIX
+            + "("
+            + _TERMINAL_WRAPPED_FOUR_DIRECT
+            + ")"
+        ),
+    )
+    confidences = (
+        0.876248,
+        0.997898,
+        0.999492,
+        0.961724,
+        0.997670,
+        0.955685,
+        0.999466,
+        0.999472,
+        0.986963,
+        0.501630,
+        0.999793,
+        0.999458,
+        0.976379,
+    )
+    raw = list(zip(texts, boxes, confidences, strict=True))
+    return terminal_wrapped_four_selected(raw), raw
+
+
+def terminal_wrapped_four_selected(
+    raw: list[tuple[str, BoundingBox, float]],
+) -> list[tuple[str, BoundingBox, float]]:
+    selected = [raw[index] for index in _TERMINAL_WRAPPED_FOUR_SELECTED_INDEXES]
+    selected[8] = (_TERMINAL_WRAPPED_FOUR_RETRY, selected[8][1], 0.829677)
+    return selected
+
+
+_TERMINAL_WRAPPED_FOUR_DIRECT_CONFIDENCES = (
+    0.823365,
+    0.808633,
+    0.788579,
+    0.786463,
+    0.556883,
+    0.550508,
+    0.531670,
+)
+_TERMINAL_WRAPPED_FOUR_ENHANCED_CONFIDENCES = (
+    0.800378,
+    0.786039,
+    0.781194,
+    0.746324,
+    0.739568,
+    0.724976,
+    0.650494,
+)
+
+
+class ConfirmedTerminalWrappedFourRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_TERMINAL_WRAPPED_FOUR_RECOVERED,) * 7,
+        direct_confidences: tuple[float, ...] = (
+            _TERMINAL_WRAPPED_FOUR_DIRECT_CONFIDENCES
+        ),
+        enhanced_texts: tuple[str, ...] = (_TERMINAL_WRAPPED_FOUR_RECOVERED,) * 7,
+        enhanced_confidences: tuple[float, ...] = (
+            _TERMINAL_WRAPPED_FOUR_ENHANCED_CONFIDENCES
+        ),
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_terminal_wrapped_four_substitution_recovers_interior() -> None:
+    selected, raw = terminal_wrapped_four_words()
+    recognizer = ConfirmedTerminalWrappedFourRecognizer()
+
+    recovered = _recover_confirmed_terminal_wrapped_four_substitution(
+        selected,
+        raw,
+        Image.new("RGB", (539, 15)),
+        _TERMINAL_WRAPPED_FOUR_LINE,
+        recognizer,
+    )
+
+    expected = list(selected)
+    expected[-1] = (
+        (
+            _TERMINAL_WRAPPED_FOUR_PREFIX
+            + "("
+            + _TERMINAL_WRAPPED_FOUR_RECOVERED
+            + ")"
+        ),
+        selected[-1][1],
+        0.531670,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "direct-disagreement",
+        "direct-confidence",
+        "enhanced-disagreement",
+        "enhanced-confidence",
+        "non-hangul",
+        "unchanged-interior",
+    ],
+)
+def test_confirmed_terminal_wrapped_four_substitution_requires_consensus(
+    case: str,
+) -> None:
+    direct_texts = [_TERMINAL_WRAPPED_FOUR_RECOVERED] * 7
+    direct_confidences = list(_TERMINAL_WRAPPED_FOUR_DIRECT_CONFIDENCES)
+    enhanced_texts = [_TERMINAL_WRAPPED_FOUR_RECOVERED] * 7
+    enhanced_confidences = list(_TERMINAL_WRAPPED_FOUR_ENHANCED_CONFIDENCES)
+    if case == "direct-disagreement":
+        direct_texts[2] = _TERMINAL_WRAPPED_FOUR_DIRECT
+    elif case == "direct-confidence":
+        direct_confidences[0] = 0.8232
+    elif case == "enhanced-disagreement":
+        enhanced_texts[3] = _TERMINAL_WRAPPED_FOUR_DIRECT
+    elif case == "enhanced-confidence":
+        enhanced_confidences[-1] = 0.6503
+    elif case == "non-hangul":
+        direct_texts = ["ABCD"] * 7
+        enhanced_texts = ["ABCD"] * 7
+    else:
+        direct_texts = [_TERMINAL_WRAPPED_FOUR_DIRECT] * 7
+        enhanced_texts = [_TERMINAL_WRAPPED_FOUR_DIRECT] * 7
+    recognizer = ConfirmedTerminalWrappedFourRecognizer(
+        direct_texts=tuple(direct_texts),
+        direct_confidences=tuple(direct_confidences),
+        enhanced_texts=tuple(enhanced_texts),
+        enhanced_confidences=tuple(enhanced_confidences),
+    )
+    selected, raw = terminal_wrapped_four_words()
+
+    assert (
+        _recover_confirmed_terminal_wrapped_four_substitution(
+            selected,
+            raw,
+            Image.new("RGB", (539, 15)),
+            _TERMINAL_WRAPPED_FOUR_LINE,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "ordinary-mismatch",
+        "retry-text",
+        "retry-box",
+        "retry-confidence",
+        "raw-shape",
+        "raw-confidence",
+        "target-width",
+        "target-gap",
+        "candidate-shape",
+        "candidate-wrapper",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_terminal_wrapped_four_substitution_requires_exact_profile(
+    case: str,
+) -> None:
+    selected, raw = terminal_wrapped_four_words()
+    crop = Image.new("RGB", (539, 15))
+    line_box = _TERMINAL_WRAPPED_FOUR_LINE
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "ordinary-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.8761)
+    elif case == "retry-text":
+        selected[8] = raw[9]
+    elif case == "retry-box":
+        selected[8] = (
+            selected[8][0],
+            BoundingBox(419.96, 0, 453.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+            selected[8][2],
+        )
+    elif case == "retry-confidence":
+        selected[8] = (selected[8][0], selected[8][1], 0.8294)
+    elif case == "raw-shape":
+        raw[0] = (raw[0][0][:-1] + "A", raw[0][1], raw[0][2])
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "raw-confidence":
+        raw[0] = (raw[0][0], raw[0][1], 0.8761)
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "target-width":
+        raw[-1] = (
+            raw[-1][0],
+            BoundingBox(498.96, 0, 588.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+            raw[-1][2],
+        )
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "target-gap":
+        raw[-1] = (
+            raw[-1][0],
+            BoundingBox(497.96, 0, 589.96, _TERMINAL_WRAPPED_FOUR_HEIGHT),
+            raw[-1][2],
+        )
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "candidate-shape":
+        raw[-1] = (raw[-1][0][:-2] + "A)", raw[-1][1], raw[-1][2])
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "candidate-wrapper":
+        raw[-1] = (
+            raw[-1][0][:3] + "[" + raw[-1][0][4:],
+            raw[-1][1],
+            raw[-1][2],
+        )
+        selected = terminal_wrapped_four_selected(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(86.96, 0, 624.04, 0)
+    else:
+        crop = Image.new("RGB", (490, 15))
+    recognizer = ConfirmedTerminalWrappedFourRecognizer()
+
+    assert (
+        _recover_confirmed_terminal_wrapped_four_substitution(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class TerminalWrappedFourEngineRecognizer:
+    def __init__(self) -> None:
+        selected, raw = terminal_wrapped_four_words()
+        initial = [RecognizedText("", 0.0), RecognizedText("", 0.0)]
+        for index, (value, _box, confidence) in enumerate(raw):
+            initial.append(RecognizedText(value, confidence))
+            if index == 9:
+                initial.append(RecognizedText(selected[8][0], selected[8][2]))
+        self.values = tuple(initial) + ConfirmedTerminalWrappedFourRecognizer().values
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (0, 27),
+            (35, 127),
+            (131, 177),
+            (180, 204),
+            (203, 218),
+            (221, 234),
+            (237, 249),
+            (252, 264),
+            (263, 303),
+            (306, 329),
+            (332, 367),
+            (370, 382),
+            (385, 408),
+            (412, 503),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class TerminalWrappedFourEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    86.96,
+                    153.391304,
+                    624.04,
+                    167.47826052173913,
+                ),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_terminal_wrapped_four_substitution() -> None:
+    recognizer = TerminalWrappedFourEngineRecognizer()
+    engine = PaddleOcrEngine(TerminalWrappedFourEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[-1]
+    assert target.text == _TERMINAL_WRAPPED_FOUR_RECOVERED
+    assert target.box == BoundingBox(
+        539.4044444444444,
+        153.391304,
+        579.848888888889,
+        167.47826052173913,
+    )
+    assert target.confidence == 0.531670
