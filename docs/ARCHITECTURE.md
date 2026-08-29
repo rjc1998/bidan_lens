@@ -314,6 +314,15 @@ Seven direct and seven enhanced detector-relative trim/shift crops must all repr
 glyph above individual confidence floors. A confirmed recovery removes the remaining wrapper and
 uses the central consensus crop box; any profile, geometry, category, wrapper, confidence, or crop
 disagreement keeps the selected retry unchanged.
+A separately reviewed leading punctuated-single split can separate one Hangul target and its
+trailing punctuation from a following two-Hangul eojeol only under an exact ten-raw-word/
+ten-selected-word line profile. Four low CTC-space thresholds must expose identical subword
+boundaries while the ordinary candidate remains fused at the higher threshold. One punctuation-
+aware boundary crop, seven target crops, and eight following-word crops must reproduce the exact
+existing parts in both direct and enhanced recognition above individual confidence floors.
+The punctuation remains in sentence context but outside hoverable target geometry; the following
+Hangul box begins at its independently confirmed CTC boundary. Any profile, boundary, geometry,
+category, confidence, or crop disagreement keeps the fused candidate unchanged.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

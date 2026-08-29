@@ -18,6 +18,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
+    _recover_confirmed_leading_punctuated_single_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
@@ -9826,3 +9827,487 @@ def test_engine_recovers_confirmed_wrapped_single_geometry() -> None:
         170.02173913043478,
     )
     assert target.confidence == 0.994793
+
+
+_LEADING_PUNCTUATED_HEIGHT = 24.65
+_LEADING_PUNCTUATED_LINE = BoundingBox(
+    48.72,
+    0,
+    1198.28,
+    _LEADING_PUNCTUATED_HEIGHT,
+)
+_LEADING_PUNCTUATED_TARGET = chr(0xC780)
+_LEADING_PUNCTUATED_OTHER = chr(0xC790)
+_LEADING_PUNCTUATED_FOLLOWING = "".join(chr(0xC7A0 + offset) for offset in range(2))
+
+
+def _leading_punctuated_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+def leading_punctuated_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(121.72, 0, 194.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(201.72, 0, 280.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(289.72, 0, 336.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(344.72, 0, 541.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(550.72, 0, 599.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(607.72, 0, 737.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(747.72, 0, 794.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(803.72, 0, 888.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(897.72, 0, 1018.72, _LEADING_PUNCTUATED_HEIGHT),
+        BoundingBox(1029.72, 0, 1124.72, _LEADING_PUNCTUATED_HEIGHT),
+    )
+    texts = (
+        _leading_punctuated_hangul(0xC7B0, 3),
+        _leading_punctuated_hangul(0xC7B3, 2) + "12",
+        _leading_punctuated_hangul(0xC7B5, 2),
+        _leading_punctuated_hangul(0xC7B7, 8),
+        _leading_punctuated_hangul(0xC7BF, 2),
+        _leading_punctuated_hangul(0xC7C1, 3) + "1234",
+        _leading_punctuated_hangul(0xC7C4, 2),
+        _LEADING_PUNCTUATED_TARGET + ":" + _LEADING_PUNCTUATED_FOLLOWING,
+        _leading_punctuated_hangul(0xC7C6, 5),
+        _leading_punctuated_hangul(0xC7CB, 4),
+    )
+    confidences = (
+        0.999835,
+        0.999621,
+        0.999588,
+        0.999771,
+        0.999843,
+        0.998224,
+        0.999934,
+        0.998760,
+        0.999867,
+        0.999797,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+_LEADING_TARGET_DIRECT_CONFIDENCES = (
+    0.999988,
+    0.999987,
+    0.999987,
+    0.999987,
+    0.999986,
+    0.999985,
+    0.999986,
+)
+_LEADING_TARGET_ENHANCED_CONFIDENCES = (
+    0.999990,
+    0.999990,
+    0.999988,
+    0.999990,
+    0.999987,
+    0.999988,
+    0.999985,
+)
+_LEADING_FOLLOWING_DIRECT_CONFIDENCES = (
+    0.999320,
+    0.999801,
+    0.999802,
+    0.999755,
+    0.999750,
+    0.999729,
+    0.999778,
+    0.999725,
+)
+_LEADING_FOLLOWING_ENHANCED_CONFIDENCES = (
+    0.999308,
+    0.999781,
+    0.999771,
+    0.999779,
+    0.999773,
+    0.999756,
+    0.999728,
+    0.999753,
+)
+
+
+class ConfirmedLeadingPunctuatedRecognizer:
+    def __init__(
+        self,
+        *,
+        boundary_direct_text: str | None = None,
+        boundary_direct_confidence: float = 0.994520,
+        boundary_enhanced_text: str | None = None,
+        boundary_enhanced_confidence: float = 0.995141,
+        target_direct_texts: tuple[str, ...] = (
+            (_LEADING_PUNCTUATED_TARGET,) * 7
+        ),
+        target_direct_confidences: tuple[float, ...] = (
+            _LEADING_TARGET_DIRECT_CONFIDENCES
+        ),
+        target_enhanced_texts: tuple[str, ...] = (
+            (_LEADING_PUNCTUATED_TARGET,) * 7
+        ),
+        target_enhanced_confidences: tuple[float, ...] = (
+            _LEADING_TARGET_ENHANCED_CONFIDENCES
+        ),
+        following_direct_texts: tuple[str, ...] = (
+            (_LEADING_PUNCTUATED_FOLLOWING,) * 8
+        ),
+        following_direct_confidences: tuple[float, ...] = (
+            _LEADING_FOLLOWING_DIRECT_CONFIDENCES
+        ),
+        following_enhanced_texts: tuple[str, ...] = (
+            (_LEADING_PUNCTUATED_FOLLOWING,) * 8
+        ),
+        following_enhanced_confidences: tuple[float, ...] = (
+            _LEADING_FOLLOWING_ENHANCED_CONFIDENCES
+        ),
+        boundary_mismatch: bool = False,
+        default_mismatch: bool = False,
+    ) -> None:
+        boundary_text = _LEADING_PUNCTUATED_TARGET + ":"
+        values = [
+            RecognizedText(
+                boundary_direct_text
+                if boundary_direct_text is not None
+                else boundary_text,
+                boundary_direct_confidence,
+            ),
+            RecognizedText(
+                boundary_enhanced_text
+                if boundary_enhanced_text is not None
+                else boundary_text,
+                boundary_enhanced_confidence,
+            ),
+        ]
+        for direct_text, direct_confidence, enhanced_text, enhanced_confidence in zip(
+            target_direct_texts,
+            target_direct_confidences,
+            target_enhanced_texts,
+            target_enhanced_confidences,
+            strict=True,
+        ):
+            values.extend(
+                (
+                    RecognizedText(direct_text, direct_confidence),
+                    RecognizedText(enhanced_text, enhanced_confidence),
+                )
+            )
+        for direct_text, direct_confidence, enhanced_text, enhanced_confidence in zip(
+            following_direct_texts,
+            following_direct_confidences,
+            following_enhanced_texts,
+            following_enhanced_confidences,
+            strict=True,
+        ):
+            values.extend(
+                (
+                    RecognizedText(direct_text, direct_confidence),
+                    RecognizedText(enhanced_text, enhanced_confidence),
+                )
+            )
+        self.values = tuple(values)
+        self.calls = 0
+        self.word_box_thresholds: list[float] = []
+        self.boundary_mismatch = boundary_mismatch
+        self.default_mismatch = default_mismatch
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        self.word_box_thresholds.append(space_threshold)
+        if space_threshold == 0.05:
+            return ((0, 30), (38, 85)) if self.default_mismatch else ((0, 85),)
+        if self.boundary_mismatch and space_threshold == 0.02:
+            return ((0, 85),)
+        return ((0, 30), (38, 85))
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_leading_punctuated_single_split_recovers_boundary() -> None:
+    raw = leading_punctuated_raw_words()
+    recognizer = ConfirmedLeadingPunctuatedRecognizer()
+
+    recovered = _recover_confirmed_leading_punctuated_single_split(
+        list(raw),
+        raw,
+        Image.new("RGB", (1151, 26)),
+        _LEADING_PUNCTUATED_LINE,
+        recognizer,
+    )
+
+    expected = list(raw)
+    expected[7:8] = [
+        (
+            _LEADING_PUNCTUATED_TARGET + ":",
+            BoundingBox(804.72, 0, 852.72, _LEADING_PUNCTUATED_HEIGHT),
+            0.994520,
+        ),
+        (
+            _LEADING_PUNCTUATED_FOLLOWING,
+            BoundingBox(841.72, 0, 888.72, _LEADING_PUNCTUATED_HEIGHT),
+            0.998760,
+        ),
+    ]
+    assert recovered == expected
+    assert recognizer.calls == 32
+    assert recognizer.word_box_thresholds == [0.001, 0.01, 0.02, 0.03, 0.05]
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_calls"),
+    [
+        ("boundary-direct-text", 2),
+        ("boundary-direct-confidence", 2),
+        ("boundary-enhanced-text", 2),
+        ("boundary-enhanced-confidence", 2),
+        ("target-direct-text", 32),
+        ("target-direct-confidence", 32),
+        ("target-enhanced-text", 32),
+        ("target-enhanced-confidence", 32),
+        ("following-direct-text", 32),
+        ("following-direct-confidence", 32),
+        ("following-enhanced-text", 32),
+        ("following-enhanced-confidence", 32),
+        ("non-hangul", 32),
+    ],
+)
+def test_confirmed_leading_punctuated_single_split_requires_consensus(
+    case: str,
+    expected_calls: int,
+) -> None:
+    keyword = {}
+    if case == "boundary-direct-text":
+        keyword["boundary_direct_text"] = _LEADING_PUNCTUATED_OTHER + ":"
+    elif case == "boundary-direct-confidence":
+        keyword["boundary_direct_confidence"] = 0.9943
+    elif case == "boundary-enhanced-text":
+        keyword["boundary_enhanced_text"] = _LEADING_PUNCTUATED_OTHER + ":"
+    elif case == "boundary-enhanced-confidence":
+        keyword["boundary_enhanced_confidence"] = 0.9949
+    elif case == "target-direct-text":
+        values = [_LEADING_PUNCTUATED_TARGET] * 7
+        values[1] = _LEADING_PUNCTUATED_OTHER
+        keyword["target_direct_texts"] = tuple(values)
+    elif case == "target-direct-confidence":
+        values = list(_LEADING_TARGET_DIRECT_CONFIDENCES)
+        values[1] = 0.9998
+        keyword["target_direct_confidences"] = tuple(values)
+    elif case == "target-enhanced-text":
+        values = [_LEADING_PUNCTUATED_TARGET] * 7
+        values[2] = _LEADING_PUNCTUATED_OTHER
+        keyword["target_enhanced_texts"] = tuple(values)
+    elif case == "target-enhanced-confidence":
+        values = list(_LEADING_TARGET_ENHANCED_CONFIDENCES)
+        values[2] = 0.9998
+        keyword["target_enhanced_confidences"] = tuple(values)
+    elif case == "following-direct-text":
+        values = [_LEADING_PUNCTUATED_FOLLOWING] * 8
+        values[3] = _LEADING_PUNCTUATED_OTHER * 2
+        keyword["following_direct_texts"] = tuple(values)
+    elif case == "following-direct-confidence":
+        values = list(_LEADING_FOLLOWING_DIRECT_CONFIDENCES)
+        values[3] = 0.9996
+        keyword["following_direct_confidences"] = tuple(values)
+    elif case == "following-enhanced-text":
+        values = [_LEADING_PUNCTUATED_FOLLOWING] * 8
+        values[4] = _LEADING_PUNCTUATED_OTHER * 2
+        keyword["following_enhanced_texts"] = tuple(values)
+    elif case == "following-enhanced-confidence":
+        values = list(_LEADING_FOLLOWING_ENHANCED_CONFIDENCES)
+        values[4] = 0.9996
+        keyword["following_enhanced_confidences"] = tuple(values)
+    else:
+        keyword["target_direct_texts"] = ("A",) * 7
+        keyword["target_enhanced_texts"] = ("A",) * 7
+    raw = leading_punctuated_raw_words()
+    selected = list(raw)
+    recognizer = ConfirmedLeadingPunctuatedRecognizer(**keyword)
+
+    assert (
+        _recover_confirmed_leading_punctuated_single_split(
+            selected,
+            raw,
+            Image.new("RGB", (1151, 26)),
+            _LEADING_PUNCTUATED_LINE,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == expected_calls
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "ordinary-mismatch",
+        "raw-shape",
+        "candidate-order",
+        "candidate-confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-bounds",
+        "ctc-boundary",
+        "ctc-default",
+    ],
+)
+def test_confirmed_leading_punctuated_single_split_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = leading_punctuated_raw_words()
+    selected = list(raw)
+    crop = Image.new("RGB", (1151, 26))
+    line_box = _LEADING_PUNCTUATED_LINE
+    recognizer = ConfirmedLeadingPunctuatedRecognizer(
+        boundary_mismatch=case == "ctc-boundary",
+        default_mismatch=case == "ctc-default",
+    )
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "ordinary-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.9998)
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        selected = list(raw)
+    elif case == "candidate-order":
+        raw[7] = (
+            _LEADING_PUNCTUATED_TARGET + _LEADING_PUNCTUATED_FOLLOWING + ":",
+            raw[7][1],
+            raw[7][2],
+        )
+        selected = list(raw)
+    elif case == "candidate-confidence":
+        raw[7] = (raw[7][0], raw[7][1], 0.9986)
+        selected = list(raw)
+    elif case == "width":
+        raw[7] = (
+            raw[7][0],
+            BoundingBox(803.72, 0, 887.72, _LEADING_PUNCTUATED_HEIGHT),
+            raw[7][2],
+        )
+        selected = list(raw)
+    elif case == "gap":
+        raw[8] = (
+            raw[8][0],
+            BoundingBox(902.72, 0, 1023.72, _LEADING_PUNCTUATED_HEIGHT),
+            raw[8][2],
+        )
+        selected = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(48.72, 0, 1198.28, 0)
+    elif case == "crop-bounds":
+        crop = Image.new("RGB", (839, 26))
+
+    assert (
+        _recover_confirmed_leading_punctuated_single_split(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class LeadingPunctuatedNoSegmenter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def recognize(self, _image):
+        self.calls += 1
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_leading_punctuated_single_split_requires_segmenter() -> None:
+    raw = leading_punctuated_raw_words()
+    recognizer = LeadingPunctuatedNoSegmenter()
+
+    assert (
+        _recover_confirmed_leading_punctuated_single_split(
+            list(raw),
+            raw,
+            Image.new("RGB", (1151, 26)),
+            _LEADING_PUNCTUATED_LINE,
+            recognizer,
+        )
+        == raw
+    )
+    assert recognizer.calls == 0
+
+
+class LeadingPunctuatedEngineRecognizer(ConfirmedLeadingPunctuatedRecognizer):
+    def __init__(self) -> None:
+        super().__init__()
+        helper_values = self.values
+        raw = leading_punctuated_raw_words()
+        initial_values = [
+            RecognizedText(text, confidence) for text, _box, confidence in raw
+        ]
+        initial_values.extend((RecognizedText("", 0.0), RecognizedText("", 0.0)))
+        self.values = tuple(initial_values) + helper_values
+        self.calls = 0
+        self.word_box_thresholds = []
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return (
+                (73, 146),
+                (153, 232),
+                (241, 288),
+                (296, 493),
+                (502, 551),
+                (559, 689),
+                (699, 746),
+                (755, 840),
+                (849, 970),
+                (981, 1076),
+                (1085, 1151),
+            )
+        return super().word_boxes(_image, space_threshold)
+
+
+class LeadingPunctuatedEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    48.72,
+                    157.89,
+                    1198.28,
+                    182.54,
+                ),
+                0.9838,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_leading_punctuated_single_split() -> None:
+    recognizer = LeadingPunctuatedEngineRecognizer()
+    engine = PaddleOcrEngine(LeadingPunctuatedEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[7]
+    following = document.lines[0].eojeols[8]
+    assert target.text == _LEADING_PUNCTUATED_TARGET
+    assert target.box == BoundingBox(
+        804.72,
+        157.89,
+        828.72,
+        182.54,
+    )
+    assert target.confidence == 0.994520
+    assert following.text == _LEADING_PUNCTUATED_FOLLOWING
+    assert following.box == BoundingBox(
+        841.72,
+        157.89,
+        888.72,
+        182.54,
+    )
+    assert following.confidence == 0.998760

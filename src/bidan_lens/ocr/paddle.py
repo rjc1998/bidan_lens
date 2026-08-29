@@ -5371,6 +5371,13 @@ class PaddleOcrEngine(OcrEngine):
             line_box,
             self.recognizer,
         )
+        words = _recover_confirmed_leading_punctuated_single_split(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_right_wrapper_five_substitution(
             words,
             raw_candidate_words,
@@ -7230,4 +7237,231 @@ def _recover_confirmed_wrapped_single_geometry(
             *(variant.confidence for variant in enhanced_variants),
         ),
     )
+    return recovered
+
+def _recover_confirmed_leading_punctuated_single_split(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    """Split one corpus-confirmed target-plus-punctuation boundary."""
+    candidate_index = 7
+    if len(words) != 10 or words != raw_words or line_box.height <= 0:
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int]:
+        return (
+            len(text),
+            sum(is_hangul(character) for character in text),
+            sum(
+                unicodedata.category(character).startswith("P") for character in text
+            ),
+            sum(character.isascii() and character.isalnum() for character in text),
+        )
+
+    expected_shapes = (
+        (3, 3, 0, 0),
+        (4, 2, 0, 2),
+        (2, 2, 0, 0),
+        (8, 8, 0, 0),
+        (2, 2, 0, 0),
+        (7, 3, 0, 4),
+        (2, 2, 0, 0),
+        (4, 3, 1, 0),
+        (5, 5, 0, 0),
+        (4, 4, 0, 0),
+    )
+    confidence_ranges = (
+        (0.9997, 0.9999),
+        (0.9995, 0.9997),
+        (0.9995, 0.9997),
+        (0.9997, 0.9999),
+        (0.9997, 0.9999),
+        (0.9981, 0.9983),
+        (0.9999, 1.0),
+        (0.9987, 0.9989),
+        (0.9998, 1.0),
+        (0.9997, 0.9999),
+    )
+    width_ranges = (
+        (2.95, 2.98),
+        (3.19, 3.22),
+        (1.89, 1.92),
+        (7.98, 8.01),
+        (1.97, 2.00),
+        (5.26, 5.29),
+        (1.89, 1.92),
+        (3.43, 3.46),
+        (4.89, 4.92),
+        (3.84, 3.87),
+    )
+    gap_ranges = (
+        (0.27, 0.30),
+        (0.35, 0.38),
+        (0.31, 0.34),
+        (0.35, 0.38),
+        (0.31, 0.34),
+        (0.39, 0.42),
+        (0.35, 0.38),
+        (0.35, 0.38),
+        (0.43, 0.46),
+    )
+    texts = tuple(word[0] for word in words)
+    confidences = tuple(word[2] for word in words)
+    width_ratios = tuple(word[1].width / line_box.height for word in words)
+    gap_ratios = tuple(
+        (following[1].left - current[1].right) / line_box.height
+        for current, following in zip(words, words[1:], strict=False)
+    )
+    candidate_text, candidate_box, candidate_confidence = words[candidate_index]
+    if (
+        tuple(shape(text) for text in texts) != expected_shapes
+        or not is_hangul(candidate_text[0])
+        or not unicodedata.category(candidate_text[1]).startswith("P")
+        or not all(is_hangul(character) for character in candidate_text[2:])
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                confidences, confidence_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                width_ratios, width_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                gap_ratios, gap_ranges, strict=True
+            )
+        )
+    ):
+        return words
+
+    crop_left = round(candidate_box.left - line_box.left)
+    crop_right = round(candidate_box.right - line_box.left)
+    if crop_left < 1 or crop_right > crop.width or crop_right - crop_left != 85:
+        return words
+    candidate_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter):
+        return words
+    expected_boundaries = ((0, 30), (38, 85))
+    if any(
+        tuple(segmenter(candidate_crop, threshold)) != expected_boundaries
+        for threshold in (0.001, 0.01, 0.02, 0.03)
+    ) or tuple(segmenter(candidate_crop, 0.05)) != ((0, 85),):
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    boundary_crop = candidate_crop.crop((0, 0, 30, candidate_crop.height))
+    boundary_direct = recognizer.recognize(boundary_crop)
+    boundary_enhanced = recognizer.recognize(enhanced(boundary_crop))
+    boundary_text = candidate_text[:2]
+    if (
+        boundary_direct.text.replace(" ", "") != boundary_text
+        or boundary_direct.confidence < 0.9944
+        or boundary_enhanced.text.replace(" ", "") != boundary_text
+        or boundary_enhanced.confidence < 0.9950
+    ):
+        return words
+
+    target_specs = (
+        (1, 25, 0.9999, 0.9999),
+        (4, 25, 0.9999, 0.9999),
+        (1, 26, 0.9999, 0.9999),
+        (-1, 25, 0.9999, 0.9999),
+        (4, 24, 0.9999, 0.9999),
+        (4, 26, 0.9999, 0.9999),
+        (3, 24, 0.9999, 0.9999),
+    )
+    following_specs = (
+        (38, 85, 0.9992, 0.9992),
+        (43, 83, 0.9997, 0.9997),
+        (43, 82, 0.9997, 0.9997),
+        (35, 83, 0.9997, 0.9997),
+        (39, 83, 0.9997, 0.9997),
+        (35, 85, 0.9997, 0.9997),
+        (43, 84, 0.9997, 0.9997),
+        (39, 85, 0.9997, 0.9997),
+    )
+
+    def recognize_specs(
+        specs: tuple[tuple[int, int, float, float], ...],
+    ) -> tuple[tuple[Any, Any, float, float], ...]:
+        values = []
+        for left, right, direct_floor, enhanced_floor in specs:
+            variant_crop = candidate_crop.crop(
+                (left, 0, right, candidate_crop.height)
+            )
+            values.append(
+                (
+                    recognizer.recognize(variant_crop),
+                    recognizer.recognize(enhanced(variant_crop)),
+                    direct_floor,
+                    enhanced_floor,
+                )
+            )
+        return tuple(values)
+
+    target_variants = recognize_specs(target_specs)
+    following_variants = recognize_specs(following_specs)
+    target_text = candidate_text[0]
+    following_text = candidate_text[2:]
+    if any(
+        direct.text.replace(" ", "") != expected
+        or direct.confidence < direct_floor
+        or retry.text.replace(" ", "") != expected
+        or retry.confidence < enhanced_floor
+        for variants, expected in (
+            (target_variants, target_text),
+            (following_variants, following_text),
+        )
+        for direct, retry, direct_floor, enhanced_floor in variants
+    ):
+        return words
+
+    target_confidence = min(
+        candidate_confidence,
+        boundary_direct.confidence,
+        boundary_enhanced.confidence,
+        *(value.confidence for pair in target_variants for value in pair[:2]),
+    )
+    following_confidence = min(
+        candidate_confidence,
+        *(value.confidence for pair in following_variants for value in pair[:2]),
+    )
+    recovered = list(words)
+    recovered[candidate_index : candidate_index + 1] = [
+        (
+            boundary_text,
+            BoundingBox(
+                candidate_box.left + 1,
+                candidate_box.top,
+                candidate_box.left + 49,
+                candidate_box.bottom,
+            ),
+            target_confidence,
+        ),
+        (
+            following_text,
+            BoundingBox(
+                candidate_box.left + 38,
+                candidate_box.top,
+                candidate_box.right,
+                candidate_box.bottom,
+            ),
+            following_confidence,
+        ),
+    ]
     return recovered
