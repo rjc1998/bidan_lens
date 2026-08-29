@@ -124,6 +124,8 @@ IDs, render categories, target/probe pointers, expected and recognized geometry,
 confidence, Hangul counts, and boolean target-match signals. It never writes decisions or
 emits recognized or oracle text. Add `--target-segmentation` to include the same privacy-safe
 detector and raw segment evidence used by the context inspector.
+`--geometry-only` may be supplied with this mode when an automation environment requires an
+explicit text-omission safeguard; the target view remains structurally identical.
 Use `--full` with a separate decision path for the 2,000-case main tier; quick and full reports
 have distinct review kinds and cannot be mixed accidentally. A full-tier case can be handled
 incrementally with `--full --inspect --sample-id ID`, followed by

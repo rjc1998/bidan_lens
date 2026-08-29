@@ -862,7 +862,10 @@ def main() -> None:
     parser.add_argument(
         '--geometry-only',
         action='store_true',
-        help='with --inspect, omit all corpus and recognized text',
+        help=(
+            'with --inspect or --target-geometry, explicitly omit all corpus '
+            'and recognized text'
+        ),
     )
     parser.add_argument(
         '--sample-id',
@@ -897,7 +900,7 @@ def main() -> None:
     if (
         arguments.compact
         or arguments.decision
-        or arguments.geometry_only
+        or (arguments.geometry_only and not arguments.target_geometry)
         or arguments.segmentation_only
     ) and not arguments.inspect:
         parser.error(
@@ -927,7 +930,6 @@ def main() -> None:
         or arguments.audit
         or arguments.compact
         or arguments.decision
-        or arguments.geometry_only
         or arguments.sample_id
         or arguments.segmentation_only
     ):

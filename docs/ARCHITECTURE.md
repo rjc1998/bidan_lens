@@ -277,6 +277,15 @@ produce a different pure two-Hangul reading, and four direct boundary crops plus
 base/pad/trim/shift crops must all reproduce it above individual confidence floors. Any profile,
 geometry, category, confidence, or crop disagreement keeps the original segment. A confirmed
 replacement retains the original target geometry and uses the minimum accepted crop confidence.
+A separately reviewed terminal-three recalibration profile can replace one three-Hangul interior
+only under an exact nine-raw-word/eight-selected-word line profile with reviewed neighboring
+Hangul lengths, two terminal punctuation signals, an excluded low-confidence ASCII tail,
+confidence, width, and gap evidence. The direct reading and enhanced retry must disagree while
+retaining the same terminal punctuation. Five direct boundary crops and eight enhanced crops must
+all reproduce one different pure three-Hangul reading above individual confidence floors. Any
+profile, geometry, category, punctuation, confidence, or crop disagreement keeps the selected
+retry. A confirmed replacement restores the original punctuation, retains the existing geometry,
+and uses the minimum accepted raw, retry, or crop confidence.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

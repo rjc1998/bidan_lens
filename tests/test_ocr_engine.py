@@ -30,6 +30,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_terminal_punctuated_overlap_pair,
+    _recover_confirmed_terminal_three_substitution,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_prefix_split,
@@ -5784,8 +5785,353 @@ def test_engine_preserves_confirmed_direct_reading_over_retry_regression() -> No
     )
 
 
+_TERMINAL_THREE_HEIGHT = 28.17391304347825
+_TERMINAL_THREE_RAW = "".join(chr(0xCA00 + offset) for offset in range(3))
+_TERMINAL_THREE_SELECTED = "".join(chr(0xCA10 + offset) for offset in range(3))
+_TERMINAL_THREE_RECOVERED = "".join(chr(0xCA20 + offset) for offset in range(3))
 
 
+def _terminal_three_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+def terminal_three_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(122.64, 0, 207.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(223.64, 0, 311.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(323.64, 0, 411.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(424.64, 0, 526.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(540.64, 0, 623.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(639.64, 0, 757.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(771.64, 0, 983.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(998.64, 0, 1081.64, _TERMINAL_THREE_HEIGHT),
+        BoundingBox(1092.64, 0, 1150.64, _TERMINAL_THREE_HEIGHT),
+    )
+    texts = (
+        _terminal_three_hangul(0xCA30, 3),
+        _terminal_three_hangul(0xCA33, 3),
+        _terminal_three_hangul(0xCA36, 3),
+        _TERMINAL_THREE_RAW + ".",
+        _terminal_three_hangul(0xCA39, 3),
+        _terminal_three_hangul(0xCA3C, 4),
+        _terminal_three_hangul(0xCA40, 7) + ".",
+        _terminal_three_hangul(0xCA47, 3),
+        "1",
+    )
+    confidences = (
+        0.999858,
+        0.999741,
+        0.999385,
+        0.486436,
+        0.999128,
+        0.999758,
+        0.879968,
+        0.998294,
+        0.250173,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+def terminal_three_selected_words() -> list[tuple[str, BoundingBox, float]]:
+    selected = terminal_three_raw_words()[:8]
+    selected[3] = (
+        _TERMINAL_THREE_SELECTED + ".",
+        selected[3][1],
+        0.509816,
+    )
+    return selected
+
+
+_TERMINAL_THREE_DIRECT_CONFIDENCES = (
+    0.900825,
+    0.898308,
+    0.886824,
+    0.881067,
+    0.886181,
+)
+_TERMINAL_THREE_ENHANCED_CONFIDENCES = (
+    0.919025,
+    0.912967,
+    0.912771,
+    0.908847,
+    0.905918,
+    0.904881,
+    0.901426,
+    0.896409,
+)
+
+
+class ConfirmedTerminalThreeRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_TERMINAL_THREE_RECOVERED,) * 5,
+        direct_confidences: tuple[float, ...] = _TERMINAL_THREE_DIRECT_CONFIDENCES,
+        enhanced_texts: tuple[str, ...] = (_TERMINAL_THREE_RECOVERED,) * 8,
+        enhanced_confidences: tuple[float, ...] = (
+            _TERMINAL_THREE_ENHANCED_CONFIDENCES
+        ),
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_terminal_three_substitution_recovers_reading() -> None:
+    raw = terminal_three_raw_words()
+    selected = terminal_three_selected_words()
+    recognizer = ConfirmedTerminalThreeRecognizer()
+
+    recovered = _recover_confirmed_terminal_three_substitution(
+        selected,
+        raw,
+        Image.new("RGB", (1094, 29)),
+        BoundingBox(56.64, 0, 1149.36, _TERMINAL_THREE_HEIGHT),
+        recognizer,
+    )
+
+    expected = list(selected)
+    expected[3] = (
+        _TERMINAL_THREE_RECOVERED + ".",
+        raw[3][1],
+        0.486436,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 13
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedTerminalThreeRecognizer(
+            direct_texts=(
+                _TERMINAL_THREE_RAW,
+                *([_TERMINAL_THREE_RECOVERED] * 4),
+            )
+        ),
+        ConfirmedTerminalThreeRecognizer(
+            direct_texts=(
+                _TERMINAL_THREE_RECOVERED,
+                _TERMINAL_THREE_SELECTED,
+                *([_TERMINAL_THREE_RECOVERED] * 3),
+            )
+        ),
+        ConfirmedTerminalThreeRecognizer(
+            direct_confidences=(0.9007, 0.898308, 0.886824, 0.881067, 0.886181)
+        ),
+        ConfirmedTerminalThreeRecognizer(
+            enhanced_texts=(
+                *([_TERMINAL_THREE_RECOVERED] * 4),
+                _TERMINAL_THREE_SELECTED,
+                *([_TERMINAL_THREE_RECOVERED] * 3),
+            )
+        ),
+        ConfirmedTerminalThreeRecognizer(
+            enhanced_confidences=(
+                0.919025,
+                0.912967,
+                0.912771,
+                0.9087,
+                0.905918,
+                0.904881,
+                0.901426,
+                0.896409,
+            )
+        ),
+        ConfirmedTerminalThreeRecognizer(
+            direct_texts=(
+                _TERMINAL_THREE_RECOVERED + "A",
+                *([_TERMINAL_THREE_RECOVERED] * 4),
+            )
+        ),
+    ],
+)
+def test_confirmed_terminal_three_substitution_requires_crop_consensus(
+    recognizer,
+) -> None:
+    raw = terminal_three_raw_words()
+    selected = terminal_three_selected_words()
+
+    assert (
+        _recover_confirmed_terminal_three_substitution(
+            selected,
+            raw,
+            Image.new("RGB", (1094, 29)),
+            BoundingBox(56.64, 0, 1149.36, _TERMINAL_THREE_HEIGHT),
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 13
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "noncandidate-mismatch",
+        "candidate-box",
+        "candidate-interior",
+        "terminal-mismatch",
+        "raw-shape",
+        "selected-shape",
+        "raw-confidence",
+        "selected-confidence",
+        "target-width",
+        "target-gap",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_terminal_three_substitution_requires_exact_profile(case: str) -> None:
+    raw = terminal_three_raw_words()
+    selected = terminal_three_selected_words()
+    crop = Image.new("RGB", (1094, 29))
+    line_box = BoundingBox(56.64, 0, 1149.36, _TERMINAL_THREE_HEIGHT)
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "noncandidate-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.99985)
+    elif case == "candidate-box":
+        selected[3] = (
+            selected[3][0],
+            BoundingBox(424.64, 0, 525.64, _TERMINAL_THREE_HEIGHT),
+            selected[3][2],
+        )
+    elif case == "candidate-interior":
+        selected[3] = (_TERMINAL_THREE_RAW + ".", selected[3][1], selected[3][2])
+    elif case == "terminal-mismatch":
+        selected[3] = (
+            _TERMINAL_THREE_SELECTED + ",",
+            selected[3][1],
+            selected[3][2],
+        )
+    elif case == "raw-shape":
+        raw[1] = (raw[1][0][:-1] + "A", raw[1][1], raw[1][2])
+        selected[1] = raw[1]
+    elif case == "selected-shape":
+        selected[3] = (
+            _TERMINAL_THREE_SELECTED[:-1] + "A.",
+            selected[3][1],
+            selected[3][2],
+        )
+    elif case == "raw-confidence":
+        raw[3] = (raw[3][0], raw[3][1], 0.4863)
+    elif case == "selected-confidence":
+        selected[3] = (selected[3][0], selected[3][1], 0.5097)
+    elif case == "target-width":
+        box = BoundingBox(424.64, 0, 525.64, _TERMINAL_THREE_HEIGHT)
+        raw[3] = (raw[3][0], box, raw[3][2])
+        selected[3] = (selected[3][0], box, selected[3][2])
+    elif case == "target-gap":
+        box = BoundingBox(539.64, 0, 622.64, _TERMINAL_THREE_HEIGHT)
+        raw[4] = (raw[4][0], box, raw[4][2])
+        selected[4] = raw[4]
+    elif case == "line-height":
+        line_box = BoundingBox(56.64, 0, 1149.36, 0)
+    else:
+        crop = Image.new("RGB", (450, 29))
+    recognizer = ConfirmedTerminalThreeRecognizer()
+
+    assert (
+        _recover_confirmed_terminal_three_substitution(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class TerminalThreeEngineRecognizer:
+    def __init__(self) -> None:
+        raw = terminal_three_raw_words()
+        initial = [
+            RecognizedText(raw[0][0], raw[0][2]),
+            RecognizedText(raw[1][0], raw[1][2]),
+            RecognizedText(raw[2][0], raw[2][2]),
+            RecognizedText(raw[3][0], raw[3][2]),
+            RecognizedText(_TERMINAL_THREE_SELECTED + ".", 0.509816),
+            RecognizedText(raw[4][0], raw[4][2]),
+            RecognizedText(raw[5][0], raw[5][2]),
+            RecognizedText(raw[6][0], raw[6][2]),
+            RecognizedText(raw[7][0], raw[7][2]),
+            RecognizedText(raw[8][0], raw[8][2]),
+            RecognizedText(raw[8][0], 0.248961),
+        ]
+        self.values = tuple(initial) + ConfirmedTerminalThreeRecognizer().values
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (66, 151),
+            (167, 255),
+            (267, 355),
+            (368, 470),
+            (484, 567),
+            (583, 701),
+            (715, 927),
+            (942, 1025),
+            (1036, 1094),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class TerminalThreeEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    56.64,
+                    158.08695652173913,
+                    1149.36,
+                    186.26086956521738,
+                ),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_terminal_three_substitution() -> None:
+    recognizer = TerminalThreeEngineRecognizer()
+    engine = PaddleOcrEngine(TerminalThreeEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[3]
+    assert target.text == _TERMINAL_THREE_RECOVERED
+    assert target.box == BoundingBox(
+        424.64,
+        158.08695652173913,
+        501.14,
+        186.26086956521738,
+    )
+    assert target.confidence == 0.486436
 
 
 _ENHANCED_TWO_HEIGHT = 14.086956521739125
