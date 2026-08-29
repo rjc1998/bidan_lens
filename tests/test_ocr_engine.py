@@ -19,6 +19,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_leading_punctuated_single_split,
+    _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
@@ -10666,3 +10667,347 @@ def test_engine_recovers_confirmed_low_confidence_three_plus_five_split() -> Non
     assert following.text == _LOW_CONFIDENCE_FOLLOWING
     assert following.box == BoundingBox(482.76, 147.33, 549.76, 166.7)
     assert following.confidence == 0.988116
+
+
+_LEADING_THREE_SIX_HEIGHT = 29.94
+_LEADING_THREE_SIX_LINE = BoundingBox(
+    106.92,
+    0,
+    398.08,
+    _LEADING_THREE_SIX_HEIGHT,
+)
+
+
+def _leading_three_six_hangul(start: int, count: int) -> str:
+    return "".join(chr(start + offset) for offset in range(count))
+
+
+_LEADING_THREE_SIX_TARGET = _leading_three_six_hangul(0xC900, 3)
+_LEADING_THREE_SIX_FOLLOWING = _leading_three_six_hangul(0xC903, 6) + "."
+_LEADING_THREE_SIX_OTHER = _leading_three_six_hangul(0xC980, 3)
+
+
+def leading_three_plus_six_raw_words():
+    return [
+        (
+            _leading_three_six_hangul(0xC910, 1),
+            BoundingBox(122.92, 0, 143.92, _LEADING_THREE_SIX_HEIGHT),
+            0.999912,
+        ),
+        (
+            _LEADING_THREE_SIX_TARGET + _LEADING_THREE_SIX_FOLLOWING,
+            BoundingBox(153.92, 0, 383.92, _LEADING_THREE_SIX_HEIGHT),
+            0.991408,
+        ),
+    ]
+
+
+class ConfirmedLeadingThreePlusSixRecognizer:
+    def __init__(
+        self,
+        *,
+        case: str | None = None,
+        boundary_mismatch: bool = False,
+        default_mismatch: bool = False,
+    ) -> None:
+        target_values = [
+            value
+            for _ in range(7)
+            for value in (
+                RecognizedText(_LEADING_THREE_SIX_TARGET, 0.9999),
+                RecognizedText(_LEADING_THREE_SIX_TARGET, 0.9999),
+            )
+        ]
+        following_confidences = (
+            (0.9922, 0.9932),
+            (0.9882, 0.9914),
+            (0.9942, 0.9950),
+            (0.9954, 0.9965),
+            (0.9939, 0.9948),
+            (0.9953, 0.9963),
+        )
+        following_values = [
+            value
+            for direct, retry in following_confidences
+            for value in (
+                RecognizedText(_LEADING_THREE_SIX_FOLLOWING, direct),
+                RecognizedText(_LEADING_THREE_SIX_FOLLOWING, retry),
+            )
+        ]
+        values = target_values + following_values
+        indexes = {
+            "target-direct-text": 0,
+            "target-enhanced-text": 1,
+            "target-direct-confidence": 2,
+            "target-enhanced-confidence": 3,
+            "following-direct-text": 14,
+            "following-enhanced-text": 15,
+            "following-direct-confidence": 16,
+            "following-enhanced-confidence": 17,
+        }
+        if case in indexes:
+            index = indexes[case]
+            current = values[index]
+            if case.endswith("text"):
+                replacement = (
+                    _LEADING_THREE_SIX_OTHER
+                    if case.startswith("target")
+                    else _LEADING_THREE_SIX_OTHER * 2 + "."
+                )
+                values[index] = RecognizedText(replacement, current.confidence)
+            else:
+                confidence = 0.9997 if case.startswith("target") else (
+                    0.9880 if "direct" in case else 0.9912
+                )
+                values[index] = RecognizedText(current.text, confidence)
+        self.values = tuple(values)
+        self.calls = 0
+        self.word_box_thresholds: list[float] = []
+        self.boundary_mismatch = boundary_mismatch
+        self.default_mismatch = default_mismatch
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        self.word_box_thresholds.append(space_threshold)
+        if space_threshold == 0.02:
+            return (
+                ((0, 82), (92, 230))
+                if self.default_mismatch
+                else ((0, 230),)
+            )
+        if self.boundary_mismatch and space_threshold == 0.005:
+            return ((0, 230),)
+        return ((0, 82), (92, 230))
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_leading_three_plus_six_split_recovers_boundary() -> None:
+    raw = leading_three_plus_six_raw_words()
+    recognizer = ConfirmedLeadingThreePlusSixRecognizer()
+
+    recovered = _recover_confirmed_leading_three_plus_six_punctuated_split(
+        list(raw),
+        raw,
+        Image.new("RGB", (293, 31)),
+        _LEADING_THREE_SIX_LINE,
+        recognizer,
+    )
+
+    expected = list(raw)
+    expected[1:2] = [
+        (
+            _LEADING_THREE_SIX_TARGET,
+            BoundingBox(153.92, 0, 221.92, _LEADING_THREE_SIX_HEIGHT),
+            0.991408,
+        ),
+        (
+            _LEADING_THREE_SIX_FOLLOWING,
+            BoundingBox(245.92, 0, 383.92, _LEADING_THREE_SIX_HEIGHT),
+            0.9882,
+        ),
+    ]
+    assert recovered == expected
+    assert recognizer.calls == 26
+    assert recognizer.word_box_thresholds == [
+        0.0005,
+        0.001,
+        0.003,
+        0.005,
+        0.01,
+        0.015,
+        0.02,
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "target-direct-text",
+        "target-enhanced-text",
+        "target-direct-confidence",
+        "target-enhanced-confidence",
+        "following-direct-text",
+        "following-enhanced-text",
+        "following-direct-confidence",
+        "following-enhanced-confidence",
+    ],
+)
+def test_confirmed_leading_three_plus_six_split_requires_consensus(
+    case: str,
+) -> None:
+    raw = leading_three_plus_six_raw_words()
+    recognizer = ConfirmedLeadingThreePlusSixRecognizer(case=case)
+
+    assert (
+        _recover_confirmed_leading_three_plus_six_punctuated_split(
+            list(raw),
+            raw,
+            Image.new("RGB", (293, 31)),
+            _LEADING_THREE_SIX_LINE,
+            recognizer,
+        )
+        == raw
+    )
+    assert recognizer.calls == 26
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "ordinary-mismatch",
+        "raw-shape",
+        "candidate-order",
+        "candidate-confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-bounds",
+        "ctc-boundary",
+        "ctc-default",
+    ],
+)
+def test_confirmed_leading_three_plus_six_split_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = leading_three_plus_six_raw_words()
+    selected = list(raw)
+    crop = Image.new("RGB", (293, 31))
+    line_box = _LEADING_THREE_SIX_LINE
+    recognizer = ConfirmedLeadingThreePlusSixRecognizer(
+        boundary_mismatch=case == "ctc-boundary",
+        default_mismatch=case == "ctc-default",
+    )
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "ordinary-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.9999)
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        selected = list(raw)
+    elif case == "candidate-order":
+        raw[1] = (
+            "."
+            + _LEADING_THREE_SIX_TARGET
+            + _LEADING_THREE_SIX_FOLLOWING[:-1],
+            raw[1][1],
+            raw[1][2],
+        )
+        selected = list(raw)
+    elif case == "candidate-confidence":
+        raw[1] = (raw[1][0], raw[1][1], 0.9912)
+        selected = list(raw)
+    elif case == "width":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(153.92, 0, 382.92, _LEADING_THREE_SIX_HEIGHT),
+            raw[1][2],
+        )
+        selected = list(raw)
+    elif case == "gap":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(152.92, 0, 382.92, _LEADING_THREE_SIX_HEIGHT),
+            raw[1][2],
+        )
+        selected = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(106.92, 0, 398.08, 0)
+    elif case == "crop-bounds":
+        crop = Image.new("RGB", (276, 31))
+
+    assert (
+        _recover_confirmed_leading_three_plus_six_punctuated_split(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class LeadingThreePlusSixNoSegmenter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def recognize(self, _image):
+        self.calls += 1
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_leading_three_plus_six_split_requires_segmenter() -> None:
+    raw = leading_three_plus_six_raw_words()
+    recognizer = LeadingThreePlusSixNoSegmenter()
+
+    assert (
+        _recover_confirmed_leading_three_plus_six_punctuated_split(
+            list(raw),
+            raw,
+            Image.new("RGB", (293, 31)),
+            _LEADING_THREE_SIX_LINE,
+            recognizer,
+        )
+        == raw
+    )
+    assert recognizer.calls == 0
+
+
+class LeadingThreePlusSixEngineRecognizer(ConfirmedLeadingThreePlusSixRecognizer):
+    def __init__(self) -> None:
+        super().__init__()
+        helper_values = self.values
+        raw = leading_three_plus_six_raw_words()
+        initial_values = [
+            RecognizedText(text, confidence) for text, _box, confidence in raw
+        ]
+        self.values = tuple(initial_values) + helper_values
+        self.calls = 0
+        self.word_box_thresholds = []
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold == 0.07:
+            return ((16, 37), (47, 277))
+        return super().word_boxes(_image, space_threshold)
+
+
+class LeadingThreePlusSixEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(106.92, 152.8, 398.08, 182.74),
+                0.994157,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_leading_three_plus_six_split() -> None:
+    recognizer = LeadingThreePlusSixEngineRecognizer()
+    engine = PaddleOcrEngine(LeadingThreePlusSixEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[1]
+    following = document.lines[0].eojeols[2]
+    assert target.text == _LEADING_THREE_SIX_TARGET
+    assert target.box == BoundingBox(106.92 + 47, 152.8, 106.92 + 115, 182.74)
+    assert target.confidence == 0.991408
+    assert following.text == _LEADING_THREE_SIX_FOLLOWING[:-1]
+    following_left = 106.92 + 139
+    assert following.box == BoundingBox(
+        following_left,
+        152.8,
+        following_left + 6 * (138 / 7),
+        182.74,
+    )
+    assert following.confidence == 0.9882

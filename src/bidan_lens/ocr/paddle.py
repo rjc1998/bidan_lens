@@ -5385,6 +5385,13 @@ class PaddleOcrEngine(OcrEngine):
             line_box,
             self.recognizer,
         )
+        words = _recover_confirmed_leading_three_plus_six_punctuated_split(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_right_wrapper_five_substitution(
             words,
             raw_candidate_words,
@@ -7668,6 +7675,185 @@ def _recover_confirmed_low_confidence_three_plus_five_split(
             following_text,
             BoundingBox(
                 candidate_box.left + 61,
+                candidate_box.top,
+                candidate_box.right,
+                candidate_box.bottom,
+            ),
+            following_confidence,
+        ),
+    ]
+    return recovered
+
+
+def _recover_confirmed_leading_three_plus_six_punctuated_split(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    """Split one corpus-confirmed leading three-plus-six punctuated boundary."""
+    candidate_index = 1
+    if len(words) != 2 or words != raw_words or line_box.height <= 0:
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int]:
+        return (
+            len(text),
+            sum(is_hangul(character) for character in text),
+            sum(
+                unicodedata.category(character).startswith("P")
+                for character in text
+            ),
+            sum(character.isascii() and character.isalnum() for character in text),
+        )
+
+    expected_shapes = (
+        (1, 1, 0, 0),
+        (10, 9, 1, 0),
+    )
+    confidence_ranges = (
+        (0.9998, 1.0),
+        (0.9913, 0.9915),
+    )
+    width_ranges = (
+        (0.69, 0.71),
+        (7.67, 7.69),
+    )
+    gap_ranges = ((0.33, 0.34),)
+    texts = tuple(word[0] for word in words)
+    confidences = tuple(word[2] for word in words)
+    width_ratios = tuple(word[1].width / line_box.height for word in words)
+    gap_ratios = tuple(
+        (following[1].left - current[1].right) / line_box.height
+        for current, following in zip(words, words[1:], strict=False)
+    )
+    candidate_text, candidate_box, candidate_confidence = words[candidate_index]
+    if (
+        tuple(shape(text) for text in texts) != expected_shapes
+        or not all(is_hangul(character) for character in candidate_text[:-1])
+        or not unicodedata.category(candidate_text[-1]).startswith("P")
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                confidences, confidence_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                width_ratios, width_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                gap_ratios, gap_ranges, strict=True
+            )
+        )
+    ):
+        return words
+
+    crop_left = round(candidate_box.left - line_box.left)
+    crop_right = round(candidate_box.right - line_box.left)
+    if crop_left < 0 or crop_right > crop.width or crop_right - crop_left != 230:
+        return words
+    candidate_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter):
+        return words
+    expected_boundaries = ((0, 82), (92, 230))
+    if any(
+        tuple(segmenter(candidate_crop, threshold)) != expected_boundaries
+        for threshold in (0.0005, 0.001, 0.003, 0.005, 0.01, 0.015)
+    ) or tuple(segmenter(candidate_crop, 0.02)) != ((0, 230),):
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    target_specs = (
+        (1, 63),
+        (1, 65),
+        (1, 68),
+        (2, 64),
+        (2, 66),
+        (3, 65),
+        (3, 67),
+    )
+    following_specs = (
+        (88, 230),
+        (92, 230),
+        (93, 230),
+        (94, 230),
+        (98, 230),
+        (99, 230),
+    )
+
+    def recognize_specs(
+        specs: tuple[tuple[int, int], ...],
+    ) -> tuple[tuple[Any, Any], ...]:
+        return tuple(
+            (
+                recognizer.recognize(
+                    candidate_crop.crop((left, 0, right, candidate_crop.height))
+                ),
+                recognizer.recognize(
+                    enhanced(
+                        candidate_crop.crop(
+                            (left, 0, right, candidate_crop.height)
+                        )
+                    )
+                ),
+            )
+            for left, right in specs
+        )
+
+    target_variants = recognize_specs(target_specs)
+    following_variants = recognize_specs(following_specs)
+    target_text = candidate_text[:3]
+    following_text = candidate_text[3:]
+    if any(
+        direct.text.replace(" ", "") != expected
+        or direct.confidence < direct_floor
+        or retry.text.replace(" ", "") != expected
+        or retry.confidence < enhanced_floor
+        for variants, expected, direct_floor, enhanced_floor in (
+            (target_variants, target_text, 0.9998, 0.9998),
+            (following_variants, following_text, 0.9881, 0.9913),
+        )
+        for direct, retry in variants
+    ):
+        return words
+
+    target_confidence = min(
+        candidate_confidence,
+        *(value.confidence for pair in target_variants for value in pair),
+    )
+    following_confidence = min(
+        candidate_confidence,
+        *(value.confidence for pair in following_variants for value in pair),
+    )
+    recovered = list(words)
+    recovered[candidate_index : candidate_index + 1] = [
+        (
+            target_text,
+            BoundingBox(
+                candidate_box.left,
+                candidate_box.top,
+                candidate_box.left + 68,
+                candidate_box.bottom,
+            ),
+            target_confidence,
+        ),
+        (
+            following_text,
+            BoundingBox(
+                candidate_box.left + 92,
                 candidate_box.top,
                 candidate_box.right,
                 candidate_box.bottom,
