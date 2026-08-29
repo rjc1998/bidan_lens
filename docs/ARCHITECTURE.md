@@ -305,6 +305,15 @@ all reproduce the candidate's existing Hangul glyph above individual confidence 
 does not infer different text: it removes the punctuation and replaces equal-width character
 geometry with the central consensus crop. Any profile, geometry, category, confidence, or crop
 disagreement keeps the ordinary punctuation split.
+A separately reviewed wrapped single-glyph geometry profile can replace one matched-wrapper-width
+candidate only under an exact ten-raw-word/eight-selected-word line profile. The selected retry
+must retain the candidate box and existing Hangul glyph while dropping only the opening wrapper;
+the raw reading must retain both matched wrappers. Reviewed neighboring character categories,
+confidence, width, and gap evidence include two excluded low-confidence ASCII boundary artifacts.
+Seven direct and seven enhanced detector-relative trim/shift crops must all reproduce the existing
+glyph above individual confidence floors. A confirmed recovery removes the remaining wrapper and
+uses the central consensus crop box; any profile, geometry, category, wrapper, confidence, or crop
+disagreement keeps the selected retry unchanged.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

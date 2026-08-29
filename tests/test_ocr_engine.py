@@ -43,6 +43,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_two_plus_two_split,
     _recover_confirmed_wrapped_five_plus_four_split,
     _recover_confirmed_wrapped_four_syllable_triplet,
+    _recover_confirmed_wrapped_single_geometry,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -9447,3 +9448,381 @@ def test_engine_recovers_confirmed_punctuation_trimmed_single() -> None:
         179.02173913043478,
     )
     assert target.confidence == 0.902827
+
+
+_WRAPPED_SINGLE_HEIGHT = 21.13043478260869
+_WRAPPED_SINGLE_LINE = BoundingBox(78.84, 0, 748.16, _WRAPPED_SINGLE_HEIGHT)
+_WRAPPED_SINGLE_TARGET = "".join(chr(0xC700 + offset) for offset in range(1))
+_WRAPPED_SINGLE_OTHER = "".join(chr(0xC710 + offset) for offset in range(1))
+
+
+def _wrapped_single_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+def wrapped_single_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(78.84, 0, 103.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(120.84, 0, 180.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(202.84, 0, 234.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(254.84, 0, 269.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(278.84, 0, 358.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(366.84, 0, 422.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(430.84, 0, 487.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(498.84, 0, 616.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(622.84, 0, 706.84, _WRAPPED_SINGLE_HEIGHT),
+        BoundingBox(712.84, 0, 749.84, _WRAPPED_SINGLE_HEIGHT),
+    )
+    texts = (
+        "1",
+        _wrapped_single_hangul(0xC720, 3),
+        "/" + _WRAPPED_SINGLE_TARGET + "/",
+        _wrapped_single_hangul(0xC723, 1),
+        _wrapped_single_hangul(0xC724, 4),
+        _wrapped_single_hangul(0xC728, 3),
+        _wrapped_single_hangul(0xC72B, 3),
+        _wrapped_single_hangul(0xC72E, 6),
+        _wrapped_single_hangul(0xC734, 4) + ".",
+        "2",
+    )
+    confidences = (
+        0.172596,
+        0.999956,
+        0.679847,
+        0.999768,
+        0.999707,
+        0.999937,
+        0.999934,
+        0.997799,
+        0.952186,
+        0.261037,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+_WRAPPED_SINGLE_SELECTED_INDEXES = (1, 2, 3, 4, 5, 6, 7, 8)
+
+
+def wrapped_single_selected_words(
+    raw: list[tuple[str, BoundingBox, float]],
+) -> list[tuple[str, BoundingBox, float]]:
+    selected = [raw[index] for index in _WRAPPED_SINGLE_SELECTED_INDEXES]
+    selected[1] = (
+        _WRAPPED_SINGLE_TARGET + "/",
+        selected[1][1],
+        0.994793,
+    )
+    return selected
+
+
+_WRAPPED_SINGLE_DIRECT_CONFIDENCES = (
+    0.999510,
+    0.999361,
+    0.999388,
+    0.999338,
+    0.999310,
+    0.999322,
+    0.998700,
+)
+_WRAPPED_SINGLE_ENHANCED_CONFIDENCES = (
+    0.999561,
+    0.999450,
+    0.999413,
+    0.999396,
+    0.999272,
+    0.999231,
+    0.999173,
+)
+
+
+class ConfirmedWrappedSingleRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_WRAPPED_SINGLE_TARGET,) * 7,
+        direct_confidences: tuple[float, ...] = _WRAPPED_SINGLE_DIRECT_CONFIDENCES,
+        enhanced_texts: tuple[str, ...] = (_WRAPPED_SINGLE_TARGET,) * 7,
+        enhanced_confidences: tuple[float, ...] = (
+            _WRAPPED_SINGLE_ENHANCED_CONFIDENCES
+        ),
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_wrapped_single_geometry_recovers_box() -> None:
+    raw = wrapped_single_raw_words()
+    selected = wrapped_single_selected_words(raw)
+    recognizer = ConfirmedWrappedSingleRecognizer()
+
+    recovered = _recover_confirmed_wrapped_single_geometry(
+        selected,
+        raw,
+        Image.new("RGB", (671, 23)),
+        _WRAPPED_SINGLE_LINE,
+        recognizer,
+    )
+
+    expected = list(selected)
+    expected[1] = (
+        _WRAPPED_SINGLE_TARGET,
+        BoundingBox(205.84, 0, 227.84, _WRAPPED_SINGLE_HEIGHT),
+        0.994793,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 14
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "direct-disagreement",
+        "direct-confidence",
+        "enhanced-disagreement",
+        "enhanced-confidence",
+        "non-hangul",
+        "candidate-disagreement",
+    ],
+)
+def test_confirmed_wrapped_single_geometry_requires_crop_consensus(
+    case: str,
+) -> None:
+    direct_texts = [_WRAPPED_SINGLE_TARGET] * 7
+    direct_confidences = list(_WRAPPED_SINGLE_DIRECT_CONFIDENCES)
+    enhanced_texts = [_WRAPPED_SINGLE_TARGET] * 7
+    enhanced_confidences = list(_WRAPPED_SINGLE_ENHANCED_CONFIDENCES)
+    raw = wrapped_single_raw_words()
+    selected = wrapped_single_selected_words(raw)
+    if case == "direct-disagreement":
+        direct_texts[2] = _WRAPPED_SINGLE_OTHER
+    elif case == "direct-confidence":
+        direct_confidences[0] = 0.9994
+    elif case == "enhanced-disagreement":
+        enhanced_texts[3] = _WRAPPED_SINGLE_OTHER
+    elif case == "enhanced-confidence":
+        enhanced_confidences[0] = 0.9994
+    elif case == "non-hangul":
+        direct_texts = ["A"] * 7
+        enhanced_texts = ["A"] * 7
+    else:
+        selected[1] = (
+            _WRAPPED_SINGLE_OTHER + "/",
+            selected[1][1],
+            selected[1][2],
+        )
+    recognizer = ConfirmedWrappedSingleRecognizer(
+        direct_texts=tuple(direct_texts),
+        direct_confidences=tuple(direct_confidences),
+        enhanced_texts=tuple(enhanced_texts),
+        enhanced_confidences=tuple(enhanced_confidences),
+    )
+
+    assert (
+        _recover_confirmed_wrapped_single_geometry(
+            selected,
+            raw,
+            Image.new("RGB", (671, 23)),
+            _WRAPPED_SINGLE_LINE,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == (0 if case == "candidate-disagreement" else 14)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "ordinary-mismatch",
+        "candidate-box",
+        "raw-shape",
+        "selected-shape",
+        "wrapper",
+        "candidate-relationship",
+        "raw-confidence",
+        "selected-confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_wrapped_single_geometry_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = wrapped_single_raw_words()
+    selected = wrapped_single_selected_words(raw)
+    crop = Image.new("RGB", (671, 23))
+    line_box = _WRAPPED_SINGLE_LINE
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "ordinary-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.9998)
+    elif case == "candidate-box":
+        selected[1] = (
+            selected[1][0],
+            BoundingBox(203.84, 0, 234.84, _WRAPPED_SINGLE_HEIGHT),
+            selected[1][2],
+        )
+    elif case == "raw-shape":
+        raw[0] = ("A1", raw[0][1], raw[0][2])
+        selected = wrapped_single_selected_words(raw)
+    elif case == "selected-shape":
+        selected[1] = (
+            _WRAPPED_SINGLE_TARGET + "A",
+            selected[1][1],
+            selected[1][2],
+        )
+    elif case == "wrapper":
+        raw[2] = ("(" + _WRAPPED_SINGLE_TARGET + "/", raw[2][1], raw[2][2])
+        selected = wrapped_single_selected_words(raw)
+    elif case == "candidate-relationship":
+        raw[2] = (
+            "/" + _WRAPPED_SINGLE_OTHER + "/",
+            raw[2][1],
+            raw[2][2],
+        )
+    elif case == "raw-confidence":
+        raw[2] = (raw[2][0], raw[2][1], 0.6796)
+    elif case == "selected-confidence":
+        selected[1] = (selected[1][0], selected[1][1], 0.9946)
+    elif case == "width":
+        raw[2] = (
+            raw[2][0],
+            BoundingBox(202.84, 0, 233.84, _WRAPPED_SINGLE_HEIGHT),
+            raw[2][2],
+        )
+        selected = wrapped_single_selected_words(raw)
+    elif case == "gap":
+        raw[3] = (
+            raw[3][0],
+            BoundingBox(253.84, 0, 269.84, _WRAPPED_SINGLE_HEIGHT),
+            raw[3][2],
+        )
+        selected = wrapped_single_selected_words(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(78.84, 0, 748.16, 0)
+    else:
+        crop = Image.new("RGB", (148, 23))
+    recognizer = ConfirmedWrappedSingleRecognizer()
+
+    assert (
+        _recover_confirmed_wrapped_single_geometry(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class WrappedSingleEngineRecognizer:
+    def __init__(self) -> None:
+        raw = wrapped_single_raw_words()
+        selected = wrapped_single_selected_words(raw)
+        retry_values = {
+            0: RecognizedText("1", 0.2),
+            2: RecognizedText("", 0.0),
+            3: RecognizedText(selected[1][0], selected[1][2]),
+            4: RecognizedText("", 0.0),
+            11: RecognizedText("2", 0.3),
+        }
+        raw_by_segment = {
+            0: raw[0],
+            1: raw[1],
+            3: raw[2],
+            5: raw[3],
+            6: raw[4],
+            7: raw[5],
+            8: raw[6],
+            9: raw[7],
+            10: raw[8],
+            11: raw[9],
+        }
+        values = []
+        for index in range(12):
+            if index in raw_by_segment:
+                text, _box, confidence = raw_by_segment[index]
+                values.append(RecognizedText(text, confidence))
+            else:
+                values.append(RecognizedText("", 0.0))
+            if values[-1].confidence < 0.72:
+                values.append(retry_values[index])
+        self.values = tuple(values) + ConfirmedWrappedSingleRecognizer().values
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (0, 25),
+            (42, 102),
+            (109, 125),
+            (124, 156),
+            (155, 167),
+            (176, 191),
+            (200, 280),
+            (288, 344),
+            (352, 409),
+            (420, 538),
+            (544, 628),
+            (634, 671),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class WrappedSingleEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(
+                    78.84,
+                    148.8913043478261,
+                    748.16,
+                    170.02173913043478,
+                ),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_wrapped_single_geometry() -> None:
+    recognizer = WrappedSingleEngineRecognizer()
+    engine = PaddleOcrEngine(WrappedSingleEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    target = document.lines[0].eojeols[1]
+    assert target.text == _WRAPPED_SINGLE_TARGET
+    assert target.box == BoundingBox(
+        205.84,
+        148.8913043478261,
+        227.84,
+        170.02173913043478,
+    )
+    assert target.confidence == 0.994793

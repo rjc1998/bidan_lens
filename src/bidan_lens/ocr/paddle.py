@@ -5364,6 +5364,13 @@ class PaddleOcrEngine(OcrEngine):
             line_box,
             self.recognizer,
         )
+        words = _recover_confirmed_wrapped_single_geometry(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_right_wrapper_five_substitution(
             words,
             raw_candidate_words,
@@ -6993,6 +7000,228 @@ def _recover_confirmed_punctuation_trimmed_single(
             candidate_box.left + 6,
             candidate_box.top,
             candidate_box.right - 6,
+            candidate_box.bottom,
+        ),
+        min(
+            candidate_confidence,
+            *(variant.confidence for variant in direct_variants),
+            *(variant.confidence for variant in enhanced_variants),
+        ),
+    )
+    return recovered
+
+def _recover_confirmed_wrapped_single_geometry(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    """Recover one corpus-confirmed glyph box after a wrapper-dropping retry."""
+    selected_raw_indexes = (1, 2, 3, 4, 5, 6, 7, 8)
+    retry_index = 1
+    if (
+        len(words) != len(selected_raw_indexes)
+        or len(raw_words) != 10
+        or line_box.height <= 0
+    ):
+        return words
+    if any(
+        word != raw_words[raw_index]
+        for index, (word, raw_index) in enumerate(
+            zip(words, selected_raw_indexes, strict=True)
+        )
+        if index != retry_index
+    ):
+        return words
+    selected_candidate = words[retry_index]
+    raw_candidate = raw_words[selected_raw_indexes[retry_index]]
+    if selected_candidate[1] != raw_candidate[1]:
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int]:
+        return (
+            len(text),
+            sum(is_hangul(character) for character in text),
+            sum(
+                unicodedata.category(character).startswith("P") for character in text
+            ),
+            sum(character.isascii() and character.isalnum() for character in text),
+        )
+
+    expected_raw_shapes = (
+        (1, 0, 0, 1),
+        (3, 3, 0, 0),
+        (3, 1, 2, 0),
+        (1, 1, 0, 0),
+        (4, 4, 0, 0),
+        (3, 3, 0, 0),
+        (3, 3, 0, 0),
+        (6, 6, 0, 0),
+        (5, 4, 1, 0),
+        (1, 0, 0, 1),
+    )
+    expected_selected_shapes = (
+        (3, 3, 0, 0),
+        (2, 1, 1, 0),
+        (1, 1, 0, 0),
+        (4, 4, 0, 0),
+        (3, 3, 0, 0),
+        (3, 3, 0, 0),
+        (6, 6, 0, 0),
+        (5, 4, 1, 0),
+    )
+    confidence_ranges = (
+        (0.1725, 0.1727),
+        (0.9999, 1.0),
+        (0.6797, 0.6800),
+        (0.9997, 0.9999),
+        (0.9996, 0.9998),
+        (0.9999, 1.0),
+        (0.9999, 1.0),
+        (0.9977, 0.9979),
+        (0.9520, 0.9523),
+        (0.2609, 0.2612),
+    )
+    width_ranges = (
+        (1.17, 1.20),
+        (2.82, 2.86),
+        (1.50, 1.53),
+        (0.70, 0.72),
+        (3.77, 3.80),
+        (2.64, 2.67),
+        (2.68, 2.71),
+        (5.57, 5.60),
+        (3.96, 3.99),
+        (1.74, 1.77),
+    )
+    gap_ranges = (
+        (0.79, 0.82),
+        (1.03, 1.06),
+        (0.93, 0.96),
+        (0.41, 0.44),
+        (0.36, 0.40),
+        (0.36, 0.40),
+        (0.50, 0.54),
+        (0.27, 0.30),
+        (0.27, 0.30),
+    )
+    raw_texts = tuple(word[0] for word in raw_words)
+    selected_texts = tuple(word[0] for word in words)
+    raw_confidences = tuple(word[2] for word in raw_words)
+    width_ratios = tuple(word[1].width / line_box.height for word in raw_words)
+    gap_ratios = tuple(
+        (following[1].left - current[1].right) / line_box.height
+        for current, following in zip(raw_words, raw_words[1:], strict=False)
+    )
+    if (
+        tuple(shape(text) for text in raw_texts) != expected_raw_shapes
+        or tuple(shape(text) for text in selected_texts) != expected_selected_shapes
+        or _BOUNDARY_WRAPPERS.get(raw_candidate[0][0]) != raw_candidate[0][-1]
+        or raw_candidate[0][1:] != selected_candidate[0]
+        or not 0.9947 <= selected_candidate[2] <= 0.9949
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                raw_confidences, confidence_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                width_ratios, width_ranges, strict=True
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                gap_ratios, gap_ranges, strict=True
+            )
+        )
+    ):
+        return words
+
+    candidate_text, candidate_box, candidate_confidence = selected_candidate
+    crop_left = round(candidate_box.left - line_box.left)
+    crop_right = round(candidate_box.right - line_box.left)
+    direct_specs = (
+        (3, -7, 0.9995),
+        (3, -8, 0.9993),
+        (3, -9, 0.9993),
+        (4, -8, 0.9993),
+        (3, -10, 0.9993),
+        (9, -7, 0.9993),
+        (5, -8, 0.9986),
+    )
+    enhanced_specs = (
+        (3, -7, 0.9995),
+        (3, -8, 0.9994),
+        (3, -9, 0.9994),
+        (4, -8, 0.9993),
+        (3, -10, 0.9992),
+        (9, -7, 0.9992),
+        (5, -8, 0.9991),
+    )
+
+    def bounds(
+        specs: tuple[tuple[int, int, float], ...],
+    ) -> tuple[tuple[int, int, float], ...]:
+        return tuple(
+            (crop_left + left_offset, crop_right + right_offset, threshold)
+            for left_offset, right_offset, threshold in specs
+        )
+
+    direct_bounds = bounds(direct_specs)
+    enhanced_bounds = bounds(enhanced_specs)
+    if any(
+        left < 0 or right > crop.width or left >= right
+        for left, right, _ in (*direct_bounds, *enhanced_bounds)
+    ):
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    direct_variants = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right, _ in direct_bounds
+    )
+    enhanced_variants = tuple(
+        recognizer.recognize(enhanced(crop.crop((left, 0, right, crop.height))))
+        for left, right, _ in enhanced_bounds
+    )
+    recovered_text = direct_variants[0].text.replace(" ", "")
+    if (
+        recovered_text != candidate_text[0]
+        or len(recovered_text) != 1
+        or not is_hangul(recovered_text)
+        or any(
+            variant.confidence < threshold
+            or variant.text.replace(" ", "") != recovered_text
+            for variant, (*_, threshold) in zip(
+                direct_variants, direct_bounds, strict=True
+            )
+        )
+        or any(
+            variant.confidence < threshold
+            or variant.text.replace(" ", "") != recovered_text
+            for variant, (*_, threshold) in zip(
+                enhanced_variants, enhanced_bounds, strict=True
+            )
+        )
+    ):
+        return words
+    recovered = list(words)
+    recovered[retry_index] = (
+        recovered_text,
+        BoundingBox(
+            candidate_box.left + 3,
+            candidate_box.top,
+            candidate_box.right - 7,
             candidate_box.bottom,
         ),
         min(
