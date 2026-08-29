@@ -13,6 +13,7 @@ from bidan_lens.ocr.paddle import (
     _normalize,
     _recover_confirmed_central_paired_wrapped_two_split,
     _recover_confirmed_direct_retry_regression,
+    _recover_confirmed_enhanced_two_substitution,
     _recover_confirmed_enhanced_wrapped_four_substitution,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
@@ -5785,6 +5786,295 @@ def test_engine_preserves_confirmed_direct_reading_over_retry_regression() -> No
 
 
 
+
+
+_ENHANCED_TWO_HEIGHT = 14.086956521739125
+_ENHANCED_TWO_DIRECT = "".join(chr(0xCB00 + offset) for offset in range(2))
+_ENHANCED_TWO_RECOVERED = "".join(chr(0xCB10 + offset) for offset in range(2))
+
+
+def _enhanced_two_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+def enhanced_two_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(18, 0, 40, _ENHANCED_TWO_HEIGHT),
+        BoundingBox(43, 0, 90, _ENHANCED_TWO_HEIGHT),
+        BoundingBox(93, 0, 108, _ENHANCED_TWO_HEIGHT),
+        BoundingBox(111, 0, 169, _ENHANCED_TWO_HEIGHT),
+        BoundingBox(172, 0, 207, _ENHANCED_TWO_HEIGHT),
+        BoundingBox(211, 0, 272, _ENHANCED_TWO_HEIGHT),
+    )
+    texts = (
+        _ENHANCED_TWO_DIRECT,
+        _enhanced_two_hangul(0xCB20, 4),
+        _enhanced_two_hangul(0xCB24, 1) + ")",
+        _enhanced_two_hangul(0xCB25, 5),
+        _enhanced_two_hangul(0xCB2A, 3),
+        _enhanced_two_hangul(0xCB2D, 5) + ".",
+    )
+    confidences = (
+        0.870781,
+        0.999571,
+        0.991686,
+        0.999705,
+        0.999335,
+        0.942514,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+_ENHANCED_TWO_DIRECT_CONFIDENCES = (0.590744, 0.56195, 0.536506, 0.49422)
+_ENHANCED_TWO_ENHANCED_CONFIDENCES = (
+    0.934284,
+    0.991545,
+    0.976423,
+    0.998939,
+    0.986655,
+    0.999466,
+    0.999306,
+    0.999241,
+)
+
+
+class ConfirmedEnhancedTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        direct_texts: tuple[str, ...] = (_ENHANCED_TWO_RECOVERED,) * 4,
+        direct_confidences: tuple[float, ...] = _ENHANCED_TWO_DIRECT_CONFIDENCES,
+        enhanced_texts: tuple[str, ...] = (_ENHANCED_TWO_RECOVERED,) * 8,
+        enhanced_confidences: tuple[float, ...] = _ENHANCED_TWO_ENHANCED_CONFIDENCES,
+    ) -> None:
+        self.values = tuple(
+            RecognizedText(text, confidence)
+            for text, confidence in zip(
+                (*direct_texts, *enhanced_texts),
+                (*direct_confidences, *enhanced_confidences),
+                strict=True,
+            )
+        )
+        self.calls = 0
+
+    def recognize(self, _image):
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+def test_confirmed_enhanced_two_substitution_recovers_reading() -> None:
+    words = enhanced_two_words()
+    recognizer = ConfirmedEnhancedTwoRecognizer()
+
+    recovered = _recover_confirmed_enhanced_two_substitution(
+        words,
+        words,
+        Image.new("RGB", (289, 15)),
+        BoundingBox(0, 0, 288.84, _ENHANCED_TWO_HEIGHT),
+        recognizer,
+    )
+
+    expected = list(words)
+    expected[0] = (
+        _ENHANCED_TWO_RECOVERED,
+        words[0][1],
+        0.49422,
+    )
+    assert recovered == expected
+    assert recognizer.calls == 12
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedEnhancedTwoRecognizer(
+            enhanced_texts=(
+                _ENHANCED_TWO_DIRECT,
+                *([_ENHANCED_TWO_RECOVERED] * 7),
+            )
+        ),
+        ConfirmedEnhancedTwoRecognizer(
+            direct_texts=(
+                _ENHANCED_TWO_RECOVERED,
+                _ENHANCED_TWO_DIRECT,
+                _ENHANCED_TWO_RECOVERED,
+                _ENHANCED_TWO_RECOVERED,
+            )
+        ),
+        ConfirmedEnhancedTwoRecognizer(
+            direct_confidences=(0.590744, 0.5618, 0.536506, 0.49422)
+        ),
+        ConfirmedEnhancedTwoRecognizer(
+            enhanced_texts=(
+                *([_ENHANCED_TWO_RECOVERED] * 5),
+                _ENHANCED_TWO_DIRECT,
+                _ENHANCED_TWO_RECOVERED,
+                _ENHANCED_TWO_RECOVERED,
+            )
+        ),
+        ConfirmedEnhancedTwoRecognizer(
+            enhanced_confidences=(
+                0.934284,
+                0.991545,
+                0.9763,
+                0.998939,
+                0.986655,
+                0.999466,
+                0.999306,
+                0.999241,
+            )
+        ),
+        ConfirmedEnhancedTwoRecognizer(
+            enhanced_texts=(
+                _ENHANCED_TWO_RECOVERED + "A",
+                *([_ENHANCED_TWO_RECOVERED] * 7),
+            )
+        ),
+    ],
+)
+def test_confirmed_enhanced_two_substitution_requires_crop_consensus(
+    recognizer,
+) -> None:
+    words = enhanced_two_words()
+
+    assert (
+        _recover_confirmed_enhanced_two_substitution(
+            words,
+            words,
+            Image.new("RGB", (289, 15)),
+            BoundingBox(0, 0, 288.84, _ENHANCED_TWO_HEIGHT),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-mismatch",
+        "neighbor-shape",
+        "middle-category",
+        "terminal-category",
+        "confidence",
+        "target-width",
+        "target-gap",
+        "line-height",
+        "crop-bounds",
+    ],
+)
+def test_confirmed_enhanced_two_substitution_requires_exact_profile(case: str) -> None:
+    raw = enhanced_two_words()
+    selected = list(raw)
+    crop = Image.new("RGB", (289, 15))
+    line_box = BoundingBox(0, 0, 288.84, _ENHANCED_TWO_HEIGHT)
+    if case == "selected-count":
+        selected.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-mismatch":
+        selected[0] = (selected[0][0], selected[0][1], 0.87075)
+    elif case == "neighbor-shape":
+        raw[1] = (raw[1][0][:-1] + "A", raw[1][1], raw[1][2])
+        selected = list(raw)
+    elif case == "middle-category":
+        raw[2] = (raw[2][0][:-1] + "|", raw[2][1], raw[2][2])
+        selected = list(raw)
+    elif case == "terminal-category":
+        raw[5] = (raw[5][0][:-1] + "|", raw[5][1], raw[5][2])
+        selected = list(raw)
+    elif case == "confidence":
+        raw[0] = (raw[0][0], raw[0][1], 0.8706)
+        selected = list(raw)
+    elif case == "target-width":
+        raw[0] = (
+            raw[0][0],
+            BoundingBox(18, 0, 41, _ENHANCED_TWO_HEIGHT),
+            raw[0][2],
+        )
+        selected = list(raw)
+    elif case == "target-gap":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(42, 0, 89, _ENHANCED_TWO_HEIGHT),
+            raw[1][2],
+        )
+        selected = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(0, 0, 288.84, 0)
+    else:
+        crop = Image.new("RGB", (46, 15))
+    recognizer = ConfirmedEnhancedTwoRecognizer()
+
+    assert (
+        _recover_confirmed_enhanced_two_substitution(
+            selected,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == selected
+    )
+    assert recognizer.calls == 0
+
+
+class EnhancedTwoEngineRecognizer:
+    def __init__(self) -> None:
+        raw = enhanced_two_words()
+        values = [
+            *(RecognizedText(text, confidence) for text, _box, confidence in raw),
+            *ConfirmedEnhancedTwoRecognizer().values,
+        ]
+        self.values = tuple(values)
+        self.calls = 0
+
+    def word_boxes(self, _image, space_threshold: float = 0.07):
+        if space_threshold != 0.07:
+            return ((0, _image.width),)
+        return (
+            (18, 40),
+            (43, 90),
+            (93, 108),
+            (111, 169),
+            (172, 207),
+            (211, 272),
+        )
+
+    def recognize(self, _image):
+        if self.calls >= len(self.values):
+            return RecognizedText("", 0.0)
+        value = self.values[self.calls]
+        self.calls += 1
+        return value
+
+
+class EnhancedTwoEngineDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(104.08, 153.3913043478261, 392.92, 167.47826086956522),
+                0.99,
+            ),
+        )
+
+
+def test_engine_recovers_confirmed_enhanced_two_substitution() -> None:
+    recognizer = EnhancedTwoEngineRecognizer()
+    engine = PaddleOcrEngine(EnhancedTwoEngineDetector(), recognizer)
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    assert document.lines[0].eojeols[0].text == _ENHANCED_TWO_RECOVERED
+    assert document.lines[0].eojeols[0].box == BoundingBox(
+        104.08 + 18,
+        153.3913043478261,
+        104.08 + 40,
+        167.47826086956522,
+    )
 
 
 _ENHANCED_WRAPPED_HEIGHT = 14.086956521739125

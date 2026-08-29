@@ -270,6 +270,13 @@ interior. Eight direct edge crops and seven enhanced base/pad/trim/shift crops m
 that alternative above individual confidence floors. Any profile, geometry, category, wrapper,
 confidence, or crop disagreement keeps the original segment. A confirmed replacement retains the
 original punctuation-stripped interior geometry and uses the minimum accepted crop confidence.
+A separately reviewed enhanced two-Hangul recalibration profile can replace one reading only under
+an exact six-raw-word/six-selected-word line profile with reviewed neighboring Hangul lengths, two
+terminal punctuation signals, confidence, width, and gap evidence. The enhanced base crop must
+produce a different pure two-Hangul reading, and four direct boundary crops plus eight enhanced
+base/pad/trim/shift crops must all reproduce it above individual confidence floors. Any profile,
+geometry, category, confidence, or crop disagreement keeps the original segment. A confirmed
+replacement retains the original target geometry and uses the minimum accepted crop confidence.
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
