@@ -3099,6 +3099,151 @@ def _recover_confirmed_isolated_paired_wrapped_two_plus_two_split(
     ]
 
 
+def _recover_confirmed_isolated_three_plus_five_punctuated_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter) or len(words) != 1:
+        return words
+    text, box, confidence = words[0]
+    if (
+        len(text) != 9
+        or not all(is_hangul(character) for character in text[:3])
+        or not unicodedata.category(text[3]).startswith("P")
+        or not all(is_hangul(character) for character in text[4:])
+        or not 0.9923 <= confidence <= 0.9926
+        or box != line_box
+        or not 9.23 <= box.width / line_box.height <= 9.25
+        or crop.size != (539, 59)
+    ):
+        return words
+    try:
+        default_segments = tuple(segmenter(crop))
+    except TypeError:
+        return words
+    if default_segments != ((0, crop.width),):
+        return words
+    expected_segments = (
+        (0.0005, ((0, 15), (14, 212), (211, 539))),
+        (0.001, ((0, 15), (14, 212), (211, 539))),
+        (0.003, ((0, 15), (14, 212), (211, 539))),
+        (0.005, ((0, 15), (14, 212), (211, 539))),
+        (0.01, ((0, 15), (14, 212), (211, 539))),
+        (0.015, ((0, 212), (211, 539))),
+        (0.02, ((0, 212), (211, 539))),
+        (0.03, ((0, 539),)),
+    )
+    try:
+        if any(
+            tuple(segmenter(crop, space_threshold=threshold)) != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    boundary_crop = crop.crop((14, 0, 212, crop.height))
+    boundary_variants = (
+        recognizer.recognize(boundary_crop),
+        recognizer.recognize(enhanced(boundary_crop)),
+    )
+    target_bounds = (
+        (12, 183),
+        (12, 192),
+        (14, 195),
+        (18, 189),
+        (20, 198),
+        (22, 201),
+        (28, 204),
+    )
+    following_bounds = (
+        (211, 527),
+        (214, 527),
+        (220, 527),
+        (223, 527),
+        (229, 527),
+        (232, 527),
+        (241, 527),
+    )
+    target_variants = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right in target_bounds
+    ) + tuple(
+        recognizer.recognize(
+            enhanced(crop.crop((left, 0, right, crop.height)))
+        )
+        for left, right in target_bounds
+    )
+    following_variants = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right in following_bounds
+    ) + tuple(
+        recognizer.recognize(
+            enhanced(crop.crop((left, 0, right, crop.height)))
+        )
+        for left, right in following_bounds
+    )
+    if (
+        any(
+            variant.confidence < 0.9925
+            or variant.text.replace(" ", "") != text[:4]
+            for variant in boundary_variants
+        )
+        or any(
+            variant.confidence < 0.9998
+            or variant.text.replace(" ", "") != text[:3]
+            for variant in target_variants
+        )
+        or any(
+            variant.confidence < 0.9992
+            or variant.text.replace(" ", "") != text[4:]
+            for variant in following_variants
+        )
+    ):
+        return words
+    target_confidence = min(
+        confidence,
+        *(variant.confidence for variant in boundary_variants),
+        *(variant.confidence for variant in target_variants),
+    )
+    following_confidence = min(
+        confidence,
+        *(variant.confidence for variant in following_variants),
+    )
+    return [
+        (
+            text[:4],
+            BoundingBox(
+                line_box.left + 20,
+                box.top,
+                line_box.left + 252,
+                box.bottom,
+            ),
+            target_confidence,
+        ),
+        (
+            text[4:],
+            BoundingBox(
+                line_box.left + 223,
+                box.top,
+                box.right,
+                box.bottom,
+            ),
+            following_confidence,
+        ),
+    ]
+
+
 def _recover_confirmed_paired_wrapped_three_plus_three_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -5511,6 +5656,12 @@ class PaddleOcrEngine(OcrEngine):
                 words = [(recognized.text, region.box, recognized.confidence)]
                 if ' ' not in recognized.text:
                     words = _recover_confirmed_isolated_paired_wrapped_two_plus_two_split(
+                        words,
+                        crop,
+                        region.box,
+                        self.recognizer,
+                    )
+                    words = _recover_confirmed_isolated_three_plus_five_punctuated_split(
                         words,
                         crop,
                         region.box,

@@ -18,6 +18,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
+    _recover_confirmed_isolated_three_plus_five_punctuated_split,
     _recover_confirmed_leading_punctuated_single_split,
     _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
@@ -3683,6 +3684,275 @@ def test_engine_recovers_central_paired_wrapped_two_segment() -> None:
         433.77,
         263.1522,
     )
+
+
+_ISOLATED_THREE_PLUS_FIVE_TARGET = "\uac00\ub098\ub2e4"
+_ISOLATED_THREE_PLUS_FIVE_FOLLOWING = "\ub77c\ub9c8\ubc14\uc0ac\uc544"
+_ISOLATED_THREE_PLUS_FIVE_TEXT = (
+    _ISOLATED_THREE_PLUS_FIVE_TARGET
+    + "."
+    + _ISOLATED_THREE_PLUS_FIVE_FOLLOWING
+)
+
+
+class ConfirmedIsolatedThreePlusFivePunctuatedRecognizer:
+    def __init__(
+        self,
+        *,
+        boundary_text: str = (
+            _ISOLATED_THREE_PLUS_FIVE_TARGET + "."
+        ),
+        boundary_confidence: float = 0.9930,
+        enhanced_boundary_confidence: float = 0.9927,
+        target_text: str = _ISOLATED_THREE_PLUS_FIVE_TARGET,
+        target_confidence: float = 0.9999,
+        enhanced_target_confidence: float = 0.9999,
+        following_text: str = _ISOLATED_THREE_PLUS_FIVE_FOLLOWING,
+        following_confidence: float = 0.9995,
+        enhanced_following_confidence: float = 0.9995,
+        segments_005: tuple[tuple[int, int], ...] = (
+            (0, 15),
+            (14, 212),
+            (211, 539),
+        ),
+    ) -> None:
+        self.values = (
+            RecognizedText(boundary_text, boundary_confidence),
+            RecognizedText(boundary_text, enhanced_boundary_confidence),
+            *(
+                RecognizedText(target_text, target_confidence)
+                for _ in range(7)
+            ),
+            *(
+                RecognizedText(target_text, enhanced_target_confidence)
+                for _ in range(7)
+            ),
+            *(
+                RecognizedText(following_text, following_confidence)
+                for _ in range(7)
+            ),
+            *(
+                RecognizedText(following_text, enhanced_following_confidence)
+                for _ in range(7)
+            ),
+        )
+        self.segments_005 = segments_005
+        self.recognition_calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if space_threshold == 0.07:
+            return ((0, image.width),)
+        if space_threshold == 0.005:
+            return self.segments_005
+        if space_threshold in {0.0005, 0.001, 0.003, 0.01}:
+            return ((0, 15), (14, 212), (211, 539))
+        if space_threshold in {0.015, 0.02}:
+            return ((0, 212), (211, 539))
+        assert space_threshold == 0.03
+        return ((0, 539),)
+
+    def recognize(self, _image):
+        result = self.values[self.recognition_calls]
+        self.recognition_calls += 1
+        return result
+
+
+class IsolatedThreePlusFivePunctuatedRecognizer(
+    ConfirmedIsolatedThreePlusFivePunctuatedRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        self.values = (
+            RecognizedText(_ISOLATED_THREE_PLUS_FIVE_TEXT, 0.992479),
+            *self.values,
+        )
+
+
+class IsolatedThreePlusFivePunctuatedDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                BoundingBox(99.96, 641.54, 637.04, 699.65),
+                0.994781,
+            ),
+        )
+
+
+def isolated_three_plus_five_punctuated_words(
+    *,
+    text: str = _ISOLATED_THREE_PLUS_FIVE_TEXT,
+    confidence: float = 0.992479,
+    box: BoundingBox | None = None,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [
+        (
+            text,
+            box or BoundingBox(0, 0, 537.08, 58.11),
+            confidence,
+        )
+    ]
+
+
+def test_confirmed_isolated_three_plus_five_punctuated_recovers() -> None:
+    words = isolated_three_plus_five_punctuated_words()
+
+    recovered = _recover_confirmed_isolated_three_plus_five_punctuated_split(
+        words,
+        Image.new("RGB", (539, 59)),
+        BoundingBox(0, 0, 537.08, 58.11),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            _ISOLATED_THREE_PLUS_FIVE_TARGET + ".",
+            BoundingBox(20, 0, 252, 58.11),
+            0.992479,
+        ),
+        (
+            _ISOLATED_THREE_PLUS_FIVE_FOLLOWING,
+            BoundingBox(223, 0, 537.08, 58.11),
+            0.992479,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            boundary_text=_ISOLATED_THREE_PLUS_FIVE_TARGET + "!"
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            boundary_confidence=0.9924
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            enhanced_boundary_confidence=0.9924
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            target_text="\uac00\ub098\ub77c"
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            target_confidence=0.9997
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            enhanced_target_confidence=0.9997
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            following_text="\ub77c\ub9c8\ubc14\uc0ac\uc790"
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            following_confidence=0.9991
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            enhanced_following_confidence=0.9991
+        ),
+        ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(
+            segments_005=((0, 15), (14, 211), (211, 539))
+        ),
+    ],
+)
+def test_confirmed_isolated_three_plus_five_requires_crop_evidence(
+    recognizer,
+) -> None:
+    words = isolated_three_plus_five_punctuated_words()
+
+    assert (
+        _recover_confirmed_isolated_three_plus_five_punctuated_split(
+            words,
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+            recognizer,
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "crop", "line_box"),
+    [
+        (
+            isolated_three_plus_five_punctuated_words(
+                text="\uac00\ub098\ub2e4A\ub77c\ub9c8\ubc14\uc0ac\uc544"
+            ),
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+        (
+            isolated_three_plus_five_punctuated_words(
+                text="A\ub098\ub2e4.\ub77c\ub9c8\ubc14\uc0ac\uc544"
+            ),
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+        (
+            isolated_three_plus_five_punctuated_words(confidence=0.9922),
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+        (
+            isolated_three_plus_five_punctuated_words(
+                box=BoundingBox(0, 0, 536, 58.11)
+            ),
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+        (
+            isolated_three_plus_five_punctuated_words(),
+            Image.new("RGB", (538, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+        (
+            isolated_three_plus_five_punctuated_words() * 2,
+            Image.new("RGB", (539, 59)),
+            BoundingBox(0, 0, 537.08, 58.11),
+        ),
+    ],
+)
+def test_confirmed_isolated_three_plus_five_requires_word_profile(
+    words,
+    crop,
+    line_box,
+) -> None:
+    assert (
+        _recover_confirmed_isolated_three_plus_five_punctuated_split(
+            words,
+            crop,
+            line_box,
+            ConfirmedIsolatedThreePlusFivePunctuatedRecognizer(),
+        )
+        == words
+    )
+
+
+def test_engine_recovers_isolated_three_plus_five_punctuated_segment() -> None:
+    engine = PaddleOcrEngine(
+        IsolatedThreePlusFivePunctuatedDetector(),
+        IsolatedThreePlusFivePunctuatedRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (800, 800)))
+
+    assert document.lines[0].text == (
+        _ISOLATED_THREE_PLUS_FIVE_TARGET
+        + ". "
+        + _ISOLATED_THREE_PLUS_FIVE_FOLLOWING
+    )
+    assert [word.text for word in document.lines[0].eojeols] == [
+        _ISOLATED_THREE_PLUS_FIVE_TARGET,
+        _ISOLATED_THREE_PLUS_FIVE_FOLLOWING,
+    ]
+    target_box, following_box = (
+        word.box for word in document.lines[0].eojeols
+    )
+    assert target_box.left == pytest.approx(119.96)
+    assert target_box.right == pytest.approx(293.96)
+    assert following_box.left == pytest.approx(322.96)
+    assert following_box.right == pytest.approx(637.04)
 
 
 class ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer:
