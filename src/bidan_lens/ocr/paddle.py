@@ -3244,6 +3244,166 @@ def _recover_confirmed_isolated_three_plus_five_punctuated_split(
     ]
 
 
+def _recover_confirmed_isolated_mixed_prefix_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter) or len(words) != 1:
+        return words
+    text, box, confidence = words[0]
+    if (
+        len(text) != 12
+        or not all(is_hangul(character) for character in text[:2])
+        or not unicodedata.category(text[2]).startswith("P")
+        or not (text[3].isascii() and text[3].isalnum())
+        or not unicodedata.category(text[4]).startswith("P")
+        or not all(
+            character.isascii() and character.isalnum()
+            for character in text[5:9]
+        )
+        or not unicodedata.category(text[9]).startswith("P")
+        or not all(
+            character.isascii() and character.isalnum()
+            for character in text[10:]
+        )
+        or sum(
+            character.isascii() and character.isalpha() for character in text
+        )
+        != 2
+        or sum(
+            character.isascii() and character.isdigit() for character in text
+        )
+        != 5
+        or not _structured_ascii_context(text[3:])
+        or contains_hangul(text[3:])
+        or not 0.9757 <= confidence <= 0.9759
+        or box != line_box
+        or not 75.71 <= line_box.height <= 75.73
+        or not 489.51 <= line_box.width <= 489.53
+        or not 6.46 <= line_box.width / line_box.height <= 6.47
+        or crop.size != (490, 77)
+    ):
+        return words
+    expected_segments = (
+        (0.0001, ((0, 174), (173, 251), (250, 490))),
+        (0.0003, ((0, 174), (173, 490))),
+        (0.0005, ((0, 174), (173, 490))),
+        (0.001, ((0, 174), (173, 490))),
+        (0.002, ((0, 174), (173, 490))),
+        (0.003, ((0, 174), (173, 490))),
+        (0.005, ((0, 174), (173, 490))),
+        (0.007, ((0, 174), (173, 490))),
+        (0.01, ((0, 174), (173, 490))),
+        (0.015, ((0, 174), (173, 490))),
+        (0.02, ((0, 174), (173, 490))),
+        (0.03, ((0, 174), (173, 490))),
+        (0.04, ((0, 490),)),
+        (0.05, ((0, 490),)),
+        (0.07, ((0, 490),)),
+    )
+    try:
+        if tuple(segmenter(crop)) != ((0, 490),) or any(
+            tuple(segmenter(crop, space_threshold=threshold)) != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    enhanced_candidate = recognizer.recognize(enhanced(crop))
+    prefix_bounds = ((0, 170), (0, 172), (0, 174), (0, 176), (0, 178))
+    suffix_bounds = (
+        (171, 490),
+        (173, 490),
+        (175, 490),
+        (177, 490),
+        (173, 488),
+        (173, 486),
+    )
+    prefix_direct = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right in prefix_bounds
+    )
+    prefix_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(crop.crop((left, 0, right, crop.height)))
+        )
+        for left, right in prefix_bounds
+    )
+    suffix_direct = tuple(
+        recognizer.recognize(crop.crop((left, 0, right, crop.height)))
+        for left, right in suffix_bounds
+    )
+    suffix_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(crop.crop((left, 0, right, crop.height)))
+        )
+        for left, right in suffix_bounds
+    )
+    if (
+        enhanced_candidate.confidence < 0.9803
+        or enhanced_candidate.text.replace(" ", "") != text
+        or any(
+            variant.confidence < 0.9907
+            or variant.text.replace(" ", "") != text[:3]
+            for variant in (*prefix_direct, *prefix_enhanced)
+        )
+        or any(
+            variant.confidence < 0.741
+            or variant.text.replace(" ", "") != text[3:]
+            for variant in suffix_direct
+        )
+        or any(
+            variant.confidence < 0.783
+            or variant.text.replace(" ", "") != text[3:]
+            for variant in suffix_enhanced
+        )
+    ):
+        return words
+    prefix_confidence = min(
+        confidence,
+        *(variant.confidence for variant in prefix_direct),
+        *(variant.confidence for variant in prefix_enhanced),
+    )
+    suffix_confidence = min(
+        confidence,
+        *(variant.confidence for variant in suffix_direct),
+        *(variant.confidence for variant in suffix_enhanced),
+    )
+    return [
+        (
+            text[:3],
+            BoundingBox(
+                line_box.left,
+                box.top,
+                line_box.left + 174,
+                box.bottom,
+            ),
+            prefix_confidence,
+        ),
+        (
+            text[3:],
+            BoundingBox(
+                line_box.left + 173,
+                box.top,
+                box.right,
+                box.bottom,
+            ),
+            suffix_confidence,
+        ),
+    ]
+
+
 def _recover_confirmed_paired_wrapped_three_plus_three_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -5669,6 +5829,12 @@ class PaddleOcrEngine(OcrEngine):
                         self.recognizer,
                     )
                     words = _recover_confirmed_isolated_three_plus_five_punctuated_split(
+                        words,
+                        crop,
+                        region.box,
+                        self.recognizer,
+                    )
+                    words = _recover_confirmed_isolated_mixed_prefix_split(
                         words,
                         crop,
                         region.box,

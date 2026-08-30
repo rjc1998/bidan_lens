@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_enhanced_wrapped_four_substitution,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_isolated_mixed_prefix_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_isolated_three_plus_five_punctuated_split,
     _recover_confirmed_leading_punctuated_single_split,
@@ -3954,6 +3955,290 @@ def test_engine_recovers_isolated_three_plus_five_punctuated_segment() -> None:
     assert target_box.right == pytest.approx(293.96)
     assert following_box.left == pytest.approx(322.96)
     assert following_box.right == pytest.approx(637.04)
+
+
+_ISOLATED_MIXED_PREFIX_TARGET = chr(0xC760) + chr(0xC761)
+_ISOLATED_MIXED_PREFIX_TEXT = _ISOLATED_MIXED_PREFIX_TARGET + "/A.1234-B5"
+_ISOLATED_MIXED_PREFIX_BOX = BoundingBox(107.24, 631.76, 596.76, 707.48)
+
+
+class ConfirmedIsolatedMixedPrefixRecognizer:
+    def __init__(
+        self,
+        *,
+        enhanced_candidate_text: str = _ISOLATED_MIXED_PREFIX_TEXT,
+        enhanced_candidate_confidence: float = 0.9804,
+        prefix_direct_text: str | None = None,
+        prefix_direct_confidence: float = 0.991,
+        prefix_enhanced_text: str | None = None,
+        prefix_enhanced_confidence: float = 0.991,
+        suffix_direct_text: str | None = None,
+        suffix_direct_confidence: float = 0.75,
+        suffix_enhanced_text: str | None = None,
+        suffix_enhanced_confidence: float = 0.8,
+        segments_003: tuple[tuple[int, int], ...] = (
+            (0, 174),
+            (173, 490),
+        ),
+    ) -> None:
+        self.enhanced_candidate_text = enhanced_candidate_text
+        self.enhanced_candidate_confidence = enhanced_candidate_confidence
+        self.prefix_direct_text = (
+            _ISOLATED_MIXED_PREFIX_TEXT[:3]
+            if prefix_direct_text is None
+            else prefix_direct_text
+        )
+        self.prefix_direct_confidence = prefix_direct_confidence
+        self.prefix_enhanced_text = (
+            _ISOLATED_MIXED_PREFIX_TEXT[:3]
+            if prefix_enhanced_text is None
+            else prefix_enhanced_text
+        )
+        self.prefix_enhanced_confidence = prefix_enhanced_confidence
+        self.suffix_direct_text = (
+            _ISOLATED_MIXED_PREFIX_TEXT[3:]
+            if suffix_direct_text is None
+            else suffix_direct_text
+        )
+        self.suffix_direct_confidence = suffix_direct_confidence
+        self.suffix_enhanced_text = (
+            _ISOLATED_MIXED_PREFIX_TEXT[3:]
+            if suffix_enhanced_text is None
+            else suffix_enhanced_text
+        )
+        self.suffix_enhanced_confidence = suffix_enhanced_confidence
+        self.segments_003 = segments_003
+        self.calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if space_threshold in {0.04, 0.05, 0.07}:
+            return ((0, 490),)
+        if space_threshold == 0.0001:
+            return ((0, 174), (173, 251), (250, 490))
+        if space_threshold == 0.003:
+            return self.segments_003
+        assert space_threshold in {
+            0.0003,
+            0.0005,
+            0.001,
+            0.002,
+            0.005,
+            0.007,
+            0.01,
+            0.015,
+            0.02,
+            0.03,
+        }
+        return ((0, 174), (173, 490))
+
+    def recognize(self, image):
+        self.calls += 1
+        width, height = image.size
+        if (width, height) == (490, 77):
+            return RecognizedText(_ISOLATED_MIXED_PREFIX_TEXT, 0.975795)
+        if (width, height) == (980, 154):
+            return RecognizedText(
+                self.enhanced_candidate_text,
+                self.enhanced_candidate_confidence,
+            )
+        if height == 77 and 170 <= width <= 178:
+            return RecognizedText(
+                self.prefix_direct_text,
+                self.prefix_direct_confidence,
+            )
+        if height == 154 and 340 <= width <= 356:
+            return RecognizedText(
+                self.prefix_enhanced_text,
+                self.prefix_enhanced_confidence,
+            )
+        if height == 77 and 313 <= width <= 319:
+            return RecognizedText(
+                self.suffix_direct_text,
+                self.suffix_direct_confidence,
+            )
+        if height == 154 and 626 <= width <= 638:
+            return RecognizedText(
+                self.suffix_enhanced_text,
+                self.suffix_enhanced_confidence,
+            )
+        return RecognizedText("", 0.0)
+
+
+def isolated_mixed_prefix_words(
+    *,
+    text: str = _ISOLATED_MIXED_PREFIX_TEXT,
+    confidence: float = 0.975795,
+    box: BoundingBox = _ISOLATED_MIXED_PREFIX_BOX,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [(text, box, confidence)]
+
+
+def test_confirmed_isolated_mixed_prefix_recovers() -> None:
+    recovered = _recover_confirmed_isolated_mixed_prefix_split(
+        isolated_mixed_prefix_words(),
+        Image.new("RGB", (490, 77)),
+        _ISOLATED_MIXED_PREFIX_BOX,
+        ConfirmedIsolatedMixedPrefixRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            _ISOLATED_MIXED_PREFIX_TEXT[:3],
+            BoundingBox(107.24, 631.76, 281.24, 707.48),
+            0.975795,
+        ),
+        (
+            _ISOLATED_MIXED_PREFIX_TEXT[3:],
+            BoundingBox(280.24, 631.76, 596.76, 707.48),
+            0.75,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "enhanced_candidate_text": (
+                _ISOLATED_MIXED_PREFIX_TEXT[:-1] + "6"
+            )
+        },
+        {"enhanced_candidate_confidence": 0.9802},
+        {"prefix_direct_text": _ISOLATED_MIXED_PREFIX_TARGET + "!"},
+        {"prefix_direct_confidence": 0.9906},
+        {"prefix_enhanced_text": _ISOLATED_MIXED_PREFIX_TARGET + "!"},
+        {"prefix_enhanced_confidence": 0.9906},
+        {"suffix_direct_text": "A.1234-B6"},
+        {"suffix_direct_confidence": 0.7409},
+        {"suffix_enhanced_text": "A.1234-B6"},
+        {"suffix_enhanced_confidence": 0.7829},
+        {"segments_003": ((0, 173), (173, 490))},
+    ],
+)
+def test_confirmed_isolated_mixed_prefix_requires_crop_evidence(
+    changes,
+) -> None:
+    words = isolated_mixed_prefix_words()
+
+    assert (
+        _recover_confirmed_isolated_mixed_prefix_split(
+            words,
+            Image.new("RGB", (490, 77)),
+            _ISOLATED_MIXED_PREFIX_BOX,
+            ConfirmedIsolatedMixedPrefixRecognizer(**changes),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "word-count",
+        "length",
+        "target-shape",
+        "punctuation-shape",
+        "ascii-shape",
+        "ascii-counts",
+        "confidence",
+        "box",
+        "height",
+        "crop",
+    ],
+)
+def test_confirmed_isolated_mixed_prefix_requires_exact_profile(
+    case: str,
+) -> None:
+    words = isolated_mixed_prefix_words()
+    crop = Image.new("RGB", (490, 77))
+    line_box = _ISOLATED_MIXED_PREFIX_BOX
+    if case == "word-count":
+        words *= 2
+    elif case == "length":
+        words = isolated_mixed_prefix_words(
+            text=_ISOLATED_MIXED_PREFIX_TEXT[:-1]
+        )
+    elif case == "target-shape":
+        words = isolated_mixed_prefix_words(
+            text="A" + _ISOLATED_MIXED_PREFIX_TEXT[1:]
+        )
+    elif case == "punctuation-shape":
+        words = isolated_mixed_prefix_words(
+            text=(
+                _ISOLATED_MIXED_PREFIX_TARGET
+                + "A"
+                + _ISOLATED_MIXED_PREFIX_TEXT[3:]
+            )
+        )
+    elif case == "ascii-shape":
+        words = isolated_mixed_prefix_words(
+            text=(
+                _ISOLATED_MIXED_PREFIX_TEXT[:3]
+                + chr(0xC762)
+                + _ISOLATED_MIXED_PREFIX_TEXT[4:]
+            )
+        )
+    elif case == "ascii-counts":
+        words = isolated_mixed_prefix_words(
+            text=_ISOLATED_MIXED_PREFIX_TEXT[:-1] + "C"
+        )
+    elif case == "confidence":
+        words = isolated_mixed_prefix_words(confidence=0.9756)
+    elif case == "box":
+        words = isolated_mixed_prefix_words(
+            box=BoundingBox(107.24, 631.76, 596.75, 707.48)
+        )
+    elif case == "height":
+        line_box = BoundingBox(107.24, 631.76, 596.76, 707.49)
+        words = isolated_mixed_prefix_words(box=line_box)
+    else:
+        crop = Image.new("RGB", (489, 77))
+    recognizer = ConfirmedIsolatedMixedPrefixRecognizer()
+
+    assert (
+        _recover_confirmed_isolated_mixed_prefix_split(
+            words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+class IsolatedMixedPrefixDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_ISOLATED_MIXED_PREFIX_BOX, 0.992809),)
+
+
+def test_engine_recovers_isolated_mixed_prefix_segment() -> None:
+    engine = PaddleOcrEngine(
+        IsolatedMixedPrefixDetector(),
+        ConfirmedIsolatedMixedPrefixRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (800, 800)))
+
+    line = document.lines[0]
+    assert line.text == (
+        _ISOLATED_MIXED_PREFIX_TEXT[:3]
+        + " "
+        + _ISOLATED_MIXED_PREFIX_TEXT[3:]
+    )
+    assert len(line.eojeols) == 1
+    assert line.eojeols[0].text == _ISOLATED_MIXED_PREFIX_TARGET
+    assert line.eojeols[0].box == BoundingBox(
+        107.24,
+        631.76,
+        223.24,
+        707.48,
+    )
+    assert line.eojeols[0].confidence == 0.975795
 
 
 class ConfirmedIsolatedPairedWrappedTwoPlusTwoRecognizer:
