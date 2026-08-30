@@ -37,6 +37,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_right_wrapper_five_substitution,
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
+    _recover_confirmed_terminal_dash_wrapped_two_plus_two_split,
     _recover_confirmed_terminal_punctuated_overlap_pair,
     _recover_confirmed_terminal_three_plus_wrapped_two_split,
     _recover_confirmed_terminal_three_substitution,
@@ -13861,3 +13862,439 @@ def test_engine_recovers_terminal_wrapped_two_plus_one_segment() -> None:
     following_box = document.lines[0].eojeols[-1].box
     assert following_box.left == pytest.approx(1125.64)
     assert following_box.right == pytest.approx(1153.64)
+_TERMINAL_DASH_WRAPPED_TWO_LINE = BoundingBox(
+    78.44, 156.130435, 782.56, 184.304348
+)
+_TERMINAL_DASH_WRAPPED_TWO_SEGMENTS = (
+    (44, 115),
+    (124, 172),
+    (179, 276),
+    (287, 334),
+    (343, 389),
+    (399, 471),
+    (479, 501),
+    (510, 661),
+    (669, 705),
+)
+_TERMINAL_DASH_WRAPPED_TWO_LENGTHS = (3, 2, 4, 2, 2, 3, 1)
+_TERMINAL_DASH_WRAPPED_TWO_FIRST = tuple(
+    "".join(chr(0xBA00 + offset + index) for index in range(length))
+    for offset, length in zip(
+        range(0, 112, 16),
+        _TERMINAL_DASH_WRAPPED_TWO_LENGTHS,
+        strict=True,
+    )
+)
+_TERMINAL_DASH_WRAPPED_TWO_TARGET = "".join(
+    chr(0xBC00 + index) for index in range(2)
+)
+_TERMINAL_DASH_WRAPPED_TWO_FOLLOWING = "".join(
+    chr(0xBD00 + index) for index in range(2)
+)
+_TERMINAL_DASH_WRAPPED_TWO_CANDIDATE = (
+    chr(0x2014)
+    + _TERMINAL_DASH_WRAPPED_TWO_TARGET
+    + "-"
+    + _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING
+)
+_TERMINAL_DASH_WRAPPED_TWO_CORRECTED = (
+    chr(0x2014) + _TERMINAL_DASH_WRAPPED_TWO_TARGET + chr(0x2014)
+)
+_TERMINAL_DASH_WRAPPED_TWO_THRESHOLDS = {
+    0.0001: (
+        (0, 27),
+        (26, 42),
+        (41, 66),
+        (65, 96),
+        (105, 119),
+        (118, 143),
+        (142, 151),
+    ),
+    0.0003: ((0, 66), (65, 96), (105, 151)),
+    0.0005: ((0, 96), (105, 151)),
+    0.001: ((0, 96), (105, 151)),
+    0.002: ((0, 96), (105, 151)),
+    0.003: ((0, 96), (105, 151)),
+    0.005: ((0, 96), (105, 151)),
+    0.007: ((0, 151),),
+    0.01: ((0, 151),),
+    0.015: ((0, 151),),
+    0.02: ((0, 151),),
+    0.03: ((0, 151),),
+    0.04: ((0, 151),),
+    0.05: ((0, 151),),
+    0.07: ((0, 151),),
+}
+
+
+class ConfirmedTerminalDashWrappedTwoRecognizer:
+    def __init__(self, **overrides) -> None:
+        self.default_segments = _TERMINAL_DASH_WRAPPED_TWO_SEGMENTS
+        self.thresholds = dict(_TERMINAL_DASH_WRAPPED_TWO_THRESHOLDS)
+        self.candidate_direct = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_CANDIDATE, 0.7299
+        )
+        self.candidate_enhanced = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_CANDIDATE, 0.7058
+        )
+        self.wrapper_direct = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_CORRECTED, 0.5738
+        )
+        self.wrapper_enhanced = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_CORRECTED, 0.5083
+        )
+        self.boundary_direct = RecognizedText(chr(0x2014), 0.6654)
+        self.boundary_enhanced = RecognizedText(chr(0x2014), 0.6928)
+        self.target_direct = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_TARGET, 0.99992
+        )
+        self.target_enhanced = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_TARGET, 0.99993
+        )
+        self.following_direct = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING, 0.99990
+        )
+        self.following_enhanced = RecognizedText(
+            _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING, 0.99991
+        )
+        for name, value in overrides.items():
+            setattr(self, name, value)
+        self.recognition_calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.size == (705, 29):
+            return self.default_segments
+        if image.size == (151, 29):
+            return self.thresholds[space_threshold]
+        return ((0, image.width),)
+
+    def recognize(self, image):
+        index = self.recognition_calls
+        if index == 0:
+            expected_sizes = {(151, 29)}
+            result = self.candidate_direct
+        elif index == 1:
+            expected_sizes = {(302, 58)}
+            result = self.candidate_enhanced
+        elif index < 5:
+            expected_sizes = {(101, 29), (104, 29), (106, 29)}
+            result = self.wrapper_direct
+        elif index < 8:
+            expected_sizes = {(202, 58), (208, 58), (212, 58)}
+            result = self.wrapper_enhanced
+        elif index < 15:
+            expected_sizes = {(width, 29) for width in range(27, 33)}
+            result = self.boundary_direct
+        elif index < 22:
+            expected_sizes = {(width, 58) for width in range(54, 65, 2)}
+            result = self.boundary_enhanced
+        elif index < 29:
+            expected_sizes = {(width, 29) for width in range(44, 49)}
+            result = self.target_direct
+        elif index < 36:
+            expected_sizes = {(width, 58) for width in range(88, 97, 2)}
+            result = self.target_enhanced
+        elif index < 43:
+            expected_sizes = {(width, 29) for width in range(41, 47)}
+            result = self.following_direct
+        else:
+            expected_sizes = {(width, 58) for width in range(82, 93, 2)}
+            result = self.following_enhanced
+        if image.size not in expected_sizes:
+            return RecognizedText("", 0.0)
+        self.recognition_calls += 1
+        return result
+
+
+class EngineTerminalDashWrappedTwoRecognizer(
+    ConfirmedTerminalDashWrappedTwoRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        confidences = (
+            0.999951,
+            0.999709,
+            0.999802,
+            0.999976,
+            0.999891,
+            0.999977,
+            0.999919,
+        )
+        self.raw_results = (
+            *(
+                RecognizedText(text, confidence)
+                for text, confidence in zip(
+                    _TERMINAL_DASH_WRAPPED_TWO_FIRST,
+                    confidences,
+                    strict=True,
+                )
+            ),
+            RecognizedText(_TERMINAL_DASH_WRAPPED_TWO_CANDIDATE, 0.729867),
+            RecognizedText("", 0.0),
+        )
+        self.raw_index = 0
+
+    def recognize(self, image):
+        if self.raw_index < len(self.raw_results):
+            result = self.raw_results[self.raw_index]
+            self.raw_index += 1
+            return result
+        return super().recognize(image)
+
+
+class TerminalDashWrappedTwoDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_TERMINAL_DASH_WRAPPED_TWO_LINE, 0.988354),)
+
+
+def terminal_dash_wrapped_two_words(
+    *,
+    candidate_text: str = _TERMINAL_DASH_WRAPPED_TWO_CANDIDATE,
+    candidate_confidence: float = 0.729867,
+) -> list[tuple[str, BoundingBox, float]]:
+    confidences = (
+        0.999951,
+        0.999709,
+        0.999802,
+        0.999976,
+        0.999891,
+        0.999977,
+        0.999919,
+        candidate_confidence,
+    )
+    texts = (*_TERMINAL_DASH_WRAPPED_TWO_FIRST, candidate_text)
+    return [
+        (
+            text,
+            BoundingBox(
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.left + left,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.top,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.left + right,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.bottom,
+            ),
+            confidence,
+        )
+        for text, confidence, (left, right) in zip(
+            texts,
+            confidences,
+            _TERMINAL_DASH_WRAPPED_TWO_SEGMENTS[:-1],
+            strict=True,
+        )
+    ]
+
+
+def test_confirmed_terminal_dash_wrapped_two_plus_two_recovers() -> None:
+    words = terminal_dash_wrapped_two_words()
+
+    recovered = _recover_confirmed_terminal_dash_wrapped_two_plus_two_split(
+        words,
+        Image.new("RGB", (705, 29)),
+        _TERMINAL_DASH_WRAPPED_TWO_LINE,
+        ConfirmedTerminalDashWrappedTwoRecognizer(),
+    )
+
+    candidate_left = _TERMINAL_DASH_WRAPPED_TWO_LINE.left + 510
+    assert recovered == [
+        *words[:-1],
+        (
+            _TERMINAL_DASH_WRAPPED_TWO_CORRECTED,
+            BoundingBox(
+                candidate_left,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.top,
+                candidate_left + 96,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.bottom,
+            ),
+            0.5083,
+        ),
+        (
+            _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING,
+            BoundingBox(
+                candidate_left + 105,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.top,
+                candidate_left + 151,
+                _TERMINAL_DASH_WRAPPED_TWO_LINE.bottom,
+            ),
+            0.7058,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_direct": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_CANDIDATE[:-1], 0.9
+            )
+        },
+        {
+            "candidate_enhanced": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_CANDIDATE, 0.7055
+            )
+        },
+        {
+            "wrapper_direct": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_CORRECTED, 0.5736
+            )
+        },
+        {
+            "wrapper_enhanced": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_CORRECTED, 0.5081
+            )
+        },
+        {"boundary_direct": RecognizedText("-", 0.9)},
+        {"boundary_enhanced": RecognizedText(chr(0x2014), 0.6926)},
+        {
+            "target_direct": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_TARGET, 0.99990
+            )
+        },
+        {
+            "target_enhanced": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_TARGET, 0.99991
+            )
+        },
+        {
+            "following_direct": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING, 0.99988
+            )
+        },
+        {
+            "following_enhanced": RecognizedText(
+                _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING, 0.99989
+            )
+        },
+        {
+            "default_segments": (
+                *_TERMINAL_DASH_WRAPPED_TWO_SEGMENTS[:-1],
+                (669, 704),
+            )
+        },
+    ],
+)
+def test_confirmed_terminal_dash_wrapped_two_plus_two_requires_evidence(
+    overrides,
+) -> None:
+    words = terminal_dash_wrapped_two_words()
+
+    assert (
+        _recover_confirmed_terminal_dash_wrapped_two_plus_two_split(
+            words,
+            Image.new("RGB", (705, 29)),
+            _TERMINAL_DASH_WRAPPED_TWO_LINE,
+            ConfirmedTerminalDashWrappedTwoRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+def test_confirmed_terminal_dash_wrapped_two_plus_two_requires_ctc_profile() -> None:
+    words = terminal_dash_wrapped_two_words()
+    recognizer = ConfirmedTerminalDashWrappedTwoRecognizer()
+    recognizer.thresholds[0.0003] = ((0, 1),)
+
+    assert (
+        _recover_confirmed_terminal_dash_wrapped_two_plus_two_split(
+            words,
+            Image.new("RGB", (705, 29)),
+            _TERMINAL_DASH_WRAPPED_TWO_LINE,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "count",
+        "preceding_text",
+        "preceding_confidence",
+        "candidate_pattern",
+        "candidate_confidence",
+        "box",
+        "line",
+        "crop",
+    ],
+)
+def test_confirmed_terminal_dash_wrapped_two_plus_two_requires_profile(
+    case: str,
+) -> None:
+    words = terminal_dash_wrapped_two_words()
+    crop = Image.new("RGB", (705, 29))
+    line_box = _TERMINAL_DASH_WRAPPED_TWO_LINE
+    if case == "count":
+        words = words[:-1]
+    elif case == "preceding_text":
+        text, box, confidence = words[0]
+        words[0] = ("A" + text[1:], box, confidence)
+    elif case == "preceding_confidence":
+        text, box, _ = words[1]
+        words[1] = (text, box, 0.9996)
+    elif case == "candidate_pattern":
+        words = terminal_dash_wrapped_two_words(
+            candidate_text=(
+                "/"
+                + _TERMINAL_DASH_WRAPPED_TWO_TARGET
+                + "-"
+                + _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING
+            )
+        )
+    elif case == "candidate_confidence":
+        words = terminal_dash_wrapped_two_words(candidate_confidence=0.7296)
+    elif case == "box":
+        text, box, confidence = words[-1]
+        words[-1] = (
+            text,
+            BoundingBox(box.left + 1, box.top, box.right, box.bottom),
+            confidence,
+        )
+    elif case == "line":
+        line_box = BoundingBox(78.44, 156.130435, 783.56, 184.304348)
+    else:
+        crop = Image.new("RGB", (704, 29))
+    recognizer = ConfirmedTerminalDashWrappedTwoRecognizer()
+
+    assert (
+        _recover_confirmed_terminal_dash_wrapped_two_plus_two_split(
+            words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+def test_engine_recovers_terminal_dash_wrapped_two_plus_two_segment() -> None:
+    engine = PaddleOcrEngine(
+        TerminalDashWrappedTwoDetector(),
+        EngineTerminalDashWrappedTwoRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (900, 300)))
+
+    assert document.lines[0].text == " ".join(
+        (
+            *_TERMINAL_DASH_WRAPPED_TWO_FIRST,
+            _TERMINAL_DASH_WRAPPED_TWO_CORRECTED,
+            _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING,
+        )
+    )
+    assert [word.text for word in document.lines[0].eojeols] == [
+        *_TERMINAL_DASH_WRAPPED_TWO_FIRST,
+        _TERMINAL_DASH_WRAPPED_TWO_TARGET,
+        _TERMINAL_DASH_WRAPPED_TWO_FOLLOWING,
+    ]
+    target_box = document.lines[0].eojeols[-2].box
+    assert target_box.left == pytest.approx(612.44)
+    assert target_box.right == pytest.approx(660.44)
+    following_box = document.lines[0].eojeols[-1].box
+    assert following_box.left == pytest.approx(693.44)
+    assert following_box.right == pytest.approx(739.44)
