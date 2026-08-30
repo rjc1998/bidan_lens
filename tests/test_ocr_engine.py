@@ -20,6 +20,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_isolated_mixed_prefix_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_isolated_three_plus_five_punctuated_split,
+    _recover_confirmed_leading_dash_three_plus_five_split,
     _recover_confirmed_leading_punctuated_single_split,
     _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
@@ -10758,6 +10759,385 @@ def test_engine_recovers_wrapped_three_plus_four_segment() -> None:
     assert target.box.top == pytest.approx(239.67)
     assert target.box.bottom == pytest.approx(266.09)
     assert target.confidence == 0.862854
+
+
+_WRAPPED_THREE_FIVE_HEIGHT = 26.413043
+_WRAPPED_THREE_FIVE_LINE = BoundingBox(
+    79.4,
+    156.521739,
+    769.6,
+    156.521739 + _WRAPPED_THREE_FIVE_HEIGHT,
+)
+_WRAPPED_THREE_FIVE_TARGET = "".join(
+    chr(0xC790 + offset) for offset in range(3)
+)
+_WRAPPED_THREE_FIVE_FOLLOWING = "".join(
+    chr(0xC7A0 + offset) for offset in range(5)
+)
+_WRAPPED_THREE_FIVE_CANDIDATE = (
+    chr(0x2014)
+    + _WRAPPED_THREE_FIVE_TARGET
+    + "-"
+    + _WRAPPED_THREE_FIVE_FOLLOWING
+)
+
+
+def wrapped_three_five_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(121.4, 156.521739, 170.4, 182.934782),
+        BoundingBox(177.4, 156.521739, 248.4, 182.934782),
+        BoundingBox(258.4, 156.521739, 328.4, 182.934782),
+        BoundingBox(340.4, 156.521739, 384.4, 182.934782),
+        BoundingBox(396.4, 156.521739, 469.4, 182.934782),
+        BoundingBox(476.4, 156.521739, 726.4, 182.934782),
+    )
+    texts = (
+        "".join(chr(0xC7B0 + offset) for offset in range(2)),
+        "".join(chr(0xC7C0 + offset) for offset in range(3)),
+        "".join(chr(0xC7D0 + offset) for offset in range(3)),
+        "".join(chr(0xC7E0 + offset) for offset in range(2)),
+        "".join(chr(0xC7F0 + offset) for offset in range(3)),
+        _WRAPPED_THREE_FIVE_CANDIDATE,
+    )
+    confidences = (
+        0.999953,
+        0.998768,
+        0.999834,
+        0.999859,
+        0.999597,
+        0.851829,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+class ConfirmedWrappedThreePlusFiveRecognizer:
+    def __init__(
+        self,
+        *,
+        enhanced_candidate_text: str = _WRAPPED_THREE_FIVE_CANDIDATE,
+        enhanced_candidate_confidence: float = 0.7802,
+        target_direct_text: str = _WRAPPED_THREE_FIVE_TARGET,
+        target_direct_confidence: float = 0.9977,
+        target_enhanced_text: str = _WRAPPED_THREE_FIVE_TARGET,
+        target_enhanced_confidence: float = 0.9984,
+        following_direct_text: str = _WRAPPED_THREE_FIVE_FOLLOWING,
+        following_direct_confidence: float = 0.9998,
+        following_enhanced_text: str = _WRAPPED_THREE_FIVE_FOLLOWING,
+        following_enhanced_confidence: float = 0.9981,
+        segments_0005: tuple[tuple[int, int], ...] = (
+            (0, 106),
+            (105, 121),
+            (129, 156),
+            (155, 250),
+        ),
+    ) -> None:
+        self.enhanced_candidate_text = enhanced_candidate_text
+        self.enhanced_candidate_confidence = enhanced_candidate_confidence
+        self.target_direct_text = target_direct_text
+        self.target_direct_confidence = target_direct_confidence
+        self.target_enhanced_text = target_enhanced_text
+        self.target_enhanced_confidence = target_enhanced_confidence
+        self.following_direct_text = following_direct_text
+        self.following_direct_confidence = following_direct_confidence
+        self.following_enhanced_text = following_enhanced_text
+        self.following_enhanced_confidence = following_enhanced_confidence
+        self.segments_0005 = segments_0005
+        self.calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.width == 691:
+            return (
+                (42, 91),
+                (98, 169),
+                (179, 249),
+                (261, 305),
+                (317, 390),
+                (397, 647),
+            )
+        if image.width != 250:
+            return ((0, image.width),)
+        if space_threshold in {0.0001, 0.0003}:
+            return (
+                (0, 106),
+                (105, 121),
+                (129, 138),
+                (137, 156),
+                (155, 250),
+            )
+        if space_threshold == 0.0005:
+            return self.segments_0005
+        if space_threshold == 0.001:
+            return ((0, 106), (105, 250))
+        return ((0, 250),)
+
+    def recognize(self, image):
+        self.calls += 1
+        width, height = image.size
+        if height == 27:
+            raw = {
+                49: RecognizedText(
+                    wrapped_three_five_raw_words()[0][0],
+                    0.999953,
+                ),
+                71: RecognizedText(
+                    wrapped_three_five_raw_words()[1][0],
+                    0.998768,
+                ),
+                70: RecognizedText(
+                    wrapped_three_five_raw_words()[2][0],
+                    0.999834,
+                ),
+                44: RecognizedText(
+                    wrapped_three_five_raw_words()[3][0],
+                    0.999859,
+                ),
+                73: RecognizedText(
+                    wrapped_three_five_raw_words()[4][0],
+                    0.999597,
+                ),
+                250: RecognizedText(
+                    _WRAPPED_THREE_FIVE_CANDIDATE,
+                    0.851829,
+                ),
+            }
+            if width in raw:
+                return raw[width]
+            if 79 <= width <= 81:
+                return RecognizedText(
+                    self.target_direct_text,
+                    self.target_direct_confidence,
+                )
+            if 118 <= width <= 124:
+                return RecognizedText(
+                    self.following_direct_text,
+                    self.following_direct_confidence,
+                )
+        if (width, height) == (500, 54):
+            return RecognizedText(
+                self.enhanced_candidate_text,
+                self.enhanced_candidate_confidence,
+            )
+        if height == 54 and 158 <= width <= 162:
+            return RecognizedText(
+                self.target_enhanced_text,
+                self.target_enhanced_confidence,
+            )
+        if height == 54 and 236 <= width <= 248:
+            return RecognizedText(
+                self.following_enhanced_text,
+                self.following_enhanced_confidence,
+            )
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_wrapped_three_plus_five_recovers() -> None:
+    words = wrapped_three_five_raw_words()
+
+    recovered = _recover_confirmed_leading_dash_three_plus_five_split(
+        words,
+        list(words),
+        Image.new("RGB", (691, 27)),
+        _WRAPPED_THREE_FIVE_LINE,
+        ConfirmedWrappedThreePlusFiveRecognizer(),
+    )
+
+    assert recovered[:5] == words[:5]
+    assert [word[0] for word in recovered[5:]] == [
+        _WRAPPED_THREE_FIVE_CANDIDATE[:5],
+        _WRAPPED_THREE_FIVE_FOLLOWING,
+    ]
+    assert recovered[5][1].left == pytest.approx(476.4)
+    assert recovered[5][1].right == pytest.approx(597.4)
+    assert recovered[5][1].top == pytest.approx(156.521739)
+    assert recovered[5][1].bottom == pytest.approx(182.934782)
+    assert recovered[5][2] == 0.851829
+    assert recovered[6][1].left == pytest.approx(605.4)
+    assert recovered[6][1].right == pytest.approx(726.4)
+    assert recovered[6][1].top == pytest.approx(156.521739)
+    assert recovered[6][1].bottom == pytest.approx(182.934782)
+    assert recovered[6][2] == 0.851829
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "enhanced_candidate_text": (
+                _WRAPPED_THREE_FIVE_CANDIDATE[:-1] + chr(0xC7A6)
+            )
+        },
+        {"enhanced_candidate_confidence": 0.7800},
+        {"target_direct_text": _WRAPPED_THREE_FIVE_TARGET[:-1] + chr(0xC796)},
+        {"target_direct_confidence": 0.9975},
+        {
+            "target_enhanced_text": (
+                _WRAPPED_THREE_FIVE_TARGET[:-1] + chr(0xC796)
+            )
+        },
+        {"target_enhanced_confidence": 0.9982},
+        {
+            "following_direct_text": (
+                _WRAPPED_THREE_FIVE_FOLLOWING[:-1] + chr(0xC7A6)
+            )
+        },
+        {"following_direct_confidence": 0.9996},
+        {
+            "following_enhanced_text": (
+                _WRAPPED_THREE_FIVE_FOLLOWING[:-1] + chr(0xC7A6)
+            )
+        },
+        {"following_enhanced_confidence": 0.9979},
+        {
+            "segments_0005": (
+                (0, 106),
+                (105, 121),
+                (129, 155),
+                (155, 250),
+            )
+        },
+    ],
+)
+def test_confirmed_wrapped_three_plus_five_requires_crop_evidence(
+    changes,
+) -> None:
+    words = wrapped_three_five_raw_words()
+
+    assert (
+        _recover_confirmed_leading_dash_three_plus_five_split(
+            words,
+            list(words),
+            Image.new("RGB", (691, 27)),
+            _WRAPPED_THREE_FIVE_LINE,
+            ConfirmedWrappedThreePlusFiveRecognizer(**changes),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-mismatch",
+        "raw-shape",
+        "candidate-relationship",
+        "confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-size",
+        "candidate-bounds",
+    ],
+)
+def test_confirmed_wrapped_three_plus_five_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = wrapped_three_five_raw_words()
+    words = list(raw)
+    crop = Image.new("RGB", (691, 27))
+    line_box = _WRAPPED_THREE_FIVE_LINE
+    if case == "selected-count":
+        words.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-mismatch":
+        words[0] = (words[0][0], words[0][1], 0.99995)
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        words = list(raw)
+    elif case == "candidate-relationship":
+        value = raw[5]
+        changed = value[0][:4] + '"' + value[0][5:]
+        raw[5] = (changed, value[1], value[2])
+        words = list(raw)
+    elif case == "confidence":
+        raw[0] = (raw[0][0], raw[0][1], 0.9998)
+        words = list(raw)
+    elif case == "width":
+        raw[0] = (
+            raw[0][0],
+            BoundingBox(121.4, 156.521739, 171.4, 182.934782),
+            raw[0][2],
+        )
+        words = list(raw)
+    elif case == "gap":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(178.4, 156.521739, 248.4, 182.934782),
+            raw[1][2],
+        )
+        words = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(79.4, 156.521739, 769.6, 182.95)
+    elif case == "crop-size":
+        crop = Image.new("RGB", (690, 27))
+    else:
+        raw[5] = (
+            raw[5][0],
+            BoundingBox(477.4, 156.521739, 727.4, 182.934782),
+            raw[5][2],
+        )
+        words = list(raw)
+    recognizer = ConfirmedWrappedThreePlusFiveRecognizer()
+
+    assert (
+        _recover_confirmed_leading_dash_three_plus_five_split(
+            words,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+class WrappedThreePlusFiveDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(_WRAPPED_THREE_FIVE_LINE, 0.990693),
+        )
+
+
+def test_engine_recovers_wrapped_three_plus_five_segment() -> None:
+    engine = PaddleOcrEngine(
+        WrappedThreePlusFiveDetector(),
+        ConfirmedWrappedThreePlusFiveRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (900, 400)))
+
+    line = document.lines[0]
+    expected_words = wrapped_three_five_raw_words()
+    assert line.text == " ".join(
+        (
+            *(word[0] for word in expected_words[:5]),
+            _WRAPPED_THREE_FIVE_CANDIDATE[:5],
+            _WRAPPED_THREE_FIVE_FOLLOWING,
+        )
+    )
+    assert [len(word.text) for word in line.eojeols] == [
+        2,
+        3,
+        3,
+        2,
+        3,
+        3,
+        5,
+    ]
+    target = line.eojeols[5]
+    assert target.text == _WRAPPED_THREE_FIVE_TARGET
+    assert target.box.left == pytest.approx(500.6)
+    assert target.box.right == pytest.approx(573.2)
+    assert target.box.top == pytest.approx(156.521739)
+    assert target.box.bottom == pytest.approx(182.934782)
+    assert target.confidence == 0.851829
 
 
 _WRAPPED_ONE_FOUR_HEIGHT = 44.021739

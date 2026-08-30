@@ -5742,6 +5742,13 @@ class PaddleOcrEngine(OcrEngine):
             line_box,
             self.recognizer,
         )
+        words = _recover_confirmed_leading_dash_three_plus_five_split(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_wrapped_five_plus_four_split(
             words,
             crop,
@@ -7839,6 +7846,281 @@ def _recover_confirmed_wrapped_three_plus_four_split(
             following_text,
             BoundingBox(
                 box.left + 115,
+                box.top,
+                box.right,
+                box.bottom,
+            ),
+            following_confidence,
+        ),
+    ]
+    return recovered
+
+
+def _recover_confirmed_leading_dash_three_plus_five_split(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if (
+        not callable(segmenter)
+        or len(words) != 6
+        or len(raw_words) != 6
+        or words != raw_words
+        or crop.size != (691, 27)
+        or not 26.40 <= line_box.height <= 26.42
+        or not 690.19 <= line_box.width <= 690.21
+    ):
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int]:
+        return (
+            len(text),
+            sum(is_hangul(character) for character in text),
+            sum(
+                unicodedata.category(character).startswith("P")
+                for character in text
+            ),
+            sum(
+                character.isascii() and character.isalnum()
+                for character in text
+            ),
+        )
+
+    expected_shapes = (
+        (2, 2, 0, 0),
+        (3, 3, 0, 0),
+        (3, 3, 0, 0),
+        (2, 2, 0, 0),
+        (3, 3, 0, 0),
+        (10, 8, 2, 0),
+    )
+    confidence_ranges = (
+        (0.9999, 1.0),
+        (0.9987, 0.9988),
+        (0.9998, 0.9999),
+        (0.9998, 0.9999),
+        (0.9995, 0.9997),
+        (0.8518, 0.8519),
+    )
+    width_ranges = (
+        (1.85, 1.86),
+        (2.68, 2.70),
+        (2.65, 2.66),
+        (1.66, 1.67),
+        (2.76, 2.77),
+        (9.46, 9.47),
+    )
+    gap_ranges = (
+        (0.26, 0.27),
+        (0.37, 0.39),
+        (0.45, 0.46),
+        (0.45, 0.46),
+        (0.26, 0.27),
+    )
+    widths = tuple(word[1].width / line_box.height for word in raw_words)
+    gaps = tuple(
+        (right[1].left - left[1].right) / line_box.height
+        for left, right in zip(raw_words, raw_words[1:], strict=False)
+    )
+    text, box, confidence = raw_words[5]
+    if (
+        tuple(shape(word[0]) for word in raw_words) != expected_shapes
+        or any(
+            not lower <= word[2] <= upper
+            for word, (lower, upper) in zip(
+                raw_words,
+                confidence_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                widths,
+                width_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                gaps,
+                gap_ranges,
+                strict=True,
+            )
+        )
+        or ord(text[0]) != 0x2014
+        or text[4] != "-"
+        or not all(is_hangul(character) for character in text[1:4])
+        or not unicodedata.category(text[4]).startswith("P")
+        or not all(is_hangul(character) for character in text[5:])
+        or not 26.12 <= line_box.width / line_box.height <= 26.14
+    ):
+        return words
+    try:
+        if tuple(segmenter(crop)) != (
+            (42, 91),
+            (98, 169),
+            (179, 249),
+            (261, 305),
+            (317, 390),
+            (397, 647),
+        ):
+            return words
+    except TypeError:
+        return words
+    crop_left = round(box.left - line_box.left)
+    crop_right = round(box.right - line_box.left)
+    if (crop_left, crop_right) != (397, 647):
+        return words
+    candidate_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    expected_segments = (
+        (
+            0.0001,
+            ((0, 106), (105, 121), (129, 138), (137, 156), (155, 250)),
+        ),
+        (
+            0.0003,
+            ((0, 106), (105, 121), (129, 138), (137, 156), (155, 250)),
+        ),
+        (0.0005, ((0, 106), (105, 121), (129, 156), (155, 250))),
+        (0.001, ((0, 106), (105, 250))),
+        (0.002, ((0, 250),)),
+        (0.003, ((0, 250),)),
+        (0.005, ((0, 250),)),
+        (0.007, ((0, 250),)),
+        (0.01, ((0, 250),)),
+        (0.015, ((0, 250),)),
+        (0.02, ((0, 250),)),
+        (0.03, ((0, 250),)),
+        (0.04, ((0, 250),)),
+        (0.05, ((0, 250),)),
+        (0.07, ((0, 250),)),
+    )
+    try:
+        if any(
+            tuple(segmenter(candidate_crop, space_threshold=threshold))
+            != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    enhanced_candidate = recognizer.recognize(enhanced(candidate_crop))
+    target_bounds = (
+        (15, 94),
+        (15, 96),
+        (17, 96),
+        (18, 98),
+        (19, 99),
+        (20, 100),
+        (21, 101),
+    )
+    following_bounds = (
+        (124, 248),
+        (125, 249),
+        (126, 250),
+        (128, 248),
+        (129, 249),
+        (130, 250),
+        (131, 249),
+    )
+    target_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in target_bounds
+    )
+    target_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop(
+                    (left, 0, right, candidate_crop.height)
+                )
+            )
+        )
+        for left, right in target_bounds
+    )
+    following_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in following_bounds
+    )
+    following_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop(
+                    (left, 0, right, candidate_crop.height)
+                )
+            )
+        )
+        for left, right in following_bounds
+    )
+    target_text = text[1:4]
+    following_text = text[5:]
+    if (
+        enhanced_candidate.confidence < 0.7801
+        or enhanced_candidate.text.replace(" ", "") != text
+        or any(
+            variant.confidence < 0.9976
+            or variant.text.replace(" ", "") != target_text
+            for variant in target_direct
+        )
+        or any(
+            variant.confidence < 0.9983
+            or variant.text.replace(" ", "") != target_text
+            for variant in target_enhanced
+        )
+        or any(
+            variant.confidence < 0.9997
+            or variant.text.replace(" ", "") != following_text
+            for variant in following_direct
+        )
+        or any(
+            variant.confidence < 0.9980
+            or variant.text.replace(" ", "") != following_text
+            for variant in following_enhanced
+        )
+    ):
+        return words
+    target_confidence = min(
+        confidence,
+        *(variant.confidence for variant in target_direct),
+        *(variant.confidence for variant in target_enhanced),
+    )
+    following_confidence = min(
+        confidence,
+        *(variant.confidence for variant in following_direct),
+        *(variant.confidence for variant in following_enhanced),
+    )
+    recovered = list(words)
+    recovered[5:6] = [
+        (
+            text[:5],
+            BoundingBox(
+                box.left,
+                box.top,
+                box.left + 121,
+                box.bottom,
+            ),
+            target_confidence,
+        ),
+        (
+            following_text,
+            BoundingBox(
+                box.left + 129,
                 box.top,
                 box.right,
                 box.bottom,

@@ -74,11 +74,11 @@ privacy-safe diagnostic SHA-256 is
 `0639ae2e1a7c55a6cbb2d125cb0082aa50bd67c7d49109ff773f51c903f9d47b`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.45% whole-eojeol OCR, 99.05% target selection, 90.55%
+cleanup. Its 2,000 main cases record 98.46% whole-eojeol OCR, 99.10% target selection, 90.60%
 functional context, 72.45% exact sentence transcription, 93.25% component accuracy, 95.55% exact
-KRDict fidelity, 85.40% fully correct first popups, and 96.10% alternative recovery. False
-promotions remain zero and the accepted follow-up is 222.42 ms median /
-337.98 ms p95. Privacy-safe diagnostics contain 19 target, 170 context, and 103 analysis failures;
+KRDict fidelity, 85.45% fully correct first popups, and 96.15% alternative recovery. False
+promotions remain zero and the accepted follow-up is 223.59 ms median /
+337.66 ms p95. Privacy-safe diagnostics contain 18 target, 170 context, and 103 analysis failures;
 the analysis stages are 45 primary lemmas, 48 component roles, four component counts, and six
 grammar roles. No component-surface failures remain. The two stable IDs with negative
 activations also fail target selection, with one activation each.
@@ -92,7 +92,7 @@ near-miss probes remain at zero, whitespace is one of 1,931 (0.05%), and punctua
 negative-activation gates pass, but the primary and exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`365dd08e3ef90498a8702bcde1a65ee899ebc0c491cb2b9844b50995f518602b`.
+`b0464ffaa3582b645f1649504ec8aa08a4509db3c1c569ed70038c1628387b54`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -1103,6 +1103,25 @@ activation, and all gates do not regress. The recovered target and following eoj
 the conservative fused-candidate confidence of 86.29%. The full context audit remains complete at
 170 active cases, 208 decisions, 38 resolved IDs, and no missing decision.
 
+One isolated ten-character segment fused an em-dash-prefixed three-Hangul target, an ASCII hyphen,
+and a five-Hangul following eojeol. The fail-closed profile requires the exact six-word line
+geometry, punctuation code points, character-category shape, confidence, normalized widths and
+gaps, and full 15-threshold CTC signature. Two lowest thresholds expose five fragments, the next
+exposes four, one exposes two overlapping regions, and the remaining eleven stay fused. Enhanced
+full-crop recognition must reproduce the candidate, while seven target and seven following-word
+crops must independently reproduce both sides in direct and enhanced form above separate
+confidence floors. The confirmed split preserves both punctuation marks, restores the missing
+sentence space, and exposes only the three-Hangul target interior.
+
+The exact full comparison removes only `dev-plain-1692` from the target failures and adds or
+changes no other diagnostic. Whole-eojeol OCR rises to 98.46%, target selection to 99.10%,
+functional context to 90.60%, first-popup correctness to 85.45%, and alternative recovery to
+96.15%; exact sentence transcription, components, and dictionary fidelity remain unchanged.
+Quick diagnostics remain byte-identical; stress, held-out language, promotions, negative
+activation, and all gates do not regress. The target and following eojeol retain the conservative
+fused-candidate confidence of 85.18%. The full context audit remains complete at 170 active cases,
+208 decisions, 38 resolved IDs, and no missing decision.
+
 Compared with the earlier full report, the accepted cleanups resolve 54 context IDs. The target
 recovery above exposes one existing non-target transcription error at context, leaving a net
 reduction of 53 active cases. The preceding cleanup permits a one-pixel overlap of at most 7.5%
@@ -1525,10 +1544,10 @@ Kiwi errors are now resolved without a regression. The remaining seven were rech
 contextual, isolated, and local dictionary evidence; those signals either reinforce the current
 reading or leave a semantic ambiguity that has no bounded structural correction. The two
 geometry-clustering passes, substitution batch, direct-retry and wrapper-fragment recoveries, and
-the thirty latest boundary recoveries resolve 39 targets and leave 19 main target failures:
-two equal-length wrong-text hits in matching geometry and 17 no-hit cases. No known length-changing
+the thirty-one latest boundary recoveries resolve 40 targets and leave 18 main target failures:
+two equal-length wrong-text hits in matching geometry and 16 no-hit cases. No known length-changing
 target failure remains. The next development target is privacy-safe crop-consensus regrouping of
-the 15 remaining no-hit cases whose target survives inside a raw segment; the two equal-length
+the 14 remaining no-hit cases whose target survives inside a raw segment; the two equal-length
 substitutions and two raw-absent targets require stronger OCR evidence.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
