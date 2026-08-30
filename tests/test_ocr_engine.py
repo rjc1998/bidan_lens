@@ -41,6 +41,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_terminal_three_plus_wrapped_two_split,
     _recover_confirmed_terminal_three_substitution,
     _recover_confirmed_terminal_wrapped_four_substitution,
+    _recover_confirmed_terminal_wrapped_two_plus_one_split,
     _recover_confirmed_three_plus_five_splits,
     _recover_confirmed_three_plus_three_splits,
     _recover_confirmed_three_plus_two_prefix_split,
@@ -13379,3 +13380,484 @@ def test_engine_recovers_terminal_three_plus_wrapped_two_segment() -> None:
     target_box = document.lines[0].eojeols[-1].box
     assert target_box.left == pytest.approx(534.08)
     assert target_box.right == pytest.approx(582.08)
+_TERMINAL_SINGLE_QUOTE_LINE = BoundingBox(
+    47.64, 158.282609, 1227.36, 189.978261
+)
+_TERMINAL_SINGLE_QUOTE_SEGMENTS = (
+    (74, 159),
+    (168, 251),
+    (261, 347),
+    (356, 411),
+    (420, 447),
+    (457, 540),
+    (551, 664),
+    (674, 757),
+    (768, 823),
+    (834, 888),
+    (898, 983),
+    (993, 1106),
+    (1111, 1155),
+)
+_TERMINAL_SINGLE_QUOTE_LENGTHS = (3, 3, 3, 2, 1, 3, 4, 3, 2, 2, 3)
+_TERMINAL_SINGLE_QUOTE_FIRST = tuple(
+    "".join(chr(0xAC00 + offset + index) for index in range(length))
+    for offset, length in zip(
+        range(0, 176, 16),
+        _TERMINAL_SINGLE_QUOTE_LENGTHS,
+        strict=True,
+    )
+)
+_TERMINAL_SINGLE_QUOTE_TARGET = "".join(
+    chr(0xB800 + index) for index in range(2)
+)
+_TERMINAL_SINGLE_QUOTE_FOLLOWING = chr(0xB900)
+_TERMINAL_SINGLE_QUOTE_CANDIDATE = (
+    "'" + _TERMINAL_SINGLE_QUOTE_TARGET + "'" + _TERMINAL_SINGLE_QUOTE_FOLLOWING
+)
+_TERMINAL_SINGLE_QUOTE_CORRECTED = (
+    chr(0x2018) + _TERMINAL_SINGLE_QUOTE_TARGET + chr(0x2019)
+)
+_TERMINAL_SINGLE_QUOTE_CANDIDATE_THRESHOLDS = {
+    0.0001: ((0, 14), (13, 75), (85, 113)),
+    0.0003: ((0, 75), (85, 113)),
+    0.0005: ((0, 75), (85, 113)),
+    0.001: ((0, 75), (85, 113)),
+    0.002: ((0, 75), (85, 113)),
+    0.003: ((0, 75), (85, 113)),
+    0.005: ((0, 113),),
+    0.007: ((0, 113),),
+    0.01: ((0, 113),),
+    0.015: ((0, 113),),
+    0.02: ((0, 113),),
+    0.03: ((0, 113),),
+    0.04: ((0, 113),),
+    0.05: ((0, 113),),
+    0.07: ((0, 113),),
+}
+_TERMINAL_SINGLE_QUOTE_COMBINED_THRESHOLDS = {
+    0.0001: (
+        (0, 14),
+        (13, 30),
+        (29, 62),
+        (61, 88),
+        (88, 113),
+        (120, 162),
+    ),
+    0.0003: (
+        (0, 14),
+        (13, 30),
+        (29, 62),
+        (61, 88),
+        (88, 113),
+        (120, 162),
+    ),
+    0.0005: ((0, 14), (13, 30), (29, 88), (88, 113), (120, 162)),
+    0.001: ((0, 14), (13, 88), (88, 104), (104, 113), (120, 162)),
+    0.002: ((0, 14), (13, 88), (88, 113), (120, 162)),
+    0.003: ((0, 88), (88, 113), (120, 162)),
+    0.005: ((0, 88), (88, 113), (120, 152), (152, 162)),
+    0.007: ((0, 88), (88, 113), (120, 152), (152, 162)),
+    0.01: ((0, 88), (88, 113), (120, 162)),
+    0.015: ((0, 88), (88, 113), (120, 162)),
+    0.02: ((0, 88), (88, 113), (120, 162)),
+    0.03: ((0, 88), (88, 113), (120, 162)),
+    0.04: ((0, 113), (120, 162)),
+    0.05: ((0, 113),),
+    0.07: ((0, 113),),
+}
+
+
+class ConfirmedTerminalSingleQuoteRecognizer:
+    def __init__(self, **overrides) -> None:
+        self.default_segments = _TERMINAL_SINGLE_QUOTE_SEGMENTS
+        self.candidate_thresholds = dict(
+            _TERMINAL_SINGLE_QUOTE_CANDIDATE_THRESHOLDS
+        )
+        self.combined_thresholds = dict(
+            _TERMINAL_SINGLE_QUOTE_COMBINED_THRESHOLDS
+        )
+        self.candidate_direct = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CANDIDATE, 0.7583
+        )
+        self.candidate_enhanced = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CANDIDATE, 0.5895
+        )
+        self.boundary_direct = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.5606
+        )
+        self.boundary_enhanced = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.6633
+        )
+        self.wrapper_direct = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.9992
+        )
+        self.wrapper_enhanced = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.9993
+        )
+        self.target_direct = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_TARGET, 0.99989
+        )
+        self.target_enhanced = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_TARGET, 0.99990
+        )
+        self.following_direct = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_FOLLOWING, 0.99990
+        )
+        self.following_enhanced = RecognizedText(
+            _TERMINAL_SINGLE_QUOTE_FOLLOWING, 0.99995
+        )
+        for name, value in overrides.items():
+            setattr(self, name, value)
+        self.recognition_calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.size == (1181, 32):
+            return self.default_segments
+        if image.size == (113, 32):
+            return self.candidate_thresholds[space_threshold]
+        if image.size == (162, 32):
+            return self.combined_thresholds[space_threshold]
+        raise AssertionError(image.size)
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        width, height = image.size
+        if (width, height) == (113, 32):
+            return self.candidate_direct
+        if (width, height) == (226, 64):
+            return self.candidate_enhanced
+        if (width, height) == (75, 32):
+            return self.boundary_direct
+        if (width, height) == (150, 64):
+            return self.boundary_enhanced
+        if height == 32 and 72 <= width <= 82:
+            return self.wrapper_direct
+        if height == 64 and 144 <= width <= 164:
+            return self.wrapper_enhanced
+        if height == 32 and 49 <= width <= 57:
+            return self.target_direct
+        if height == 64 and 98 <= width <= 114:
+            return self.target_enhanced
+        if height == 32 and 26 <= width <= 29:
+            return self.following_direct
+        if height == 64 and 52 <= width <= 58:
+            return self.following_enhanced
+        return RecognizedText("", 0.0)
+
+
+class EngineTerminalSingleQuoteRecognizer(
+    ConfirmedTerminalSingleQuoteRecognizer
+):
+    def __init__(self) -> None:
+        super().__init__()
+        confidences = (
+            0.998911,
+            0.999594,
+            0.999767,
+            0.999631,
+            0.999836,
+            0.999076,
+            0.999559,
+            0.999955,
+            0.999742,
+            0.998643,
+            0.999939,
+        )
+        self.raw_results = (
+            *(
+                RecognizedText(text, confidence)
+                for text, confidence in zip(
+                    _TERMINAL_SINGLE_QUOTE_FIRST,
+                    confidences,
+                    strict=True,
+                )
+            ),
+            RecognizedText(_TERMINAL_SINGLE_QUOTE_CANDIDATE, 0.758343),
+            RecognizedText("", 0.0),
+        )
+        self.raw_index = 0
+
+    def recognize(self, image):
+        if self.raw_index < len(self.raw_results):
+            result = self.raw_results[self.raw_index]
+            self.raw_index += 1
+            return result
+        return super().recognize(image)
+
+
+class TerminalSingleQuoteDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_TERMINAL_SINGLE_QUOTE_LINE, 0.992273),)
+
+
+def terminal_single_quote_words(
+    *,
+    candidate_text: str = _TERMINAL_SINGLE_QUOTE_CANDIDATE,
+    candidate_confidence: float = 0.758343,
+) -> list[tuple[str, BoundingBox, float]]:
+    confidences = (
+        0.998911,
+        0.999594,
+        0.999767,
+        0.999631,
+        0.999836,
+        0.999076,
+        0.999559,
+        0.999955,
+        0.999742,
+        0.998643,
+        0.999939,
+        candidate_confidence,
+    )
+    texts = (*_TERMINAL_SINGLE_QUOTE_FIRST, candidate_text)
+    return [
+        (
+            text,
+            BoundingBox(
+                _TERMINAL_SINGLE_QUOTE_LINE.left + left,
+                _TERMINAL_SINGLE_QUOTE_LINE.top,
+                _TERMINAL_SINGLE_QUOTE_LINE.left + right,
+                _TERMINAL_SINGLE_QUOTE_LINE.bottom,
+            ),
+            confidence,
+        )
+        for text, confidence, (left, right) in zip(
+            texts,
+            confidences,
+            _TERMINAL_SINGLE_QUOTE_SEGMENTS[:-1],
+            strict=True,
+        )
+    ]
+
+
+def test_confirmed_terminal_wrapped_two_plus_one_recovers() -> None:
+    words = terminal_single_quote_words()
+
+    recovered = _recover_confirmed_terminal_wrapped_two_plus_one_split(
+        words,
+        Image.new("RGB", (1181, 32)),
+        _TERMINAL_SINGLE_QUOTE_LINE,
+        ConfirmedTerminalSingleQuoteRecognizer(),
+    )
+
+    candidate_left = _TERMINAL_SINGLE_QUOTE_LINE.left + 993
+    assert recovered == [
+        *words[:-1],
+        (
+            _TERMINAL_SINGLE_QUOTE_CORRECTED,
+            BoundingBox(
+                candidate_left,
+                _TERMINAL_SINGLE_QUOTE_LINE.top,
+                candidate_left + 88,
+                _TERMINAL_SINGLE_QUOTE_LINE.bottom,
+            ),
+            0.5606,
+        ),
+        (
+            _TERMINAL_SINGLE_QUOTE_FOLLOWING,
+            BoundingBox(
+                candidate_left + 85,
+                _TERMINAL_SINGLE_QUOTE_LINE.top,
+                candidate_left + 113,
+                _TERMINAL_SINGLE_QUOTE_LINE.bottom,
+            ),
+            0.5895,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_direct": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_CANDIDATE[:-1], 0.9
+            )
+        },
+        {
+            "candidate_enhanced": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_CANDIDATE, 0.5893
+            )
+        },
+        {
+            "boundary_direct": RecognizedText(
+                "'" + _TERMINAL_SINGLE_QUOTE_TARGET + "'", 0.9
+            )
+        },
+        {
+            "boundary_enhanced": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.6631
+            )
+        },
+        {
+            "wrapper_direct": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.9990
+            )
+        },
+        {
+            "wrapper_enhanced": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_CORRECTED, 0.9991
+            )
+        },
+        {
+            "target_direct": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_TARGET, 0.99987
+            )
+        },
+        {
+            "target_enhanced": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_TARGET, 0.99988
+            )
+        },
+        {
+            "following_direct": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_FOLLOWING, 0.99988
+            )
+        },
+        {
+            "following_enhanced": RecognizedText(
+                _TERMINAL_SINGLE_QUOTE_FOLLOWING, 0.99993
+            )
+        },
+        {
+            "default_segments": (
+                *_TERMINAL_SINGLE_QUOTE_SEGMENTS[:-1],
+                (1111, 1154),
+            )
+        },
+    ],
+)
+def test_confirmed_terminal_wrapped_two_plus_one_requires_evidence(
+    overrides,
+) -> None:
+    words = terminal_single_quote_words()
+
+    assert (
+        _recover_confirmed_terminal_wrapped_two_plus_one_split(
+            words,
+            Image.new("RGB", (1181, 32)),
+            _TERMINAL_SINGLE_QUOTE_LINE,
+            ConfirmedTerminalSingleQuoteRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize("profile", ["candidate", "combined"])
+def test_confirmed_terminal_wrapped_two_plus_one_requires_ctc_profiles(
+    profile: str,
+) -> None:
+    words = terminal_single_quote_words()
+    recognizer = ConfirmedTerminalSingleQuoteRecognizer()
+    thresholds = (
+        recognizer.candidate_thresholds
+        if profile == "candidate"
+        else recognizer.combined_thresholds
+    )
+    thresholds[0.0003] = ((0, 1),)
+
+    assert (
+        _recover_confirmed_terminal_wrapped_two_plus_one_split(
+            words,
+            Image.new("RGB", (1181, 32)),
+            _TERMINAL_SINGLE_QUOTE_LINE,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "count",
+        "preceding_text",
+        "preceding_confidence",
+        "candidate_pattern",
+        "candidate_confidence",
+        "box",
+        "line",
+        "crop",
+    ],
+)
+def test_confirmed_terminal_wrapped_two_plus_one_requires_profile(
+    case: str,
+) -> None:
+    words = terminal_single_quote_words()
+    crop = Image.new("RGB", (1181, 32))
+    line_box = _TERMINAL_SINGLE_QUOTE_LINE
+    if case == "count":
+        words = words[:-1]
+    elif case == "preceding_text":
+        text, box, confidence = words[0]
+        words[0] = ("A" + text[1:], box, confidence)
+    elif case == "preceding_confidence":
+        text, box, _ = words[9]
+        words[9] = (text, box, 0.9985)
+    elif case == "candidate_pattern":
+        words = terminal_single_quote_words(
+            candidate_text=(
+                "/"
+                + _TERMINAL_SINGLE_QUOTE_TARGET
+                + "'"
+                + _TERMINAL_SINGLE_QUOTE_FOLLOWING
+            )
+        )
+    elif case == "candidate_confidence":
+        words = terminal_single_quote_words(candidate_confidence=0.7581)
+    elif case == "box":
+        text, box, confidence = words[-1]
+        words[-1] = (
+            text,
+            BoundingBox(box.left + 1, box.top, box.right, box.bottom),
+            confidence,
+        )
+    elif case == "line":
+        line_box = BoundingBox(47.64, 158.282609, 1228.36, 189.978261)
+    else:
+        crop = Image.new("RGB", (1180, 32))
+    recognizer = ConfirmedTerminalSingleQuoteRecognizer()
+
+    assert (
+        _recover_confirmed_terminal_wrapped_two_plus_one_split(
+            words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+def test_engine_recovers_terminal_wrapped_two_plus_one_segment() -> None:
+    engine = PaddleOcrEngine(
+        TerminalSingleQuoteDetector(),
+        EngineTerminalSingleQuoteRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (1300, 300)))
+
+    assert document.lines[0].text == " ".join(
+        (
+            *_TERMINAL_SINGLE_QUOTE_FIRST,
+            _TERMINAL_SINGLE_QUOTE_CORRECTED,
+            _TERMINAL_SINGLE_QUOTE_FOLLOWING,
+        )
+    )
+    assert [word.text for word in document.lines[0].eojeols] == [
+        *_TERMINAL_SINGLE_QUOTE_FIRST,
+        _TERMINAL_SINGLE_QUOTE_TARGET,
+        _TERMINAL_SINGLE_QUOTE_FOLLOWING,
+    ]
+    target_box = document.lines[0].eojeols[-2].box
+    assert target_box.left == pytest.approx(1062.64)
+    assert target_box.right == pytest.approx(1106.64)
+    following_box = document.lines[0].eojeols[-1].box
+    assert following_box.left == pytest.approx(1125.64)
+    assert following_box.right == pytest.approx(1153.64)
