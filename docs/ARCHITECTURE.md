@@ -375,6 +375,16 @@ paired wrapper restores the missing sentence space, and its proportional inner b
 quotes and whitespace outside hoverable target geometry. Any profile, geometry, category,
 confidence, segmentation, or crop disagreement keeps the original candidate unchanged.
 
+A separate three-syllable internal paired-wrapper profile applies only to its own exact six-segment
+line fingerprint. The selected retry and raw candidate must agree on a three-Hangul prefix, opening
+curly quote, three-Hangul target, and substituted ASCII close while retaining their reviewed
+confidence ranges. The complete 15-threshold signature, low-threshold prefix and wrapper crops,
+and direct/enhanced candidate readings must match. Multiple prefix, wrapper, target, opening-quote,
+and closing-quote variants then independently confirm the restored paired wrapper. Detector-relative
+boxes restore the missing sentence space and exclude both quotes and whitespace from hoverable
+target geometry. Any profile, retry, geometry, category, confidence, segmentation, or crop
+disagreement keeps the fused candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
