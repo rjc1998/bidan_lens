@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_enhanced_wrapped_four_substitution,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split,
     _recover_confirmed_isolated_five_plus_three_punctuated_split,
     _recover_confirmed_isolated_mixed_prefix_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
@@ -14298,3 +14299,355 @@ def test_engine_recovers_terminal_dash_wrapped_two_plus_two_segment() -> None:
     following_box = document.lines[0].eojeols[-1].box
     assert following_box.left == pytest.approx(693.44)
     assert following_box.right == pytest.approx(739.44)
+
+
+_ISOLATED_DASH_FOUR_SEVEN_BOX = BoundingBox(
+    79.08, 165.717391, 918.92, 225.586957
+)
+_ISOLATED_DASH_FOUR_SEVEN_TARGET = "".join(
+    chr(0xC700 + index) for index in range(4)
+)
+_ISOLATED_DASH_FOUR_SEVEN_FOLLOWING = "".join(
+    chr(0xC720 + index) for index in range(7)
+)
+_ISOLATED_DASH_FOUR_SEVEN_WHOLE = (
+    chr(0x2018)
+    + "-"
+    + _ISOLATED_DASH_FOUR_SEVEN_TARGET
+    + "-"
+    + _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING
+    + chr(0x2019)
+)
+_ISOLATED_DASH_FOUR_SEVEN_CANDIDATE = (
+    chr(0x2014)
+    + _ISOLATED_DASH_FOUR_SEVEN_TARGET
+    + "-"
+    + _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING
+)
+_ISOLATED_DASH_FOUR_SEVEN_SEGMENTS = {
+    0.0001: (
+        (0, 67),
+        (66, 117),
+        (116, 158),
+        (157, 239),
+        (238, 331),
+        (330, 423),
+        (422, 484),
+        (483, 514),
+        (513, 534),
+        (533, 595),
+        (594, 636),
+        (635, 667),
+        (666, 687),
+        (686, 750),
+    ),
+    0.0003: (
+        (0, 67),
+        (66, 158),
+        (157, 239),
+        (238, 260),
+        (259, 331),
+        (330, 534),
+        (533, 595),
+        (594, 687),
+        (686, 750),
+    ),
+    0.0005: (
+        (0, 67),
+        (66, 158),
+        (157, 239),
+        (238, 260),
+        (259, 331),
+        (330, 595),
+        (594, 687),
+        (686, 750),
+    ),
+    0.001: (
+        (0, 260),
+        (259, 331),
+        (330, 372),
+        (371, 595),
+        (594, 687),
+        (686, 750),
+    ),
+    0.002: ((0, 300), (300, 331), (330, 687), (686, 750)),
+    0.003: ((0, 300), (300, 331), (330, 687), (686, 750)),
+    0.005: ((0, 300), (300, 331), (330, 687), (686, 750)),
+    0.007: ((0, 331), (330, 687), (686, 750)),
+    0.01: ((0, 331), (330, 687), (686, 750)),
+    0.015: ((0, 331), (330, 750)),
+    0.02: ((0, 331), (330, 750)),
+    0.03: ((0, 750),),
+    0.04: ((0, 750),),
+    0.05: ((0, 750),),
+    0.07: ((0, 750),),
+}
+
+
+class ConfirmedIsolatedDashFourSevenRecognizer:
+    def __init__(
+        self,
+        *,
+        whole_direct: RecognizedText | None = None,
+        whole_enhanced: RecognizedText | None = None,
+        candidate_direct: RecognizedText | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        boundary_direct: RecognizedText | None = None,
+        boundary_enhanced: RecognizedText | None = None,
+        target_direct: RecognizedText | None = None,
+        target_enhanced: RecognizedText | None = None,
+        following_direct: RecognizedText | None = None,
+        following_enhanced: RecognizedText | None = None,
+        target_boundary_direct: RecognizedText | None = None,
+        target_boundary_enhanced: RecognizedText | None = None,
+        ctc_override: tuple[float, tuple[tuple[int, int], ...]] | None = None,
+    ) -> None:
+        self.whole_direct = whole_direct or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_WHOLE, 0.6944
+        )
+        self.whole_enhanced = whole_enhanced or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_WHOLE, 0.7859
+        )
+        self.candidate_direct = candidate_direct or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_CANDIDATE, 0.6919
+        )
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_CANDIDATE, 0.6744
+        )
+        self.boundary_direct = boundary_direct or RecognizedText(
+            chr(0x2014), 0.5198
+        )
+        self.boundary_enhanced = boundary_enhanced or RecognizedText(
+            chr(0x2014), 0.5164
+        )
+        self.target_direct = target_direct or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_TARGET, 0.99999
+        )
+        self.target_enhanced = target_enhanced or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_TARGET, 0.99999
+        )
+        self.following_direct = following_direct or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING, 0.9998
+        )
+        self.following_enhanced = following_enhanced or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING, 0.9998
+        )
+        self.target_boundary_direct = target_boundary_direct or RecognizedText(
+            _ISOLATED_DASH_FOUR_SEVEN_TARGET + chr(0x2014), 0.744
+        )
+        self.target_boundary_enhanced = (
+            target_boundary_enhanced
+            or RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_TARGET + chr(0x2014), 0.638
+            )
+        )
+        self.ctc_override = ctc_override
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (840, 61) and space_threshold is None:
+            return ((44, 794),)
+        if image.size != (750, 61) or space_threshold is None:
+            return ()
+        if self.ctc_override is not None and space_threshold == self.ctc_override[0]:
+            return self.ctc_override[1]
+        return _ISOLATED_DASH_FOUR_SEVEN_SEGMENTS[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        if image.size == (840, 61):
+            return self.whole_direct
+        if image.size == (1680, 122):
+            return self.whole_enhanced
+        if image.size == (750, 61):
+            return self.candidate_direct
+        if image.size == (1500, 122):
+            return self.candidate_enhanced
+        original_width = image.width if image.height == 61 else image.width // 2
+        enhanced = image.height == 122
+        if original_width <= 60:
+            return self.boundary_enhanced if enhanced else self.boundary_direct
+        if 230 <= original_width <= 240:
+            return self.target_enhanced if enhanced else self.target_direct
+        if 285 <= original_width <= 300:
+            return (
+                self.target_boundary_enhanced
+                if enhanced
+                else self.target_boundary_direct
+            )
+        if 395 <= original_width <= 405:
+            return (
+                self.following_enhanced if enhanced else self.following_direct
+            )
+        return RecognizedText("", 0.0)
+
+
+def isolated_dash_four_seven_words(
+    *,
+    text: str = _ISOLATED_DASH_FOUR_SEVEN_WHOLE,
+    confidence: float = 0.7859,
+    box: BoundingBox = _ISOLATED_DASH_FOUR_SEVEN_BOX,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [(text, box, confidence)]
+
+
+def test_confirmed_isolated_dash_wrapped_four_plus_seven_recovers() -> None:
+    recovered = (
+        _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split(
+            isolated_dash_four_seven_words(),
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+            ConfirmedIsolatedDashFourSevenRecognizer(),
+        )
+    )
+
+    assert recovered == [
+        (
+            chr(0x2014)
+            + _ISOLATED_DASH_FOUR_SEVEN_TARGET
+            + chr(0x2014),
+            BoundingBox(123.08, 165.717391, 463.08, 225.586957),
+            0.5164,
+        ),
+        (
+            _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING,
+            BoundingBox(472.08, 165.717391, 873.08, 225.586957),
+            0.6744,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "whole_direct": RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_WHOLE, 0.6942
+            )
+        },
+        {
+            "candidate_enhanced": RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_CANDIDATE[:-1], 0.9
+            )
+        },
+        {"boundary_direct": RecognizedText(chr(0x2014), 0.5196)},
+        {
+            "target_enhanced": RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_TARGET[:-1], 1.0
+            )
+        },
+        {
+            "following_direct": RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING, 0.9997
+            )
+        },
+        {
+            "target_boundary_enhanced": RecognizedText(
+                _ISOLATED_DASH_FOUR_SEVEN_TARGET + chr(0x2014), 0.6371
+            )
+        },
+        {"ctc_override": (0.015, ((0, 750),))},
+    ],
+)
+def test_confirmed_isolated_dash_four_plus_seven_requires_crop_evidence(
+    overrides,
+) -> None:
+    words = isolated_dash_four_seven_words()
+
+    assert (
+        _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split(
+            words,
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+            ConfirmedIsolatedDashFourSevenRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "crop", "line_box"),
+    [
+        (
+            isolated_dash_four_seven_words(
+                text="A" + _ISOLATED_DASH_FOUR_SEVEN_WHOLE[1:]
+            ),
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+        ),
+        (
+            isolated_dash_four_seven_words(confidence=0.7857),
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+        ),
+        (
+            isolated_dash_four_seven_words(
+                box=BoundingBox(79.08, 165.717391, 918.91, 225.586957)
+            ),
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+        ),
+        (
+            isolated_dash_four_seven_words(),
+            Image.new("RGB", (839, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+        ),
+        (
+            isolated_dash_four_seven_words() * 2,
+            Image.new("RGB", (840, 61)),
+            _ISOLATED_DASH_FOUR_SEVEN_BOX,
+        ),
+    ],
+)
+def test_confirmed_isolated_dash_four_plus_seven_requires_exact_profile(
+    words,
+    crop,
+    line_box,
+) -> None:
+    recognizer = ConfirmedIsolatedDashFourSevenRecognizer()
+
+    assert (
+        _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split(
+            words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class IsolatedDashFourSevenDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(_ISOLATED_DASH_FOUR_SEVEN_BOX, 0.99382),
+        )
+
+
+def test_engine_recovers_isolated_dash_wrapped_four_plus_seven_segment() -> None:
+    engine = PaddleOcrEngine(
+        IsolatedDashFourSevenDetector(),
+        ConfirmedIsolatedDashFourSevenRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (1200, 400)))
+
+    line = document.lines[0]
+    assert line.text == (
+        chr(0x2014)
+        + _ISOLATED_DASH_FOUR_SEVEN_TARGET
+        + chr(0x2014)
+        + " "
+        + _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING
+    )
+    assert [word.text for word in line.eojeols] == [
+        _ISOLATED_DASH_FOUR_SEVEN_TARGET,
+        _ISOLATED_DASH_FOUR_SEVEN_FOLLOWING,
+    ]
+    target_box = line.eojeols[0].box
+    assert target_box.left == pytest.approx(179.746667)
+    assert target_box.right == pytest.approx(406.413333)
+    following_box = line.eojeols[1].box
+    assert following_box.left == pytest.approx(472.08)
+    assert following_box.right == pytest.approx(873.08)

@@ -343,6 +343,17 @@ probe, the following word begins at its confirmed CTC boundary, and ordinary eoj
 excludes terminal punctuation from hoverable geometry. Any profile, boundary, geometry, category,
 confidence, or crop disagreement keeps the fused candidate unchanged.
 
+A separately reviewed isolated dash-wrapper split can recover a four-Hangul target and a
+seven-Hangul following eojeol only under an exact single-segment whole-line profile. The direct
+and enhanced whole-line readings, candidate crop, line geometry, confidence, crop dimensions,
+character categories, punctuation code points, default segment, and full 15-threshold CTC
+signature must all match. Seven direct/enhanced crops independently confirm each of the target,
+inner em-dash boundary, following eojeol, and target-plus-boundary readings above separate
+confidence floors. The reconstructed paired wrapper uses only the independently agreed leading
+and inner em dashes; crop-supported boxes keep both punctuation marks and the restored whitespace
+outside hoverable geometry. Any profile, boundary, geometry, category, confidence, segmentation,
+or crop disagreement keeps the whole-line reading unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
