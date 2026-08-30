@@ -407,6 +407,15 @@ confidence floors. Detector-relative boxes restore the missing sentence space an
 quotes and whitespace from hoverable target geometry. Any evidence mismatch leaves the candidate
 unchanged.
 
+A separate mismatched-curly three-plus-three profile applies only to its exact four-segment,
+browser single-line fingerprint. The selected and raw candidate must agree on an opening curly
+quote, three-Hangul target, substituted ASCII close, and three-Hangul following word; the direct
+and enhanced candidate readings must remain stable. The complete 15-threshold signature must
+match. Seven target, following-word, paired-wrapper, opening-quote, and closing-quote variants
+independently confirm the split above separate confidence floors. Detector-relative boxes restore
+the missing word boundary and paired wrapper while excluding both quotes and whitespace from
+hoverable target geometry. Any evidence mismatch leaves the candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is

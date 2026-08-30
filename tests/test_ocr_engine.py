@@ -30,6 +30,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_leading_punctuated_single_split,
     _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
+    _recover_confirmed_mismatched_curly_three_plus_three_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
@@ -16647,3 +16648,458 @@ def test_engine_recovers_terminal_paired_wrapped_single_segment() -> None:
     assert line.eojeols[5].text == _TERMINAL_PAIRED_SINGLE_TARGET
     assert line.eojeols[5].box.left == pytest.approx(658.28)
     assert line.eojeols[5].box.right == pytest.approx(677.28)
+
+
+_MISMATCHED_CURLY_THREE_LINE = BoundingBox(
+    67.8,
+    235.76,
+    1071.2,
+    279.7817391304348,
+)
+_MISMATCHED_CURLY_THREE_SEGMENTS = (
+    (57, 193),
+    (206, 403),
+    (420, 748),
+    (767, 945),
+)
+_MISMATCHED_CURLY_THREE_TARGET = "".join(map(chr, (0xC544, 0xC790, 0xCC28)))
+_MISMATCHED_CURLY_THREE_FOLLOWING = "".join(
+    map(chr, (0xCE74, 0xD0C0, 0xD30C))
+)
+_MISMATCHED_CURLY_THREE_WRAPPER = (
+    chr(0x201C) + _MISMATCHED_CURLY_THREE_TARGET + chr(0x201D)
+)
+_MISMATCHED_CURLY_THREE_RAW = (
+    chr(0x201C)
+    + _MISMATCHED_CURLY_THREE_TARGET
+    + '"'
+    + _MISMATCHED_CURLY_THREE_FOLLOWING
+)
+_MISMATCHED_CURLY_THREE_TEXTS = (
+    "".join(map(chr, (0xAC00, 0xB098, 0xB2E4))),
+    "".join(map(chr, (0xB77C, 0xB9C8, 0xBC14, 0xC0AC))) + ",",
+    _MISMATCHED_CURLY_THREE_RAW,
+    "".join(map(chr, (0xD558, 0xAC70, 0xB108, 0xB354))),
+)
+_MISMATCHED_CURLY_THREE_RAW_CONFIDENCES = (
+    0.99995,
+    0.9927,
+    0.57315,
+    0.98895,
+)
+_MISMATCHED_CURLY_THREE_CTC = {
+    0.0001: ((0, 154), (153, 181), (196, 252), (251, 328)),
+    **{
+        threshold: ((0, 154), (153, 181), (196, 328))
+        for threshold in (0.0003, 0.0005, 0.001, 0.002, 0.003, 0.005)
+    },
+    **{
+        threshold: ((0, 181), (196, 328))
+        for threshold in (0.007, 0.01, 0.015, 0.02)
+    },
+    **{
+        threshold: ((0, 328),)
+        for threshold in (0.03, 0.04, 0.05, 0.07)
+    },
+}
+
+
+def mismatched_curly_three_crop() -> Image.Image:
+    crop = Image.new("RGB", (1005, 45))
+    for intensity, (left, right) in zip(
+        (10, 20, 90, 40),
+        _MISMATCHED_CURLY_THREE_SEGMENTS,
+        strict=True,
+    ):
+        crop.paste((intensity, intensity, intensity), (left, 0, right, 45))
+    candidate_left = _MISMATCHED_CURLY_THREE_SEGMENTS[2][0]
+    crop.paste(
+        (100, 100, 100),
+        (candidate_left, 0, candidate_left + 19, 45),
+    )
+    crop.paste(
+        (110, 110, 110),
+        (candidate_left + 19, 0, candidate_left + 153, 45),
+    )
+    crop.paste(
+        (120, 120, 120),
+        (candidate_left + 153, 0, candidate_left + 181, 45),
+    )
+    crop.paste(
+        (130, 130, 130),
+        (candidate_left + 196, 0, candidate_left + 328, 45),
+    )
+    return crop
+
+
+def mismatched_curly_three_words(
+    *,
+    selected: bool,
+    candidate_text: str = _MISMATCHED_CURLY_THREE_RAW,
+    candidate_confidence: float | None = None,
+    candidate_box: BoundingBox | None = None,
+    second_text: str = _MISMATCHED_CURLY_THREE_TEXTS[1],
+) -> list[tuple[str, BoundingBox, float]]:
+    values = []
+    for index, ((left, right), text, confidence) in enumerate(
+        zip(
+            _MISMATCHED_CURLY_THREE_SEGMENTS,
+            _MISMATCHED_CURLY_THREE_TEXTS,
+            _MISMATCHED_CURLY_THREE_RAW_CONFIDENCES,
+            strict=True,
+        )
+    ):
+        if index == 2:
+            text = candidate_text
+            confidence = (
+                0.64565
+                if selected and candidate_confidence is None
+                else confidence
+                if candidate_confidence is None
+                else candidate_confidence
+            )
+        elif index == 1:
+            text = second_text
+        box = BoundingBox(
+            _MISMATCHED_CURLY_THREE_LINE.left + left,
+            _MISMATCHED_CURLY_THREE_LINE.top,
+            _MISMATCHED_CURLY_THREE_LINE.left + right,
+            _MISMATCHED_CURLY_THREE_LINE.bottom,
+        )
+        if index == 2 and candidate_box is not None:
+            box = candidate_box
+        values.append((text, box, confidence))
+    return values
+
+
+class ConfirmedMismatchedCurlyThreeRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = (
+            _MISMATCHED_CURLY_THREE_SEGMENTS
+        ),
+        ctc_override: tuple[
+            float, tuple[tuple[int, int], ...]
+        ] | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        wrapper_variant: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        following_variant: RecognizedText | None = None,
+        opening_variant: RecognizedText | None = None,
+        closing_variant: RecognizedText | None = None,
+    ) -> None:
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _MISMATCHED_CURLY_THREE_RAW,
+            0.64565,
+        )
+        self.wrapper_variant = wrapper_variant or RecognizedText(
+            _MISMATCHED_CURLY_THREE_WRAPPER,
+            0.71,
+        )
+        self.target_variant = target_variant or RecognizedText(
+            _MISMATCHED_CURLY_THREE_TARGET,
+            0.9999,
+        )
+        self.following_variant = following_variant or RecognizedText(
+            _MISMATCHED_CURLY_THREE_FOLLOWING,
+            0.9998,
+        )
+        self.opening_variant = opening_variant or RecognizedText('"', 0.95)
+        self.closing_variant = closing_variant or RecognizedText('"', 0.8)
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (1005, 45) and space_threshold is None:
+            return self.default_segments
+        if image.size != (328, 45) or space_threshold is None:
+            return ()
+        if (
+            self.ctc_override is not None
+            and space_threshold == self.ctc_override[0]
+        ):
+            return self.ctc_override[1]
+        return _MISMATCHED_CURLY_THREE_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        enhanced = image.height == 90
+        original_width = image.width // 2 if enhanced else image.width
+        segment_reads = {
+            (136, 10): RecognizedText(
+                _MISMATCHED_CURLY_THREE_TEXTS[0],
+                0.99995,
+            ),
+            (197, 20): RecognizedText(
+                _MISMATCHED_CURLY_THREE_TEXTS[1],
+                0.9927,
+            ),
+            (178, 40): RecognizedText(
+                _MISMATCHED_CURLY_THREE_TEXTS[3],
+                0.98895,
+            ),
+        }
+        if not enhanced and (original_width, intensity) in segment_reads:
+            return segment_reads[(original_width, intensity)]
+        if image.size == (328, 45):
+            return RecognizedText(_MISMATCHED_CURLY_THREE_RAW, 0.57315)
+        if image.size == (656, 90):
+            return self.candidate_enhanced
+        if 179 <= original_width <= 187:
+            confidence = 0.56675 if enhanced else self.wrapper_variant.confidence
+            return RecognizedText(self.wrapper_variant.text, confidence)
+        if original_width == 154:
+            return RecognizedText(
+                '"' + _MISMATCHED_CURLY_THREE_TARGET,
+                0.9,
+            )
+        if 130 <= original_width <= 142 and intensity >= 125:
+            return self.following_variant
+        if enhanced and 127 <= original_width <= 143 and intensity == 0:
+            return self.target_variant
+        if 127 <= original_width <= 143 and 105 <= intensity <= 115:
+            return self.target_variant
+        if 18 <= original_width <= 26 and intensity <= 105:
+            return self.opening_variant
+        if 26 <= original_width <= 34 and intensity >= 115:
+            confidence = 0.85 if original_width == 28 else self.closing_variant.confidence
+            return RecognizedText(self.closing_variant.text, confidence)
+        if original_width == 132:
+            return self.following_variant
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_mismatched_curly_three_plus_three_recovers() -> None:
+    selected = mismatched_curly_three_words(selected=True)
+    recovered = _recover_confirmed_mismatched_curly_three_plus_three_split(
+        selected,
+        mismatched_curly_three_words(selected=False),
+        mismatched_curly_three_crop(),
+        _MISMATCHED_CURLY_THREE_LINE,
+        ConfirmedMismatchedCurlyThreeRecognizer(),
+    )
+
+    assert recovered == [
+        *selected[:2],
+        (
+            _MISMATCHED_CURLY_THREE_WRAPPER,
+            BoundingBox(
+                _MISMATCHED_CURLY_THREE_LINE.left + 420,
+                _MISMATCHED_CURLY_THREE_LINE.top,
+                _MISMATCHED_CURLY_THREE_LINE.left + 601,
+                _MISMATCHED_CURLY_THREE_LINE.bottom,
+            ),
+            0.56675,
+        ),
+        (
+            _MISMATCHED_CURLY_THREE_FOLLOWING,
+            BoundingBox(
+                _MISMATCHED_CURLY_THREE_LINE.left + 616,
+                _MISMATCHED_CURLY_THREE_LINE.top,
+                _MISMATCHED_CURLY_THREE_LINE.left + 748,
+                _MISMATCHED_CURLY_THREE_LINE.bottom,
+            ),
+            0.57315,
+        ),
+        selected[3],
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _MISMATCHED_CURLY_THREE_RAW,
+                0.6455,
+            )
+        },
+        {
+            "wrapper_variant": RecognizedText(
+                chr(0x201C) + _MISMATCHED_CURLY_THREE_TARGET + '"',
+                0.9,
+            )
+        },
+        {"target_variant": RecognizedText(chr(0xC790) * 3, 1.0)},
+        {"following_variant": RecognizedText(chr(0xD558) * 3, 1.0)},
+        {"opening_variant": RecognizedText("'", 0.99)},
+        {"closing_variant": RecognizedText('"', 0.65)},
+        {"ctc_override": (0.01, ((0, 328),))},
+    ],
+)
+def test_confirmed_mismatched_curly_three_requires_crop_evidence(
+    overrides,
+) -> None:
+    selected = mismatched_curly_three_words(selected=True)
+
+    assert (
+        _recover_confirmed_mismatched_curly_three_plus_three_split(
+            selected,
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(**overrides),
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            mismatched_curly_three_words(selected=True) * 2,
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(
+                selected=True,
+                candidate_text="A" + _MISMATCHED_CURLY_THREE_RAW[1:],
+            ),
+            mismatched_curly_three_words(
+                selected=False,
+                candidate_text="A" + _MISMATCHED_CURLY_THREE_RAW[1:],
+            ),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(
+                selected=True,
+                candidate_confidence=0.6455,
+            ),
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(selected=True),
+            mismatched_curly_three_words(
+                selected=False,
+                candidate_confidence=0.5730,
+            ),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(
+                selected=True,
+                candidate_text=_MISMATCHED_CURLY_THREE_RAW[:-1] + chr(0xD558),
+            ),
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(
+                selected=True,
+                second_text="A123,",
+            ),
+            mismatched_curly_three_words(
+                selected=False,
+                second_text="A123,",
+            ),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(
+                selected=True,
+                candidate_box=BoundingBox(
+                    _MISMATCHED_CURLY_THREE_LINE.left + 421,
+                    _MISMATCHED_CURLY_THREE_LINE.top,
+                    _MISMATCHED_CURLY_THREE_LINE.left + 748,
+                    _MISMATCHED_CURLY_THREE_LINE.bottom,
+                ),
+            ),
+            mismatched_curly_three_words(
+                selected=False,
+                candidate_box=BoundingBox(
+                    _MISMATCHED_CURLY_THREE_LINE.left + 421,
+                    _MISMATCHED_CURLY_THREE_LINE.top,
+                    _MISMATCHED_CURLY_THREE_LINE.left + 748,
+                    _MISMATCHED_CURLY_THREE_LINE.bottom,
+                ),
+            ),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(selected=True),
+            mismatched_curly_three_words(selected=False),
+            Image.new("RGB", (1004, 45)),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(selected=True),
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            BoundingBox(67.8, 235.76, 1071.22, 279.7817391304348),
+            ConfirmedMismatchedCurlyThreeRecognizer(),
+        ),
+        (
+            mismatched_curly_three_words(selected=True),
+            mismatched_curly_three_words(selected=False),
+            mismatched_curly_three_crop(),
+            _MISMATCHED_CURLY_THREE_LINE,
+            ConfirmedMismatchedCurlyThreeRecognizer(
+                default_segments=_MISMATCHED_CURLY_THREE_SEGMENTS[:-1]
+            ),
+        ),
+    ],
+)
+def test_confirmed_mismatched_curly_three_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_mismatched_curly_three_plus_three_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class MismatchedCurlyThreeDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_MISMATCHED_CURLY_THREE_LINE, 0.994),)
+
+
+def test_engine_recovers_mismatched_curly_three_plus_three_segment() -> None:
+    image = Image.new("RGB", (1280, 720))
+    image.paste(mismatched_curly_three_crop(), (67, 235))
+    engine = PaddleOcrEngine(
+        MismatchedCurlyThreeDetector(),
+        ConfirmedMismatchedCurlyThreeRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 24
+    assert [len(word.text) for word in line.eojeols] == [3, 4, 3, 3, 4]
+    assert line.eojeols[2].text == _MISMATCHED_CURLY_THREE_TARGET
+    assert line.eojeols[2].box.left == pytest.approx(524.0)
+    assert line.eojeols[2].box.right == pytest.approx(632.6)
