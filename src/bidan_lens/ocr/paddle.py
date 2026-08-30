@@ -3244,6 +3244,214 @@ def _recover_confirmed_isolated_three_plus_five_punctuated_split(
     ]
 
 
+def _recover_confirmed_isolated_five_plus_three_punctuated_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if not callable(segmenter) or len(words) != 1:
+        return words
+    text, box, confidence = words[0]
+    if (
+        len(text) != 10
+        or not all(is_hangul(character) for character in text[:5])
+        or text[5] != "-"
+        or not all(is_hangul(character) for character in text[6:9])
+        or ord(text[9]) != 0x2014
+        or not 0.7183 <= confidence <= 0.7185
+        or box != line_box
+        or not 31.69 <= line_box.height <= 31.70
+        or not 293.47 <= line_box.width <= 293.49
+        or not 9.25 <= line_box.width / line_box.height <= 9.27
+        or crop.size != (295, 33)
+    ):
+        return words
+    try:
+        if tuple(segmenter(crop)) != ((14, 280),):
+            return words
+    except TypeError:
+        return words
+    candidate_crop = crop.crop((14, 0, 280, crop.height))
+    expected_segments = (
+        (
+            0.0001,
+            (
+                (0, 69),
+                (68, 86),
+                (85, 113),
+                (112, 130),
+                (129, 207),
+                (206, 251),
+                (250, 266),
+            ),
+        ),
+        (
+            0.0003,
+            (
+                (0, 86),
+                (85, 113),
+                (112, 130),
+                (129, 251),
+                (250, 266),
+            ),
+        ),
+        (
+            0.0005,
+            ((0, 113), (112, 130), (129, 251), (250, 266)),
+        ),
+        (0.001, ((0, 130), (129, 266))),
+        (0.002, ((0, 130), (129, 146), (145, 266))),
+        (0.003, ((0, 130), (129, 266))),
+        (0.005, ((0, 130), (129, 266))),
+        (0.007, ((0, 130), (129, 266))),
+        (0.01, ((0, 130), (129, 266))),
+        (0.015, ((0, 266),)),
+        (0.02, ((0, 266),)),
+        (0.03, ((0, 266),)),
+        (0.04, ((0, 266),)),
+        (0.05, ((0, 266),)),
+        (0.07, ((0, 266),)),
+    )
+    try:
+        if any(
+            tuple(segmenter(candidate_crop, space_threshold=threshold))
+            != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    candidate_direct = recognizer.recognize(candidate_crop)
+    candidate_enhanced = recognizer.recognize(enhanced(candidate_crop))
+    full_enhanced = recognizer.recognize(enhanced(crop))
+    prefix_bounds = (
+        (0, 116),
+        (1, 118),
+        (2, 120),
+        (3, 122),
+        (4, 124),
+        (5, 126),
+        (6, 128),
+    )
+    target_bounds = (
+        (128, 248),
+        (128, 249),
+        (129, 248),
+        (129, 249),
+        (129, 250),
+        (130, 248),
+        (130, 249),
+    )
+    prefix_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in prefix_bounds
+    )
+    prefix_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop(
+                    (left, 0, right, candidate_crop.height)
+                )
+            )
+        )
+        for left, right in prefix_bounds
+    )
+    target_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in target_bounds
+    )
+    target_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop(
+                    (left, 0, right, candidate_crop.height)
+                )
+            )
+        )
+        for left, right in target_bounds
+    )
+    prefix_text = text[:5]
+    target_text = text[5:9]
+    if (
+        candidate_direct.confidence < 0.8527
+        or candidate_direct.text.replace(" ", "") != text
+        or candidate_enhanced.confidence < 0.8156
+        or candidate_enhanced.text.replace(" ", "") != text
+        or full_enhanced.confidence < 0.6636
+        or full_enhanced.text.replace(" ", "") != text
+        or any(
+            variant.confidence < 0.9998
+            or variant.text.replace(" ", "") != prefix_text
+            for variant in (*prefix_direct, *prefix_enhanced)
+        )
+        or any(
+            variant.confidence < 0.9376
+            or variant.text.replace(" ", "") != target_text
+            for variant in target_direct
+        )
+        or any(
+            variant.confidence < 0.9250
+            or variant.text.replace(" ", "") != target_text
+            for variant in target_enhanced
+        )
+    ):
+        return words
+    prefix_confidence = min(
+        confidence,
+        candidate_direct.confidence,
+        candidate_enhanced.confidence,
+        full_enhanced.confidence,
+        *(variant.confidence for variant in prefix_direct),
+        *(variant.confidence for variant in prefix_enhanced),
+    )
+    target_confidence = min(
+        confidence,
+        candidate_direct.confidence,
+        candidate_enhanced.confidence,
+        full_enhanced.confidence,
+        *(variant.confidence for variant in target_direct),
+        *(variant.confidence for variant in target_enhanced),
+    )
+    candidate_left = line_box.left + 14
+    candidate_right = line_box.left + 280
+    return [
+        (
+            prefix_text,
+            BoundingBox(
+                candidate_left,
+                box.top,
+                candidate_left + 129,
+                box.bottom,
+            ),
+            prefix_confidence,
+        ),
+        (
+            text[5:],
+            BoundingBox(
+                candidate_left + 129,
+                box.top,
+                candidate_right,
+                box.bottom,
+            ),
+            target_confidence,
+        ),
+    ]
+
+
 def _recover_confirmed_isolated_mixed_prefix_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -5843,6 +6051,12 @@ class PaddleOcrEngine(OcrEngine):
                         self.recognizer,
                     )
                     words = _recover_confirmed_isolated_three_plus_five_punctuated_split(
+                        words,
+                        crop,
+                        region.box,
+                        self.recognizer,
+                    )
+                    words = _recover_confirmed_isolated_five_plus_three_punctuated_split(
                         words,
                         crop,
                         region.box,

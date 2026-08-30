@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_enhanced_wrapped_four_substitution,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_isolated_five_plus_three_punctuated_split,
     _recover_confirmed_isolated_mixed_prefix_split,
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_isolated_three_plus_five_punctuated_split,
@@ -12744,3 +12745,259 @@ def test_engine_recovers_confirmed_leading_three_plus_six_split() -> None:
         182.74,
     )
     assert following.confidence == 0.9882
+
+_ISOLATED_FIVE_THREE_PREFIX = "".join(chr(0xC740 + index) for index in range(5))
+_ISOLATED_FIVE_THREE_TARGET = "".join(chr(0xD000 + index) for index in range(3))
+_ISOLATED_FIVE_THREE_TEXT = (
+    _ISOLATED_FIVE_THREE_PREFIX
+    + "-"
+    + _ISOLATED_FIVE_THREE_TARGET
+    + chr(0x2014)
+)
+_ISOLATED_FIVE_THREE_BOX = BoundingBox(
+    106.76, 183.717391, 400.24, 215.413043
+)
+_ISOLATED_FIVE_THREE_SEGMENTS = {
+    0.0001: (
+        (0, 69),
+        (68, 86),
+        (85, 113),
+        (112, 130),
+        (129, 207),
+        (206, 251),
+        (250, 266),
+    ),
+    0.0003: ((0, 86), (85, 113), (112, 130), (129, 251), (250, 266)),
+    0.0005: ((0, 113), (112, 130), (129, 251), (250, 266)),
+    0.001: ((0, 130), (129, 266)),
+    0.002: ((0, 130), (129, 146), (145, 266)),
+    0.003: ((0, 130), (129, 266)),
+    0.005: ((0, 130), (129, 266)),
+    0.007: ((0, 130), (129, 266)),
+    0.01: ((0, 130), (129, 266)),
+    0.015: ((0, 266),),
+    0.02: ((0, 266),),
+    0.03: ((0, 266),),
+    0.04: ((0, 266),),
+    0.05: ((0, 266),),
+    0.07: ((0, 266),),
+}
+
+
+class ConfirmedIsolatedFiveThreeRecognizer:
+    def __init__(self, **overrides) -> None:
+        self.candidate_direct = RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.8528)
+        self.candidate_enhanced = RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.8157)
+        self.full_enhanced = RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.6637)
+        self.prefix_direct = RecognizedText(_ISOLATED_FIVE_THREE_PREFIX, 0.9999)
+        self.prefix_enhanced = RecognizedText(_ISOLATED_FIVE_THREE_PREFIX, 0.9999)
+        target_text = "-" + _ISOLATED_FIVE_THREE_TARGET
+        self.target_direct = RecognizedText(target_text, 0.9377)
+        self.target_enhanced = RecognizedText(target_text, 0.9251)
+        self.segments_002 = ((0, 130), (129, 146), (145, 266))
+        for name, value in overrides.items():
+            setattr(self, name, value)
+        self.recognition_calls = 0
+        self.variant_calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.size == (295, 33) and space_threshold == 0.07:
+            return ((14, 280),)
+        if space_threshold == 0.002:
+            return self.segments_002
+        return _ISOLATED_FIVE_THREE_SEGMENTS[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        if image.size == (295, 33):
+            return RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.718374)
+        if image.size == (266, 33):
+            return self.candidate_direct
+        if image.size == (532, 66):
+            return self.candidate_enhanced
+        if image.size == (590, 66):
+            return self.full_enhanced
+        variant = self.variant_calls
+        self.variant_calls += 1
+        if variant < 7:
+            return self.prefix_direct
+        if variant < 14:
+            return self.prefix_enhanced
+        if variant < 21:
+            return self.target_direct
+        return self.target_enhanced
+
+
+class IsolatedFiveThreeDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_ISOLATED_FIVE_THREE_BOX, 0.98816),)
+
+
+def isolated_five_three_words(
+    *,
+    text: str = _ISOLATED_FIVE_THREE_TEXT,
+    confidence: float = 0.718374,
+    box: BoundingBox = _ISOLATED_FIVE_THREE_BOX,
+) -> list[tuple[str, BoundingBox, float]]:
+    return [(text, box, confidence)]
+
+
+def test_confirmed_isolated_five_plus_three_punctuated_recovers() -> None:
+    recovered = _recover_confirmed_isolated_five_plus_three_punctuated_split(
+        isolated_five_three_words(),
+        Image.new("RGB", (295, 33)),
+        _ISOLATED_FIVE_THREE_BOX,
+        ConfirmedIsolatedFiveThreeRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            _ISOLATED_FIVE_THREE_PREFIX,
+            BoundingBox(120.76, 183.717391, 249.76, 215.413043),
+            0.6637,
+        ),
+        (
+            "-" + _ISOLATED_FIVE_THREE_TARGET + chr(0x2014),
+            BoundingBox(249.76, 183.717391, 386.76, 215.413043),
+            0.6637,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"candidate_direct": RecognizedText(_ISOLATED_FIVE_THREE_TEXT[:-1], 0.9)},
+        {"candidate_direct": RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.8526)},
+        {"candidate_enhanced": RecognizedText(_ISOLATED_FIVE_THREE_TEXT[:-1], 0.9)},
+        {"candidate_enhanced": RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.8155)},
+        {"full_enhanced": RecognizedText(_ISOLATED_FIVE_THREE_TEXT[:-1], 0.9)},
+        {"full_enhanced": RecognizedText(_ISOLATED_FIVE_THREE_TEXT, 0.6635)},
+        {"prefix_direct": RecognizedText(_ISOLATED_FIVE_THREE_PREFIX[:-1], 1.0)},
+        {"prefix_enhanced": RecognizedText(_ISOLATED_FIVE_THREE_PREFIX, 0.9997)},
+        {"target_direct": RecognizedText(_ISOLATED_FIVE_THREE_TARGET, 1.0)},
+        {
+            "target_enhanced": RecognizedText(
+                "-" + _ISOLATED_FIVE_THREE_TARGET, 0.9249
+            )
+        },
+        {"segments_002": ((0, 130), (129, 145), (145, 266))},
+    ],
+)
+def test_confirmed_isolated_five_plus_three_requires_crop_evidence(
+    overrides,
+) -> None:
+    words = isolated_five_three_words()
+
+    assert (
+        _recover_confirmed_isolated_five_plus_three_punctuated_split(
+            words,
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+            ConfirmedIsolatedFiveThreeRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "crop", "line_box"),
+    [
+        (
+            isolated_five_three_words(text="A" + _ISOLATED_FIVE_THREE_TEXT[1:]),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(
+                text=_ISOLATED_FIVE_THREE_PREFIX
+                + "/"
+                + _ISOLATED_FIVE_THREE_TEXT[6:]
+            ),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(
+                text=_ISOLATED_FIVE_THREE_TEXT[:6]
+                + "A"
+                + _ISOLATED_FIVE_THREE_TEXT[7:]
+            ),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(text=_ISOLATED_FIVE_THREE_TEXT[:-1] + "."),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(confidence=0.7182),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(
+                box=BoundingBox(106.76, 183.717391, 399.24, 215.413043)
+            ),
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words(),
+            Image.new("RGB", (295, 33)),
+            BoundingBox(106.76, 183.717391, 400.24, 216.413043),
+        ),
+        (
+            isolated_five_three_words(),
+            Image.new("RGB", (294, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+        (
+            isolated_five_three_words() * 2,
+            Image.new("RGB", (295, 33)),
+            _ISOLATED_FIVE_THREE_BOX,
+        ),
+    ],
+)
+def test_confirmed_isolated_five_plus_three_requires_exact_profile(
+    words,
+    crop,
+    line_box,
+) -> None:
+    recognizer = ConfirmedIsolatedFiveThreeRecognizer()
+
+    assert (
+        _recover_confirmed_isolated_five_plus_three_punctuated_split(
+            words, crop, line_box, recognizer
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+def test_engine_recovers_isolated_five_plus_three_punctuated_segment() -> None:
+    engine = PaddleOcrEngine(
+        IsolatedFiveThreeDetector(),
+        ConfirmedIsolatedFiveThreeRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (500, 300)))
+
+    assert document.lines[0].text == (
+        _ISOLATED_FIVE_THREE_PREFIX
+        + " -"
+        + _ISOLATED_FIVE_THREE_TARGET
+        + chr(0x2014)
+    )
+    assert [word.text for word in document.lines[0].eojeols] == [
+        _ISOLATED_FIVE_THREE_PREFIX,
+        _ISOLATED_FIVE_THREE_TARGET,
+    ]
+    target_box = document.lines[0].eojeols[1].box
+    assert target_box.left == pytest.approx(277.16)
+    assert target_box.right == pytest.approx(359.36)
