@@ -50,6 +50,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_wrapped_four_syllable_triplet,
     _recover_confirmed_wrapped_single_geometry,
     _recover_confirmed_wrapped_single_plus_four_geometry,
+    _recover_confirmed_wrapped_three_plus_four_split,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -10385,6 +10386,378 @@ def test_engine_recovers_confirmed_wrapped_single_geometry() -> None:
         170.02173913043478,
     )
     assert target.confidence == 0.994793
+
+
+_WRAPPED_THREE_FOUR_HEIGHT = 26.42
+_WRAPPED_THREE_FOUR_LINE = BoundingBox(
+    81.68,
+    239.67,
+    782.32,
+    239.67 + _WRAPPED_THREE_FOUR_HEIGHT,
+)
+_WRAPPED_THREE_FOUR_TARGET = "".join(
+    chr(0xC720 + offset) for offset in range(3)
+)
+_WRAPPED_THREE_FOUR_FOLLOWING = "".join(
+    chr(0xC730 + offset) for offset in range(4)
+)
+_WRAPPED_THREE_FOUR_CANDIDATE = (
+    '"'
+    + _WRAPPED_THREE_FOUR_TARGET
+    + "/"
+    + _WRAPPED_THREE_FOUR_FOLLOWING
+)
+
+
+def wrapped_three_four_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(121.68, 239.67, 197.68, 266.09),
+        BoundingBox(206.68, 239.67, 306.68, 266.09),
+        BoundingBox(314.68, 239.67, 363.68, 266.09),
+        BoundingBox(373.68, 239.67, 423.68, 266.09),
+        BoundingBox(431.68, 239.67, 648.68, 266.09),
+        BoundingBox(656.68, 239.67, 740.68, 266.09),
+    )
+    texts = (
+        "".join(chr(0xC740 + offset) for offset in range(3)),
+        "".join(chr(0xC750 + offset) for offset in range(4)),
+        "".join(chr(0xC760 + offset) for offset in range(2)),
+        "".join(chr(0xC770 + offset) for offset in range(2)),
+        _WRAPPED_THREE_FOUR_CANDIDATE,
+        "".join(chr(0xC780 + offset) for offset in range(3)) + ".",
+    )
+    confidences = (
+        0.999711,
+        0.999339,
+        0.999883,
+        0.999907,
+        0.862854,
+        0.994423,
+    )
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+class ConfirmedWrappedThreePlusFourRecognizer:
+    def __init__(
+        self,
+        *,
+        enhanced_candidate_text: str = _WRAPPED_THREE_FOUR_CANDIDATE,
+        enhanced_candidate_confidence: float = 0.6861,
+        target_direct_text: str = _WRAPPED_THREE_FOUR_TARGET,
+        target_direct_confidence: float = 0.9995,
+        target_enhanced_text: str = _WRAPPED_THREE_FOUR_TARGET,
+        target_enhanced_confidence: float = 0.9995,
+        following_direct_text: str = _WRAPPED_THREE_FOUR_FOLLOWING,
+        following_direct_confidence: float = 0.9989,
+        following_enhanced_text: str = _WRAPPED_THREE_FOUR_FOLLOWING,
+        following_enhanced_confidence: float = 0.9942,
+        segments_005: tuple[tuple[int, int], ...] = (
+            (0, 107),
+            (115, 217),
+        ),
+    ) -> None:
+        self.enhanced_candidate_text = enhanced_candidate_text
+        self.enhanced_candidate_confidence = enhanced_candidate_confidence
+        self.target_direct_text = target_direct_text
+        self.target_direct_confidence = target_direct_confidence
+        self.target_enhanced_text = target_enhanced_text
+        self.target_enhanced_confidence = target_enhanced_confidence
+        self.following_direct_text = following_direct_text
+        self.following_direct_confidence = following_direct_confidence
+        self.following_enhanced_text = following_enhanced_text
+        self.following_enhanced_confidence = following_enhanced_confidence
+        self.segments_005 = segments_005
+        self.calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.width == 702:
+            return (
+                (40, 116),
+                (125, 225),
+                (233, 282),
+                (292, 342),
+                (350, 567),
+                (575, 659),
+            )
+        if image.width != 217:
+            return ((0, image.width),)
+        if space_threshold in {0.03, 0.04, 0.05, 0.07}:
+            return ((0, 217),)
+        if space_threshold == 0.0001:
+            return ((0, 91), (91, 107), (115, 217))
+        if space_threshold == 0.0003:
+            return ((0, 91), (91, 105), (115, 217))
+        if space_threshold in {0.0005, 0.001, 0.002, 0.003}:
+            return ((0, 91), (91, 107), (115, 217))
+        if space_threshold == 0.005:
+            return self.segments_005
+        assert space_threshold in {0.007, 0.01, 0.015, 0.02}
+        return ((0, 107), (115, 217))
+
+    def recognize(self, image):
+        self.calls += 1
+        width, height = image.size
+        if height == 28:
+            raw = {
+                76: RecognizedText(
+                    wrapped_three_four_raw_words()[0][0],
+                    0.999711,
+                ),
+                100: RecognizedText(
+                    wrapped_three_four_raw_words()[1][0],
+                    0.999339,
+                ),
+                49: RecognizedText(
+                    wrapped_three_four_raw_words()[2][0],
+                    0.999883,
+                ),
+                50: RecognizedText(
+                    wrapped_three_four_raw_words()[3][0],
+                    0.999907,
+                ),
+                217: RecognizedText(
+                    _WRAPPED_THREE_FOUR_CANDIDATE,
+                    0.862854,
+                ),
+                84: RecognizedText(
+                    wrapped_three_four_raw_words()[5][0],
+                    0.994423,
+                ),
+            }
+            if width in raw:
+                return raw[width]
+            if 80 <= width <= 81:
+                return RecognizedText(
+                    self.target_direct_text,
+                    self.target_direct_confidence,
+                )
+            if 102 <= width <= 108:
+                return RecognizedText(
+                    self.following_direct_text,
+                    self.following_direct_confidence,
+                )
+        if (width, height) == (434, 56):
+            return RecognizedText(
+                self.enhanced_candidate_text,
+                self.enhanced_candidate_confidence,
+            )
+        if height == 56 and 160 <= width <= 162:
+            return RecognizedText(
+                self.target_enhanced_text,
+                self.target_enhanced_confidence,
+            )
+        if height == 56 and 204 <= width <= 216:
+            return RecognizedText(
+                self.following_enhanced_text,
+                self.following_enhanced_confidence,
+            )
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_wrapped_three_plus_four_recovers() -> None:
+    words = wrapped_three_four_raw_words()
+
+    recovered = _recover_confirmed_wrapped_three_plus_four_split(
+        words,
+        list(words),
+        Image.new("RGB", (702, 28)),
+        _WRAPPED_THREE_FOUR_LINE,
+        ConfirmedWrappedThreePlusFourRecognizer(),
+    )
+
+    assert recovered[:4] == words[:4]
+    assert [word[0] for word in recovered[4:]] == [
+        _WRAPPED_THREE_FOUR_CANDIDATE[:5],
+        _WRAPPED_THREE_FOUR_FOLLOWING,
+        words[5][0],
+    ]
+    assert recovered[4][1].left == pytest.approx(431.68)
+    assert recovered[4][1].right == pytest.approx(538.68)
+    assert recovered[4][1].top == pytest.approx(239.67)
+    assert recovered[4][1].bottom == pytest.approx(266.09)
+    assert recovered[4][2] == 0.862854
+    assert recovered[5][1].left == pytest.approx(546.68)
+    assert recovered[5][1].right == pytest.approx(648.68)
+    assert recovered[5][1].top == pytest.approx(239.67)
+    assert recovered[5][1].bottom == pytest.approx(266.09)
+    assert recovered[5][2] == 0.862854
+    assert recovered[6] == words[5]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {
+            "enhanced_candidate_text": (
+                _WRAPPED_THREE_FOUR_CANDIDATE[:-1] + chr(0xC735)
+            )
+        },
+        {"enhanced_candidate_confidence": 0.6859},
+        {"target_direct_text": _WRAPPED_THREE_FOUR_TARGET[:-1] + chr(0xC725)},
+        {"target_direct_confidence": 0.9993},
+        {
+            "target_enhanced_text": (
+                _WRAPPED_THREE_FOUR_TARGET[:-1] + chr(0xC725)
+            )
+        },
+        {"target_enhanced_confidence": 0.9993},
+        {
+            "following_direct_text": (
+                _WRAPPED_THREE_FOUR_FOLLOWING[:-1] + chr(0xC735)
+            )
+        },
+        {"following_direct_confidence": 0.9987},
+        {
+            "following_enhanced_text": (
+                _WRAPPED_THREE_FOUR_FOLLOWING[:-1] + chr(0xC735)
+            )
+        },
+        {"following_enhanced_confidence": 0.9940},
+        {"segments_005": ((0, 106), (115, 217))},
+    ],
+)
+def test_confirmed_wrapped_three_plus_four_requires_crop_evidence(
+    changes,
+) -> None:
+    words = wrapped_three_four_raw_words()
+
+    assert (
+        _recover_confirmed_wrapped_three_plus_four_split(
+            words,
+            list(words),
+            Image.new("RGB", (702, 28)),
+            _WRAPPED_THREE_FOUR_LINE,
+            ConfirmedWrappedThreePlusFourRecognizer(**changes),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "selected-mismatch",
+        "raw-shape",
+        "candidate-relationship",
+        "confidence",
+        "width",
+        "gap",
+        "line-height",
+        "crop-size",
+        "candidate-bounds",
+    ],
+)
+def test_confirmed_wrapped_three_plus_four_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = wrapped_three_four_raw_words()
+    words = list(raw)
+    crop = Image.new("RGB", (702, 28))
+    line_box = _WRAPPED_THREE_FOUR_LINE
+    if case == "selected-count":
+        words.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "selected-mismatch":
+        words[0] = (words[0][0], words[0][1], 0.99972)
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        words = list(raw)
+    elif case == "candidate-relationship":
+        value = raw[4]
+        changed = value[0][:4] + '"' + value[0][5:]
+        raw[4] = (changed, value[1], value[2])
+        words = list(raw)
+    elif case == "confidence":
+        raw[0] = (raw[0][0], raw[0][1], 0.9996)
+        words = list(raw)
+    elif case == "width":
+        raw[0] = (
+            raw[0][0],
+            BoundingBox(121.68, 239.67, 198.68, 266.09),
+            raw[0][2],
+        )
+        words = list(raw)
+    elif case == "gap":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(207.68, 239.67, 306.68, 266.09),
+            raw[1][2],
+        )
+        words = list(raw)
+    elif case == "line-height":
+        line_box = BoundingBox(81.68, 239.67, 782.32, 266.1)
+    elif case == "crop-size":
+        crop = Image.new("RGB", (701, 28))
+    else:
+        raw[4] = (
+            raw[4][0],
+            BoundingBox(432.68, 239.67, 648.68, 266.09),
+            raw[4][2],
+        )
+        words = list(raw)
+    recognizer = ConfirmedWrappedThreePlusFourRecognizer()
+
+    assert (
+        _recover_confirmed_wrapped_three_plus_four_split(
+            words,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+class WrappedThreePlusFourDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(_WRAPPED_THREE_FOUR_LINE, 0.99254),
+        )
+
+
+def test_engine_recovers_wrapped_three_plus_four_segment() -> None:
+    engine = PaddleOcrEngine(
+        WrappedThreePlusFourDetector(),
+        ConfirmedWrappedThreePlusFourRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (900, 400)))
+
+    line = document.lines[0]
+    expected_words = wrapped_three_four_raw_words()
+    assert line.text == " ".join(
+        (
+            *(word[0] for word in expected_words[:4]),
+            _WRAPPED_THREE_FOUR_CANDIDATE[:5],
+            _WRAPPED_THREE_FOUR_FOLLOWING,
+            expected_words[5][0],
+        )
+    )
+    assert [len(word.text) for word in line.eojeols] == [
+        3,
+        4,
+        2,
+        2,
+        3,
+        4,
+        3,
+    ]
+    target = line.eojeols[4]
+    assert target.text == _WRAPPED_THREE_FOUR_TARGET
+    assert target.box.left == pytest.approx(453.08)
+    assert target.box.right == pytest.approx(517.28)
+    assert target.box.top == pytest.approx(239.67)
+    assert target.box.bottom == pytest.approx(266.09)
+    assert target.confidence == 0.862854
 
 
 _WRAPPED_ONE_FOUR_HEIGHT = 44.021739
