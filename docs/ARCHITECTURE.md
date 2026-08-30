@@ -364,6 +364,17 @@ separate confidence floors. Crop-supported boxes restore the missing word bounda
 both punctuation marks from hoverable target geometry. Any profile, boundary, geometry, category,
 confidence, segmentation, or crop disagreement keeps the original candidate unchanged.
 
+A separately reviewed internal paired-wrapper split can recover a three-Hangul prefix and a
+curly-quoted two-Hangul target only under a different exact six-segment line profile. The full
+candidate may substitute only its closing quote, while direct and enhanced candidate, prefix, and
+wrapper crops must agree on the underlying Hangul. The complete 15-threshold CTC signature must
+expose the same overlapping prefix and wrapper at every low threshold and remain fused at ordinary
+thresholds. Multiple direct and enhanced prefix, wrapper, target, opening-quote, and closing-quote
+crops must reproduce the reviewed readings above separate confidence floors. The reconstructed
+paired wrapper restores the missing sentence space, and its proportional inner box keeps both
+quotes and whitespace outside hoverable target geometry. Any profile, geometry, category,
+confidence, segmentation, or crop disagreement keeps the original candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
