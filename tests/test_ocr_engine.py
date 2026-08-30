@@ -17,6 +17,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_enhanced_wrapped_four_substitution,
     _recover_confirmed_five_plus_three_prefix_split,
     _recover_confirmed_four_plus_four_split,
+    _recover_confirmed_internal_dash_wrapped_two_split,
     _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split,
     _recover_confirmed_isolated_five_plus_three_punctuated_split,
     _recover_confirmed_isolated_mixed_prefix_split,
@@ -14651,3 +14652,423 @@ def test_engine_recovers_isolated_dash_wrapped_four_plus_seven_segment() -> None
     following_box = line.eojeols[1].box
     assert following_box.left == pytest.approx(472.08)
     assert following_box.right == pytest.approx(873.08)
+
+
+_INTERNAL_DASH_TWO_LINE = BoundingBox(86.16, 151.043478, 750.84, 184.5)
+_INTERNAL_DASH_TWO_SEGMENTS = (
+    (35, 67),
+    (81, 146),
+    (157, 398),
+    (409, 475),
+    (488, 550),
+    (567, 627),
+)
+_INTERNAL_DASH_TWO_PREFIX = "".join(chr(0xC800 + index) for index in range(3))
+_INTERNAL_DASH_TWO_TARGET = "".join(chr(0xC820 + index) for index in range(2))
+_INTERNAL_DASH_TWO_RAW_TEXTS = (
+    chr(0xC840),
+    "".join(chr(0xC850 + index) for index in range(2)),
+    _INTERNAL_DASH_TWO_PREFIX
+    + "-"
+    + _INTERNAL_DASH_TWO_TARGET
+    + chr(0x2014),
+    "".join(chr(0xC860 + index) for index in range(2)),
+    "2" + chr(0xC870) + ",",
+    "".join(chr(0xC880 + index) for index in range(2)),
+)
+_INTERNAL_DASH_TWO_CONFIDENCES = (
+    0.999883,
+    0.999979,
+    0.668947,
+    0.99893,
+    0.972564,
+    0.999967,
+)
+_INTERNAL_DASH_TWO_CTC = {
+    0.0001: (
+        (0, 100),
+        (111, 122),
+        (121, 156),
+        (155, 179),
+        (178, 206),
+        (210, 219),
+        (218, 241),
+    ),
+    0.0003: ((0, 100), (111, 122), (121, 179), (178, 241)),
+    0.0005: ((0, 100), (111, 179), (178, 241)),
+    0.001: ((0, 100), (111, 179), (178, 241)),
+    0.002: ((0, 100), (111, 179), (178, 241)),
+    0.003: ((0, 100), (111, 179), (178, 241)),
+    0.005: ((0, 100), (111, 179), (178, 241)),
+    0.007: ((0, 100), (111, 179), (178, 241)),
+    0.01: ((0, 100), (111, 241)),
+    0.015: ((0, 100), (111, 241)),
+    0.02: ((0, 100), (111, 241)),
+    0.03: ((0, 241),),
+    0.04: ((0, 241),),
+    0.05: ((0, 241),),
+    0.07: ((0, 241),),
+}
+
+
+def internal_dash_two_crop() -> Image.Image:
+    crop = Image.new("RGB", (665, 34))
+    for (left, right), intensity in zip(
+        _INTERNAL_DASH_TWO_SEGMENTS,
+        (10, 20, 100, 30, 40, 50),
+        strict=True,
+    ):
+        crop.paste((intensity, intensity, intensity), (left, 0, right, 34))
+    return crop
+
+
+def internal_dash_two_words(
+    *,
+    candidate_text: str = _INTERNAL_DASH_TWO_RAW_TEXTS[2],
+    candidate_confidence: float = _INTERNAL_DASH_TWO_CONFIDENCES[2],
+    candidate_box: BoundingBox | None = None,
+    fourth_text: str = _INTERNAL_DASH_TWO_RAW_TEXTS[4],
+) -> list[tuple[str, BoundingBox, float]]:
+    values = []
+    for index, ((left, right), text, confidence) in enumerate(
+        zip(
+            _INTERNAL_DASH_TWO_SEGMENTS,
+            _INTERNAL_DASH_TWO_RAW_TEXTS,
+            _INTERNAL_DASH_TWO_CONFIDENCES,
+            strict=True,
+        )
+    ):
+        if index == 2:
+            text = candidate_text
+            confidence = candidate_confidence
+        elif index == 4:
+            text = fourth_text
+        box = BoundingBox(
+            _INTERNAL_DASH_TWO_LINE.left + left,
+            _INTERNAL_DASH_TWO_LINE.top,
+            _INTERNAL_DASH_TWO_LINE.left + right,
+            _INTERNAL_DASH_TWO_LINE.bottom,
+        )
+        if index == 2 and candidate_box is not None:
+            box = candidate_box
+        values.append((text, box, confidence))
+    return values
+
+
+class ConfirmedInternalDashTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = _INTERNAL_DASH_TWO_SEGMENTS,
+        ctc_override: tuple[float, tuple[tuple[int, int], ...]] | None = None,
+        candidate_direct: RecognizedText | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        prefix_variant: RecognizedText | None = None,
+        ctc_wrapper_direct: RecognizedText | None = None,
+        ctc_wrapper_enhanced: RecognizedText | None = None,
+        wrapper_direct: RecognizedText | None = None,
+        wrapper_enhanced: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        boundary_variant: RecognizedText | None = None,
+    ) -> None:
+        wrapper = (
+            chr(0x2014)
+            + _INTERNAL_DASH_TWO_TARGET
+            + chr(0x2014)
+        )
+        enhanced_wrapper = chr(0x2014) + _INTERNAL_DASH_TWO_TARGET + "-"
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_direct = candidate_direct or RecognizedText(
+            _INTERNAL_DASH_TWO_RAW_TEXTS[2],
+            0.66895,
+        )
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _INTERNAL_DASH_TWO_RAW_TEXTS[2][:-1] + "-",
+            0.59685,
+        )
+        self.prefix_variant = prefix_variant or RecognizedText(
+            _INTERNAL_DASH_TWO_PREFIX,
+            0.99995,
+        )
+        self.ctc_wrapper_direct = ctc_wrapper_direct or RecognizedText(
+            wrapper,
+            0.7736,
+        )
+        self.ctc_wrapper_enhanced = ctc_wrapper_enhanced or RecognizedText(
+            "-" + _INTERNAL_DASH_TWO_TARGET + "-",
+            0.67,
+        )
+        self.wrapper_direct = wrapper_direct or RecognizedText(wrapper, 0.9)
+        self.wrapper_enhanced = wrapper_enhanced or RecognizedText(
+            enhanced_wrapper,
+            0.8,
+        )
+        self.target_variant = target_variant or RecognizedText(
+            _INTERNAL_DASH_TWO_TARGET,
+            0.9999,
+        )
+        self.boundary_variant = boundary_variant or RecognizedText(
+            chr(0x2014),
+            0.9,
+        )
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (665, 34) and space_threshold is None:
+            return self.default_segments
+        if image.size != (241, 34) or space_threshold is None:
+            return ()
+        if self.ctc_override is not None and space_threshold == self.ctc_override[0]:
+            return self.ctc_override[1]
+        return _INTERNAL_DASH_TWO_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        enhanced = image.height == 68
+        segment_reads = {
+            10: (
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[0], 0.999883),
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[0], 0.999428),
+            ),
+            20: (
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[1], 0.999979),
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[1], 0.99998),
+            ),
+            30: (
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[3], 0.99893),
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[3], 0.999098),
+            ),
+            40: (
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[4], 0.972564),
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[4], 0.985471),
+            ),
+            50: (
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[5], 0.999967),
+                RecognizedText(_INTERNAL_DASH_TWO_RAW_TEXTS[5], 0.999975),
+            ),
+        }
+        if intensity in segment_reads:
+            return segment_reads[intensity][1 if enhanced else 0]
+        if intensity != 100:
+            return RecognizedText("", 0.0)
+        if image.size == (241, 34):
+            return self.candidate_direct
+        if image.size == (482, 68):
+            return self.candidate_enhanced
+        original_width = image.width // 2 if enhanced else image.width
+        if 95 <= original_width <= 103:
+            return self.prefix_variant
+        if original_width == 130:
+            return (
+                self.ctc_wrapper_enhanced
+                if enhanced
+                else self.ctc_wrapper_direct
+            )
+        if 125 <= original_width <= 145:
+            return self.wrapper_enhanced if enhanced else self.wrapper_direct
+        if 60 <= original_width <= 75:
+            return self.target_variant
+        if 30 <= original_width <= 45:
+            return self.boundary_variant
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_internal_dash_wrapped_two_recovers() -> None:
+    words = internal_dash_two_words()
+    recovered = _recover_confirmed_internal_dash_wrapped_two_split(
+        words,
+        words.copy(),
+        internal_dash_two_crop(),
+        _INTERNAL_DASH_TWO_LINE,
+        ConfirmedInternalDashTwoRecognizer(),
+    )
+
+    assert recovered[:2] == words[:2]
+    assert recovered[4:] == words[3:]
+    assert recovered[2] == (
+        _INTERNAL_DASH_TWO_PREFIX,
+        BoundingBox(
+            _INTERNAL_DASH_TWO_LINE.left + 157,
+            _INTERNAL_DASH_TWO_LINE.top,
+            _INTERNAL_DASH_TWO_LINE.left + 257,
+            _INTERNAL_DASH_TWO_LINE.bottom,
+        ),
+        0.59685,
+    )
+    assert recovered[3] == (
+        chr(0x2014) + _INTERNAL_DASH_TWO_TARGET + chr(0x2014),
+        BoundingBox(
+            _INTERNAL_DASH_TWO_LINE.left + 268,
+            _INTERNAL_DASH_TWO_LINE.top,
+            _INTERNAL_DASH_TWO_LINE.left + 398,
+            _INTERNAL_DASH_TWO_LINE.bottom,
+        ),
+        0.59685,
+    )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _INTERNAL_DASH_TWO_RAW_TEXTS[2],
+                0.9,
+            )
+        },
+        {
+            "ctc_wrapper_direct": RecognizedText(
+                "-" + _INTERNAL_DASH_TWO_TARGET + "-",
+                0.9,
+            )
+        },
+        {
+            "wrapper_enhanced": RecognizedText(
+                "-" + _INTERNAL_DASH_TWO_TARGET + "-",
+                0.9,
+            )
+        },
+        {
+            "target_variant": RecognizedText(
+                _INTERNAL_DASH_TWO_TARGET,
+                0.9998,
+            )
+        },
+        {"boundary_variant": RecognizedText("-", 0.9)},
+        {
+            "prefix_variant": RecognizedText(
+                _INTERNAL_DASH_TWO_PREFIX[:-1],
+                1.0,
+            )
+        },
+        {"ctc_override": (0.01, ((0, 241),))},
+    ],
+)
+def test_confirmed_internal_dash_wrapped_two_requires_crop_evidence(
+    overrides,
+) -> None:
+    words = internal_dash_two_words()
+
+    assert (
+        _recover_confirmed_internal_dash_wrapped_two_split(
+            words,
+            words.copy(),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            internal_dash_two_words() * 2,
+            internal_dash_two_words(),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(candidate_text="A" + _INTERNAL_DASH_TWO_RAW_TEXTS[2][1:]),
+            internal_dash_two_words(candidate_text="A" + _INTERNAL_DASH_TWO_RAW_TEXTS[2][1:]),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(candidate_confidence=0.6688),
+            internal_dash_two_words(candidate_confidence=0.6688),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(fourth_text="A2,"),
+            internal_dash_two_words(fourth_text="A2,"),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(
+                candidate_box=BoundingBox(243.16, 151.043478, 483.16, 184.5)
+            ),
+            internal_dash_two_words(
+                candidate_box=BoundingBox(243.16, 151.043478, 483.16, 184.5)
+            ),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(),
+            internal_dash_two_words(),
+            Image.new("RGB", (664, 34)),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(),
+            internal_dash_two_words(),
+            internal_dash_two_crop(),
+            BoundingBox(86.16, 151.043478, 750.86, 184.5),
+            ConfirmedInternalDashTwoRecognizer(),
+        ),
+        (
+            internal_dash_two_words(),
+            internal_dash_two_words(),
+            internal_dash_two_crop(),
+            _INTERNAL_DASH_TWO_LINE,
+            ConfirmedInternalDashTwoRecognizer(
+                default_segments=_INTERNAL_DASH_TWO_SEGMENTS[:-1]
+            ),
+        ),
+    ],
+)
+def test_confirmed_internal_dash_wrapped_two_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_internal_dash_wrapped_two_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class InternalDashTwoDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_INTERNAL_DASH_TWO_LINE, 0.9927),)
+
+
+def test_engine_recovers_internal_dash_wrapped_two_segment() -> None:
+    image = Image.new("RGB", (800, 350))
+    image.paste(internal_dash_two_crop(), (86, 151))
+    engine = PaddleOcrEngine(
+        InternalDashTwoDetector(),
+        ConfirmedInternalDashTwoRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 23
+    assert [len(word.text) for word in line.eojeols] == [1, 2, 3, 2, 2, 2, 2]
+    assert line.eojeols[3].text == _INTERNAL_DASH_TWO_TARGET
+    assert line.eojeols[3].box.left == pytest.approx(386.66)
+    assert line.eojeols[3].box.right == pytest.approx(451.66)

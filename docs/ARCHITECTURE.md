@@ -354,6 +354,16 @@ and inner em dashes; crop-supported boxes keep both punctuation marks and the re
 outside hoverable geometry. Any profile, boundary, geometry, category, confidence, segmentation,
 or crop disagreement keeps the whole-line reading unchanged.
 
+A separately reviewed internal dash-wrapper split can recover a three-Hangul prefix and paired
+em-dash-wrapped two-Hangul target only under an exact six-segment line profile. The neighboring
+word shapes, confidence, geometry, crop dimensions, default segments, and full 15-threshold CTC
+signature must match. Direct and enhanced candidate readings may disagree only on the closing
+dash, while the low-threshold prefix and wrapper crops, six wrapper variants, and seven variants
+for each prefix, target, opening dash, and closing dash must reproduce the accepted readings above
+separate confidence floors. Crop-supported boxes restore the missing word boundary and exclude
+both punctuation marks from hoverable target geometry. Any profile, boundary, geometry, category,
+confidence, segmentation, or crop disagreement keeps the original candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
