@@ -43,6 +43,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_seven_character_splits,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_terminal_dash_wrapped_two_plus_two_split,
+    _recover_confirmed_terminal_paired_wrapped_single_split,
     _recover_confirmed_terminal_punctuated_overlap_pair,
     _recover_confirmed_terminal_three_plus_wrapped_two_split,
     _recover_confirmed_terminal_three_substitution,
@@ -16233,3 +16234,416 @@ def test_engine_recovers_leading_paired_wrapped_three_segment() -> None:
     assert line.eojeols[1].text == _LEADING_PAIRED_THREE_TARGET
     assert line.eojeols[1].box.left == pytest.approx(304.92)
     assert line.eojeols[1].box.right == pytest.approx(432.72)
+
+
+_TERMINAL_PAIRED_SINGLE_LINE = BoundingBox(
+    85.28,
+    234.0,
+    733.72,
+    263.9347826086957,
+)
+_TERMINAL_PAIRED_SINGLE_SEGMENTS = (
+    (36, 175),
+    (184, 238),
+    (248, 350),
+    (359, 439),
+    (447, 611),
+)
+_TERMINAL_PAIRED_SINGLE_PREFIX = "".join(
+    map(chr, (0xAC00, 0xB098, 0xB2E4, 0xB77C))
+)
+_TERMINAL_PAIRED_SINGLE_TARGET = chr(0xB9C8)
+_TERMINAL_PAIRED_SINGLE_WRAPPER = (
+    chr(0x201C) + _TERMINAL_PAIRED_SINGLE_TARGET + chr(0x201D)
+)
+_TERMINAL_PAIRED_SINGLE_RAW = (
+    _TERMINAL_PAIRED_SINGLE_PREFIX
+    + chr(0x201C)
+    + _TERMINAL_PAIRED_SINGLE_TARGET
+    + '"'
+)
+_TERMINAL_PAIRED_SINGLE_RETRY = (
+    _TERMINAL_PAIRED_SINGLE_PREFIX + _TERMINAL_PAIRED_SINGLE_WRAPPER
+)
+_TERMINAL_PAIRED_SINGLE_TEXTS = (
+    "".join(map(chr, (0xBC14, 0xC0AC, 0xC544, 0xC790, 0xCC28))) + ",",
+    "".join(map(chr, (0xCE74, 0xD0C0))),
+    "".join(map(chr, (0xD30C, 0xD558, 0xAC70, 0xB108))),
+    "".join(map(chr, (0xB2E4, 0xB77C, 0xB9C8))),
+    _TERMINAL_PAIRED_SINGLE_RAW,
+)
+_TERMINAL_PAIRED_SINGLE_CONFIDENCES = (
+    0.99495,
+    0.99975,
+    0.99995,
+    0.99995,
+    0.67815,
+)
+_TERMINAL_PAIRED_SINGLE_CTC = {
+    0.0001: ((0, 88), (87, 107), (115, 148), (147, 164)),
+    0.0003: ((0, 107), (115, 148), (147, 164)),
+    0.0005: ((0, 98), (97, 107), (115, 164)),
+    **{
+        threshold: ((0, 107), (115, 164))
+        for threshold in (
+            0.001,
+            0.002,
+            0.003,
+            0.005,
+            0.007,
+            0.01,
+            0.015,
+        )
+    },
+    **{
+        threshold: ((0, 164),)
+        for threshold in (0.02, 0.03, 0.04, 0.05, 0.07)
+    },
+}
+
+
+def terminal_paired_single_crop() -> Image.Image:
+    crop = Image.new("RGB", (649, 30))
+    for intensity, (left, right) in zip(
+        (10, 20, 30, 40, 90),
+        _TERMINAL_PAIRED_SINGLE_SEGMENTS,
+        strict=True,
+    ):
+        crop.paste((intensity, intensity, intensity), (left, 0, right, 30))
+    candidate_left = _TERMINAL_PAIRED_SINGLE_SEGMENTS[4][0]
+    crop.paste(
+        (100, 100, 100),
+        (candidate_left + 103, 0, candidate_left + 126, 30),
+    )
+    crop.paste(
+        (110, 110, 110),
+        (candidate_left + 126, 0, candidate_left + 153, 30),
+    )
+    crop.paste(
+        (120, 120, 120),
+        (candidate_left + 153, 0, candidate_left + 164, 30),
+    )
+    return crop
+
+
+def terminal_paired_single_words(
+    *,
+    candidate_text: str = _TERMINAL_PAIRED_SINGLE_RAW,
+    candidate_confidence: float = 0.67815,
+    candidate_box: BoundingBox | None = None,
+    fourth_text: str = _TERMINAL_PAIRED_SINGLE_TEXTS[3],
+) -> list[tuple[str, BoundingBox, float]]:
+    values = []
+    for index, ((left, right), text, confidence) in enumerate(
+        zip(
+            _TERMINAL_PAIRED_SINGLE_SEGMENTS,
+            _TERMINAL_PAIRED_SINGLE_TEXTS,
+            _TERMINAL_PAIRED_SINGLE_CONFIDENCES,
+            strict=True,
+        )
+    ):
+        if index == 4:
+            text = candidate_text
+            confidence = candidate_confidence
+        elif index == 3:
+            text = fourth_text
+        box = BoundingBox(
+            _TERMINAL_PAIRED_SINGLE_LINE.left + left,
+            _TERMINAL_PAIRED_SINGLE_LINE.top,
+            _TERMINAL_PAIRED_SINGLE_LINE.left + right,
+            _TERMINAL_PAIRED_SINGLE_LINE.bottom,
+        )
+        if index == 4 and candidate_box is not None:
+            box = candidate_box
+        values.append((text, box, confidence))
+    return values
+
+
+class ConfirmedTerminalPairedSingleRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = (
+            _TERMINAL_PAIRED_SINGLE_SEGMENTS
+        ),
+        ctc_override: tuple[
+            float, tuple[tuple[int, int], ...]
+        ] | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        wrapper_variant: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        opening_variant: RecognizedText | None = None,
+        closing_variant: RecognizedText | None = None,
+    ) -> None:
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _TERMINAL_PAIRED_SINGLE_RETRY,
+            0.56725,
+        )
+        self.wrapper_variant = wrapper_variant or RecognizedText(
+            _TERMINAL_PAIRED_SINGLE_WRAPPER,
+            0.8,
+        )
+        self.target_variant = target_variant or RecognizedText(
+            _TERMINAL_PAIRED_SINGLE_TARGET,
+            0.9999,
+        )
+        self.opening_variant = opening_variant or RecognizedText('"', 0.8)
+        self.closing_variant = closing_variant or RecognizedText('"', 0.8)
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (649, 30) and space_threshold is None:
+            return self.default_segments
+        if image.size != (164, 30) or space_threshold is None:
+            return ()
+        if (
+            self.ctc_override is not None
+            and space_threshold == self.ctc_override[0]
+        ):
+            return self.ctc_override[1]
+        return _TERMINAL_PAIRED_SINGLE_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        enhanced = image.height == 60
+        segment_reads = {
+            10: RecognizedText(_TERMINAL_PAIRED_SINGLE_TEXTS[0], 0.99495),
+            20: RecognizedText(_TERMINAL_PAIRED_SINGLE_TEXTS[1], 0.99975),
+            30: RecognizedText(_TERMINAL_PAIRED_SINGLE_TEXTS[2], 0.99995),
+            40: RecognizedText(_TERMINAL_PAIRED_SINGLE_TEXTS[3], 0.99995),
+        }
+        if image.height == 30 and intensity in segment_reads:
+            return segment_reads[intensity]
+        if image.size == (164, 30):
+            return RecognizedText(_TERMINAL_PAIRED_SINGLE_RAW, 0.67815)
+        if image.size == (328, 60):
+            return self.candidate_enhanced
+        original_width = image.width // 2 if enhanced else image.width
+        if 55 <= original_width <= 60:
+            return self.wrapper_variant
+        if 100 <= original_width <= 106:
+            return RecognizedText(_TERMINAL_PAIRED_SINGLE_PREFIX, 0.99995)
+        if 9 <= original_width <= 31:
+            if enhanced:
+                if original_width <= 15:
+                    return self.closing_variant
+                if (
+                    intensity == 100
+                    or (original_width, intensity) in ((27, 127), (20, 0))
+                ):
+                    return self.opening_variant
+                return self.target_variant
+            if intensity >= 115:
+                return self.closing_variant
+            if intensity <= 105:
+                return self.opening_variant
+            return self.target_variant
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_terminal_paired_wrapped_single_recovers() -> None:
+    words = terminal_paired_single_words()
+    recovered = _recover_confirmed_terminal_paired_wrapped_single_split(
+        words,
+        terminal_paired_single_words(),
+        terminal_paired_single_crop(),
+        _TERMINAL_PAIRED_SINGLE_LINE,
+        ConfirmedTerminalPairedSingleRecognizer(),
+    )
+
+    assert recovered == [
+        *words[:4],
+        (
+            _TERMINAL_PAIRED_SINGLE_PREFIX,
+            BoundingBox(
+                _TERMINAL_PAIRED_SINGLE_LINE.left + 447,
+                _TERMINAL_PAIRED_SINGLE_LINE.top,
+                _TERMINAL_PAIRED_SINGLE_LINE.left + 549,
+                _TERMINAL_PAIRED_SINGLE_LINE.bottom,
+            ),
+            0.56725,
+        ),
+        (
+            _TERMINAL_PAIRED_SINGLE_WRAPPER,
+            BoundingBox(
+                _TERMINAL_PAIRED_SINGLE_LINE.left + 554,
+                _TERMINAL_PAIRED_SINGLE_LINE.top,
+                _TERMINAL_PAIRED_SINGLE_LINE.left + 611,
+                _TERMINAL_PAIRED_SINGLE_LINE.bottom,
+            ),
+            0.56725,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _TERMINAL_PAIRED_SINGLE_RAW,
+                0.9,
+            )
+        },
+        {
+            "wrapper_variant": RecognizedText(
+                chr(0x201C) + _TERMINAL_PAIRED_SINGLE_TARGET + '"',
+                0.9,
+            )
+        },
+        {"target_variant": RecognizedText(chr(0xC790), 1.0)},
+        {"opening_variant": RecognizedText("'", 0.99)},
+        {"closing_variant": RecognizedText('"', 0.48)},
+        {"ctc_override": (0.01, ((0, 164),))},
+    ],
+)
+def test_confirmed_terminal_paired_single_requires_crop_evidence(
+    overrides,
+) -> None:
+    words = terminal_paired_single_words()
+
+    assert (
+        _recover_confirmed_terminal_paired_wrapped_single_split(
+            words,
+            terminal_paired_single_words(),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            terminal_paired_single_words() * 2,
+            terminal_paired_single_words(),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(
+                candidate_text="A" + _TERMINAL_PAIRED_SINGLE_RAW[1:]
+            ),
+            terminal_paired_single_words(
+                candidate_text="A" + _TERMINAL_PAIRED_SINGLE_RAW[1:]
+            ),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(candidate_confidence=0.6780),
+            terminal_paired_single_words(candidate_confidence=0.6780),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(),
+            terminal_paired_single_words(candidate_confidence=0.6780),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(fourth_text="A12"),
+            terminal_paired_single_words(fourth_text="A12"),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(
+                candidate_box=BoundingBox(
+                    _TERMINAL_PAIRED_SINGLE_LINE.left + 448,
+                    _TERMINAL_PAIRED_SINGLE_LINE.top,
+                    _TERMINAL_PAIRED_SINGLE_LINE.left + 611,
+                    _TERMINAL_PAIRED_SINGLE_LINE.bottom,
+                )
+            ),
+            terminal_paired_single_words(
+                candidate_box=BoundingBox(
+                    _TERMINAL_PAIRED_SINGLE_LINE.left + 448,
+                    _TERMINAL_PAIRED_SINGLE_LINE.top,
+                    _TERMINAL_PAIRED_SINGLE_LINE.left + 611,
+                    _TERMINAL_PAIRED_SINGLE_LINE.bottom,
+                )
+            ),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(),
+            terminal_paired_single_words(),
+            Image.new("RGB", (648, 30)),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(),
+            terminal_paired_single_words(),
+            terminal_paired_single_crop(),
+            BoundingBox(85.28, 234.0, 733.74, 263.9347826086957),
+            ConfirmedTerminalPairedSingleRecognizer(),
+        ),
+        (
+            terminal_paired_single_words(),
+            terminal_paired_single_words(),
+            terminal_paired_single_crop(),
+            _TERMINAL_PAIRED_SINGLE_LINE,
+            ConfirmedTerminalPairedSingleRecognizer(
+                default_segments=_TERMINAL_PAIRED_SINGLE_SEGMENTS[:-1]
+            ),
+        ),
+    ],
+)
+def test_confirmed_terminal_paired_single_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_terminal_paired_wrapped_single_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class TerminalPairedSingleDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_TERMINAL_PAIRED_SINGLE_LINE, 0.9904),)
+
+
+def test_engine_recovers_terminal_paired_wrapped_single_segment() -> None:
+    image = Image.new("RGB", (800, 350))
+    image.paste(terminal_paired_single_crop(), (85, 234))
+    engine = PaddleOcrEngine(
+        TerminalPairedSingleDetector(),
+        ConfirmedTerminalPairedSingleRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 27
+    assert [len(word.text) for word in line.eojeols] == [5, 2, 4, 3, 4, 1]
+    assert line.eojeols[5].text == _TERMINAL_PAIRED_SINGLE_TARGET
+    assert line.eojeols[5].box.left == pytest.approx(658.28)
+    assert line.eojeols[5].box.right == pytest.approx(677.28)

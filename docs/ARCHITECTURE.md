@@ -397,6 +397,16 @@ keeps both quote glyphs and whitespace outside hoverable target geometry. Any pr
 geometry, category, confidence, segmentation, or crop disagreement keeps the fused candidate
 unchanged.
 
+A separate terminal single-syllable paired-wrapper profile applies only to its exact five-segment,
+browser multi-line fingerprint. The selected and raw candidate must agree on a four-Hangul prefix,
+opening curly quote, one-Hangul target, and substituted ASCII close; the enhanced candidate must
+restore the paired curly close without changing the Hangul. The complete 15-threshold signature
+and direct/enhanced candidate readings must match. Six prefix, seven complete-wrapper, seven target,
+seven opening-quote, and five closing-quote variants independently confirm the split above separate
+confidence floors. Detector-relative boxes restore the missing sentence space and exclude both
+quotes and whitespace from hoverable target geometry. Any evidence mismatch leaves the candidate
+unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
