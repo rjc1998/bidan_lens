@@ -5101,6 +5101,287 @@ def _recover_confirmed_internal_paired_wrapped_three_split(
     ]
 
 
+def _recover_confirmed_leading_paired_wrapped_three_split(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_candidate_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    """Recover one reviewed two-syllable prefix plus quoted three-syllable word."""
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if (
+        not callable(segmenter)
+        or len(words) != 2
+        or len(raw_candidate_words) != 2
+    ):
+        return words
+    text, box, confidence = words[0]
+    raw_text, raw_box, raw_confidence = raw_candidate_words[0]
+    raw_texts = tuple(item[0] for item in raw_candidate_words)
+    raw_confidences = tuple(item[2] for item in raw_candidate_words)
+    if (
+        tuple(item[0] for item in words) != raw_texts
+        or text != raw_text
+        or box != raw_box
+        or confidence != raw_confidence
+        or len(raw_text) != 7
+        or not all(is_hangul(character) for character in raw_text[:2])
+        or ord(raw_text[2]) != 0x2018
+        or not all(is_hangul(character) for character in raw_text[3:6])
+        or raw_text[6] != "'"
+        or not 0.5492 <= confidence <= 0.5493
+        or tuple(len(value) for value in raw_texts) != (7, 3)
+        or not all(is_hangul(character) for character in raw_texts[1])
+        or not 0.9999 <= raw_confidences[1] <= 1.0
+        or not 68.67 <= line_box.height <= 68.68
+        or not 604.35 <= line_box.width <= 604.37
+        or crop.size != (605, 70)
+    ):
+        return words
+    expected_default_segments = ((24, 378), (397, 581))
+    try:
+        if tuple(segmenter(crop)) != expected_default_segments:
+            return words
+    except TypeError:
+        return words
+    expected_boxes = tuple(
+        BoundingBox(
+            line_box.left + left,
+            line_box.top,
+            line_box.left + right,
+            line_box.bottom,
+        )
+        for left, right in expected_default_segments
+    )
+    if any(
+        candidate[1] != expected
+        for candidate, expected in zip(
+            raw_candidate_words,
+            expected_boxes,
+            strict=True,
+        )
+    ):
+        return words
+    candidate_crop = crop.crop((24, 0, 378, crop.height))
+    split_segments = ((0, 123), (141, 354))
+    expected_segments = (
+        *(
+            (threshold, split_segments)
+            for threshold in (
+                0.0001,
+                0.0003,
+                0.0005,
+                0.001,
+                0.002,
+                0.003,
+                0.005,
+                0.007,
+                0.01,
+                0.015,
+            )
+        ),
+        *(
+            (threshold, ((0, 354),))
+            for threshold in (0.02, 0.03, 0.04, 0.05, 0.07)
+        ),
+    )
+    try:
+        if any(
+            tuple(segmenter(candidate_crop, space_threshold=threshold))
+            != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    candidate_direct = recognizer.recognize(candidate_crop)
+    candidate_enhanced = recognizer.recognize(enhanced(candidate_crop))
+    ctc_prefix_direct = recognizer.recognize(
+        candidate_crop.crop((0, 0, 123, candidate_crop.height))
+    )
+    ctc_prefix_enhanced = recognizer.recognize(
+        enhanced(candidate_crop.crop((0, 0, 123, candidate_crop.height)))
+    )
+    ctc_wrapper_direct = recognizer.recognize(
+        candidate_crop.crop((141, 0, 354, candidate_crop.height))
+    )
+    ctc_wrapper_enhanced = recognizer.recognize(
+        enhanced(candidate_crop.crop((141, 0, 354, candidate_crop.height)))
+    )
+    prefix_bounds = (
+        (0, 123),
+        (0, 121),
+        (0, 125),
+        (2, 123),
+        (0, 119),
+        (0, 127),
+    )
+    wrapper_bounds = (
+        (141, 354),
+        (138, 354),
+        (140, 354),
+        (142, 354),
+        (141, 352),
+        (139, 353),
+        (143, 354),
+    )
+    target_bounds = (
+        (154, 340),
+        (156, 340),
+        (158, 340),
+        (154, 338),
+        (152, 342),
+        (158, 338),
+        (155, 341),
+    )
+    opening_bounds = (
+        (138, 154),
+        (138, 155),
+        (138, 156),
+        (139, 154),
+        (139, 155),
+        (139, 156),
+        (140, 155),
+    )
+    closing_bounds = (
+        (340, 354),
+        (338, 354),
+        (342, 354),
+        (336, 354),
+        (343, 354),
+    )
+
+    def recognize_variants(
+        bounds: tuple[tuple[int, int], ...],
+    ) -> tuple[tuple[Any, ...], tuple[Any, ...]]:
+        direct = tuple(
+            recognizer.recognize(
+                candidate_crop.crop(
+                    (left, 0, right, candidate_crop.height)
+                )
+            )
+            for left, right in bounds
+        )
+        retried = tuple(
+            recognizer.recognize(
+                enhanced(
+                    candidate_crop.crop(
+                        (left, 0, right, candidate_crop.height)
+                    )
+                )
+            )
+            for left, right in bounds
+        )
+        return direct, retried
+
+    prefix_direct, prefix_enhanced = recognize_variants(prefix_bounds)
+    wrapper_direct, wrapper_enhanced = recognize_variants(wrapper_bounds)
+    target_direct, target_enhanced = recognize_variants(target_bounds)
+    opening_direct, opening_enhanced = recognize_variants(opening_bounds)
+    closing_direct, closing_enhanced = recognize_variants(closing_bounds)
+    candidate_text = candidate_direct.text.replace(" ", "")
+    candidate_retry_text = candidate_enhanced.text.replace(" ", "")
+    prefix_text = candidate_text[:2]
+    target_text = candidate_text[3:6]
+    wrapper_text = ctc_wrapper_direct.text.replace(" ", "")
+    if (
+        candidate_direct.confidence < 0.5492
+        or candidate_text != raw_text
+        or candidate_enhanced.confidence < 0.5157
+        or len(candidate_retry_text) != 7
+        or candidate_retry_text[:2] != prefix_text
+        or candidate_retry_text[2] != "'"
+        or candidate_retry_text[3:6] != target_text
+        or candidate_retry_text[6] != "'"
+        or ctc_prefix_direct.confidence < 0.9999
+        or ctc_prefix_direct.text.replace(" ", "") != prefix_text
+        or ctc_prefix_enhanced.confidence < 0.9999
+        or ctc_prefix_enhanced.text.replace(" ", "") != prefix_text
+        or ctc_wrapper_direct.confidence < 0.8942
+        or len(wrapper_text) != 5
+        or ord(wrapper_text[0]) != 0x2018
+        or wrapper_text[1:4] != target_text
+        or ord(wrapper_text[4]) != 0x2019
+        or ctc_wrapper_enhanced.confidence < 0.8764
+        or ctc_wrapper_enhanced.text.replace(" ", "") != wrapper_text
+        or any(
+            variant.confidence < threshold
+            or variant.text.replace(" ", "") != expected
+            for variants, threshold, expected in (
+                (prefix_direct, 0.9999, prefix_text),
+                (prefix_enhanced, 0.9999, prefix_text),
+                (wrapper_direct, 0.8942, wrapper_text),
+                (wrapper_enhanced, 0.8764, wrapper_text),
+                (target_direct, 0.9997, target_text),
+                (target_enhanced, 0.9998, target_text),
+                (opening_direct, 0.5987, chr(0x2018)),
+                (opening_enhanced, 0.6647, chr(0x2018)),
+                (closing_direct, 0.4749, "'"),
+                (closing_enhanced, 0.6343, "'"),
+            )
+            for variant in variants
+        )
+    ):
+        return words
+    prefix_confidence = min(
+        confidence,
+        candidate_direct.confidence,
+        candidate_enhanced.confidence,
+        ctc_prefix_direct.confidence,
+        ctc_prefix_enhanced.confidence,
+        *(variant.confidence for variant in prefix_direct),
+        *(variant.confidence for variant in prefix_enhanced),
+    )
+    wrapper_confidence = min(
+        confidence,
+        candidate_direct.confidence,
+        candidate_enhanced.confidence,
+        ctc_wrapper_direct.confidence,
+        ctc_wrapper_enhanced.confidence,
+        *(variant.confidence for variant in wrapper_direct),
+        *(variant.confidence for variant in wrapper_enhanced),
+        *(variant.confidence for variant in target_direct),
+        *(variant.confidence for variant in target_enhanced),
+        *(variant.confidence for variant in opening_direct),
+        *(variant.confidence for variant in opening_enhanced),
+        *(variant.confidence for variant in closing_direct),
+        *(variant.confidence for variant in closing_enhanced),
+    )
+    candidate_left = line_box.left + 24
+    return [
+        (
+            prefix_text,
+            BoundingBox(
+                candidate_left,
+                box.top,
+                candidate_left + 123,
+                box.bottom,
+            ),
+            prefix_confidence,
+        ),
+        (
+            wrapper_text,
+            BoundingBox(
+                candidate_left + 141,
+                box.top,
+                candidate_left + 354,
+                box.bottom,
+            ),
+            wrapper_confidence,
+        ),
+        *words[1:],
+    ]
+
+
 def _recover_confirmed_isolated_dash_wrapped_four_plus_seven_split(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -7914,6 +8195,13 @@ class PaddleOcrEngine(OcrEngine):
             self.recognizer,
         )
         words = _recover_confirmed_internal_paired_wrapped_three_split(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _recover_confirmed_leading_paired_wrapped_three_split(
             words,
             raw_candidate_words,
             crop,

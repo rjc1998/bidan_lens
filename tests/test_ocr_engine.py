@@ -26,6 +26,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_isolated_paired_wrapped_two_plus_two_split,
     _recover_confirmed_isolated_three_plus_five_punctuated_split,
     _recover_confirmed_leading_dash_three_plus_five_split,
+    _recover_confirmed_leading_paired_wrapped_three_split,
     _recover_confirmed_leading_punctuated_single_split,
     _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
@@ -15866,3 +15867,369 @@ def test_engine_recovers_internal_paired_wrapped_three_segment() -> None:
     assert line.eojeols[5].text == _INTERNAL_PAIRED_THREE_TARGET
     assert line.eojeols[5].box.left == pytest.approx(527.4)
     assert line.eojeols[5].box.right == pytest.approx(588.0)
+
+
+_LEADING_PAIRED_THREE_LINE = BoundingBox(
+    97.32,
+    165.71739130434784,
+    701.68,
+    234.3913043478261,
+)
+_LEADING_PAIRED_THREE_SEGMENTS = ((24, 378), (397, 581))
+_LEADING_PAIRED_THREE_PREFIX = "".join(map(chr, (0xAC00, 0xB098)))
+_LEADING_PAIRED_THREE_TARGET = "".join(map(chr, (0xB2E4, 0xB77C, 0xB9C8)))
+_LEADING_PAIRED_THREE_NEIGHBOR = "".join(map(chr, (0xBC14, 0xC0AC, 0xC544)))
+_LEADING_PAIRED_THREE_WRAPPER = (
+    chr(0x2018) + _LEADING_PAIRED_THREE_TARGET + chr(0x2019)
+)
+_LEADING_PAIRED_THREE_RAW = (
+    _LEADING_PAIRED_THREE_PREFIX
+    + chr(0x2018)
+    + _LEADING_PAIRED_THREE_TARGET
+    + "'"
+)
+_LEADING_PAIRED_THREE_RETRY = (
+    _LEADING_PAIRED_THREE_PREFIX + "'" + _LEADING_PAIRED_THREE_TARGET + "'"
+)
+_LEADING_PAIRED_THREE_CTC = {
+    **{
+        threshold: ((0, 123), (141, 354))
+        for threshold in (
+            0.0001,
+            0.0003,
+            0.0005,
+            0.001,
+            0.002,
+            0.003,
+            0.005,
+            0.007,
+            0.01,
+            0.015,
+        )
+    },
+    **{
+        threshold: ((0, 354),)
+        for threshold in (0.02, 0.03, 0.04, 0.05, 0.07)
+    },
+}
+
+
+def leading_paired_three_crop() -> Image.Image:
+    crop = Image.new("RGB", (605, 70))
+    crop.paste((90, 90, 90), (24, 0, 378, 70))
+    crop.paste((50, 50, 50), (397, 0, 581, 70))
+    crop.paste((100, 100, 100), (24 + 132, 0, 24 + 154, 70))
+    crop.paste((110, 110, 110), (24 + 154, 0, 24 + 340, 70))
+    crop.paste((120, 120, 120), (24 + 340, 0, 24 + 354, 70))
+    return crop
+
+
+def leading_paired_three_words(
+    *,
+    candidate_text: str = _LEADING_PAIRED_THREE_RAW,
+    candidate_confidence: float = 0.54925,
+    candidate_box: BoundingBox | None = None,
+    neighbor_text: str = _LEADING_PAIRED_THREE_NEIGHBOR,
+) -> list[tuple[str, BoundingBox, float]]:
+    candidate_box = candidate_box or BoundingBox(
+        _LEADING_PAIRED_THREE_LINE.left + 24,
+        _LEADING_PAIRED_THREE_LINE.top,
+        _LEADING_PAIRED_THREE_LINE.left + 378,
+        _LEADING_PAIRED_THREE_LINE.bottom,
+    )
+    return [
+        (candidate_text, candidate_box, candidate_confidence),
+        (
+            neighbor_text,
+            BoundingBox(
+                _LEADING_PAIRED_THREE_LINE.left + 397,
+                _LEADING_PAIRED_THREE_LINE.top,
+                _LEADING_PAIRED_THREE_LINE.left + 581,
+                _LEADING_PAIRED_THREE_LINE.bottom,
+            ),
+            0.99995,
+        ),
+    ]
+
+
+class ConfirmedLeadingPairedThreeRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = (
+            _LEADING_PAIRED_THREE_SEGMENTS
+        ),
+        ctc_override: tuple[
+            float, tuple[tuple[int, int], ...]
+        ] | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        wrapper_variant: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        opening_variant: RecognizedText | None = None,
+        closing_variant: RecognizedText | None = None,
+    ) -> None:
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _LEADING_PAIRED_THREE_RETRY,
+            0.51575,
+        )
+        self.wrapper_variant = wrapper_variant or RecognizedText(
+            _LEADING_PAIRED_THREE_WRAPPER,
+            0.9,
+        )
+        self.target_variant = target_variant or RecognizedText(
+            _LEADING_PAIRED_THREE_TARGET,
+            0.9999,
+        )
+        self.opening_variant = opening_variant or RecognizedText(
+            chr(0x2018),
+            0.7,
+        )
+        self.closing_variant = closing_variant or RecognizedText("'", 0.8)
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (605, 70) and space_threshold is None:
+            return self.default_segments
+        if image.size != (354, 70) or space_threshold is None:
+            return ()
+        if (
+            self.ctc_override is not None
+            and space_threshold == self.ctc_override[0]
+        ):
+            return self.ctc_override[1]
+        return _LEADING_PAIRED_THREE_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        enhanced = image.height == 140
+        if image.size == (354, 70):
+            return RecognizedText(_LEADING_PAIRED_THREE_RAW, 0.54925)
+        if image.size == (708, 140):
+            return self.candidate_enhanced
+        original_width = image.width // 2 if enhanced else image.width
+        if 211 <= original_width <= 216:
+            return self.wrapper_variant
+        if 180 <= original_width <= 190:
+            return self.target_variant
+        if 119 <= original_width <= 127:
+            return RecognizedText(_LEADING_PAIRED_THREE_PREFIX, 0.99995)
+        if 11 <= original_width <= 22:
+            if intensity >= 115:
+                return self.closing_variant
+            return self.opening_variant
+        if image.size == (184, 70):
+            return RecognizedText(_LEADING_PAIRED_THREE_NEIGHBOR, 0.99995)
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_leading_paired_wrapped_three_recovers() -> None:
+    words = leading_paired_three_words()
+    recovered = _recover_confirmed_leading_paired_wrapped_three_split(
+        words,
+        leading_paired_three_words(),
+        leading_paired_three_crop(),
+        _LEADING_PAIRED_THREE_LINE,
+        ConfirmedLeadingPairedThreeRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            _LEADING_PAIRED_THREE_PREFIX,
+            BoundingBox(
+                _LEADING_PAIRED_THREE_LINE.left + 24,
+                _LEADING_PAIRED_THREE_LINE.top,
+                _LEADING_PAIRED_THREE_LINE.left + 147,
+                _LEADING_PAIRED_THREE_LINE.bottom,
+            ),
+            0.51575,
+        ),
+        (
+            _LEADING_PAIRED_THREE_WRAPPER,
+            BoundingBox(
+                _LEADING_PAIRED_THREE_LINE.left + 165,
+                _LEADING_PAIRED_THREE_LINE.top,
+                _LEADING_PAIRED_THREE_LINE.left + 378,
+                _LEADING_PAIRED_THREE_LINE.bottom,
+            ),
+            0.51575,
+        ),
+        words[1],
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _LEADING_PAIRED_THREE_RETRY[:-2] + "?" + "'",
+                0.9,
+            )
+        },
+        {
+            "wrapper_variant": RecognizedText(
+                chr(0x2018) + _LEADING_PAIRED_THREE_TARGET + "'",
+                0.9,
+            )
+        },
+        {
+            "target_variant": RecognizedText(
+                _LEADING_PAIRED_THREE_TARGET[:2],
+                1.0,
+            )
+        },
+        {"opening_variant": RecognizedText("'", 0.99)},
+        {"closing_variant": RecognizedText("'", 0.47)},
+        {"ctc_override": (0.01, ((0, 354),))},
+    ],
+)
+def test_confirmed_leading_paired_three_requires_crop_evidence(
+    overrides,
+) -> None:
+    words = leading_paired_three_words()
+
+    assert (
+        _recover_confirmed_leading_paired_wrapped_three_split(
+            words,
+            leading_paired_three_words(),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(**overrides),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            leading_paired_three_words() * 2,
+            leading_paired_three_words(),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(
+                candidate_text="A" + _LEADING_PAIRED_THREE_RAW[1:]
+            ),
+            leading_paired_three_words(
+                candidate_text="A" + _LEADING_PAIRED_THREE_RAW[1:]
+            ),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(candidate_confidence=0.5491),
+            leading_paired_three_words(candidate_confidence=0.5491),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(),
+            leading_paired_three_words(candidate_confidence=0.5491),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(neighbor_text="A12"),
+            leading_paired_three_words(neighbor_text="A12"),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(
+                candidate_box=BoundingBox(
+                    122.32,
+                    _LEADING_PAIRED_THREE_LINE.top,
+                    475.32,
+                    _LEADING_PAIRED_THREE_LINE.bottom,
+                )
+            ),
+            leading_paired_three_words(
+                candidate_box=BoundingBox(
+                    122.32,
+                    _LEADING_PAIRED_THREE_LINE.top,
+                    475.32,
+                    _LEADING_PAIRED_THREE_LINE.bottom,
+                )
+            ),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(),
+            leading_paired_three_words(),
+            Image.new("RGB", (604, 70)),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(),
+            leading_paired_three_words(),
+            leading_paired_three_crop(),
+            BoundingBox(97.32, 165.71739130434784, 701.7, 234.3913043478261),
+            ConfirmedLeadingPairedThreeRecognizer(),
+        ),
+        (
+            leading_paired_three_words(),
+            leading_paired_three_words(),
+            leading_paired_three_crop(),
+            _LEADING_PAIRED_THREE_LINE,
+            ConfirmedLeadingPairedThreeRecognizer(
+                default_segments=_LEADING_PAIRED_THREE_SEGMENTS[:-1]
+            ),
+        ),
+    ],
+)
+def test_confirmed_leading_paired_three_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_leading_paired_wrapped_three_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class LeadingPairedThreeDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_LEADING_PAIRED_THREE_LINE, 0.9936),)
+
+
+def test_engine_recovers_leading_paired_wrapped_three_segment() -> None:
+    image = Image.new("RGB", (800, 300))
+    image.paste(leading_paired_three_crop(), (97, 165))
+    engine = PaddleOcrEngine(
+        LeadingPairedThreeDetector(),
+        ConfirmedLeadingPairedThreeRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 12
+    assert [len(word.text) for word in line.eojeols] == [2, 3, 3]
+    assert line.eojeols[1].text == _LEADING_PAIRED_THREE_TARGET
+    assert line.eojeols[1].box.left == pytest.approx(304.92)
+    assert line.eojeols[1].box.right == pytest.approx(432.72)

@@ -385,6 +385,18 @@ boxes restore the missing sentence space and exclude both quotes and whitespace 
 target geometry. Any profile, retry, geometry, category, confidence, segmentation, or crop
 disagreement keeps the fused candidate unchanged.
 
+A separate leading three-syllable paired-wrapper profile applies only to its exact two-segment,
+large-serif line fingerprint. The selected and raw candidate must agree on a two-Hangul prefix,
+opening curly quote, three-Hangul target, and substituted ASCII close; the enhanced candidate may
+normalize only the opening quote while retaining the same prefix, target, and close. Ten low CTC
+thresholds must expose identical prefix and wrapper crops while five ordinary thresholds remain
+fused. Direct and enhanced prefix, complete-wrapper, target, opening-quote, and closing-quote crop
+variants must independently reproduce the reviewed readings above separate confidence floors.
+Detector-relative boxes restore the missing sentence space, and proportional wrapper geometry
+keeps both quote glyphs and whitespace outside hoverable target geometry. Any profile, retry,
+geometry, category, confidence, segmentation, or crop disagreement keeps the fused candidate
+unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
