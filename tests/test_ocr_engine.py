@@ -48,6 +48,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_wrapped_five_plus_four_split,
     _recover_confirmed_wrapped_four_syllable_triplet,
     _recover_confirmed_wrapped_single_geometry,
+    _recover_confirmed_wrapped_single_plus_four_geometry,
     _recover_initial_overlapping_word_pair,
     _recover_isolated_close_word_pairs,
     _recover_isolated_overlapping_word_pairs,
@@ -10099,6 +10100,430 @@ def test_engine_recovers_confirmed_wrapped_single_geometry() -> None:
         170.02173913043478,
     )
     assert target.confidence == 0.994793
+
+
+_WRAPPED_ONE_FOUR_HEIGHT = 44.021739
+_WRAPPED_ONE_FOUR_LINE = BoundingBox(
+    61.48,
+    166.3,
+    1156.52,
+    166.3 + _WRAPPED_ONE_FOUR_HEIGHT,
+)
+_WRAPPED_ONE_FOUR_TARGET = chr(0xC760)
+_WRAPPED_ONE_FOUR_OTHER = chr(0xC770)
+_WRAPPED_ONE_FOUR_FOLLOWING = "".join(
+    chr(0xC780 + offset) for offset in range(4)
+)
+_WRAPPED_ONE_FOUR_CANDIDATE = (
+    "/"
+    + _WRAPPED_ONE_FOUR_TARGET
+    + "/"
+    + _WRAPPED_ONE_FOUR_FOLLOWING
+)
+
+
+def _wrapped_one_four_hangul(start: int, length: int) -> str:
+    return "".join(chr(start + offset) for offset in range(length))
+
+
+def wrapped_one_four_raw_words() -> list[tuple[str, BoundingBox, float]]:
+    boxes = (
+        BoundingBox(124.48, 166.3, 303.48, 166.3 + _WRAPPED_ONE_FOUR_HEIGHT),
+        BoundingBox(321.48, 166.3, 451.48, 166.3 + _WRAPPED_ONE_FOUR_HEIGHT),
+        BoundingBox(471.48, 166.3, 563.48, 166.3 + _WRAPPED_ONE_FOUR_HEIGHT),
+        BoundingBox(576.48, 166.3, 853.48, 166.3 + _WRAPPED_ONE_FOUR_HEIGHT),
+        BoundingBox(852.48, 166.3, 1091.48, 166.3 + _WRAPPED_ONE_FOUR_HEIGHT),
+    )
+    texts = (
+        _wrapped_one_four_hangul(0xC790, 4),
+        _wrapped_one_four_hangul(0xC794, 3),
+        _wrapped_one_four_hangul(0xC797, 2),
+        _WRAPPED_ONE_FOUR_CANDIDATE,
+        _wrapped_one_four_hangul(0xC799, 5),
+    )
+    confidences = (0.999693, 0.999734, 0.995145, 0.993989, 0.999719)
+    return list(zip(texts, boxes, confidences, strict=True))
+
+
+def wrapped_one_four_selected_words(
+    raw: list[tuple[str, BoundingBox, float]],
+) -> list[tuple[str, BoundingBox, float]]:
+    return [
+        part
+        for text_value, box, confidence in raw
+        for part in _split_punctuation_wrapped_word(
+            text_value,
+            box,
+            confidence,
+        )
+    ]
+
+
+class ConfirmedWrappedSinglePlusFourRecognizer:
+    def __init__(
+        self,
+        *,
+        enhanced_candidate_text: str = _WRAPPED_ONE_FOUR_CANDIDATE,
+        enhanced_candidate_confidence: float = 0.9958,
+        wrapper_direct_text: str | None = None,
+        wrapper_direct_first_confidence: float = 0.9272,
+        wrapper_enhanced_text: str | None = None,
+        wrapper_enhanced_first_confidence: float = 0.9604,
+        target_text: str = _WRAPPED_ONE_FOUR_TARGET,
+        target_confidence: float = 0.9995,
+        following_text: str = _WRAPPED_ONE_FOUR_FOLLOWING,
+        following_confidence: float = 0.9998,
+        segments_005: tuple[tuple[int, int], ...] = (
+            (0, 80),
+            (93, 277),
+        ),
+    ) -> None:
+        self.enhanced_candidate_text = enhanced_candidate_text
+        self.enhanced_candidate_confidence = enhanced_candidate_confidence
+        self.wrapper_direct_text = (
+            _WRAPPED_ONE_FOUR_CANDIDATE[:3]
+            if wrapper_direct_text is None
+            else wrapper_direct_text
+        )
+        self.wrapper_direct_first_confidence = (
+            wrapper_direct_first_confidence
+        )
+        self.wrapper_enhanced_text = (
+            _WRAPPED_ONE_FOUR_CANDIDATE[:3]
+            if wrapper_enhanced_text is None
+            else wrapper_enhanced_text
+        )
+        self.wrapper_enhanced_first_confidence = (
+            wrapper_enhanced_first_confidence
+        )
+        self.target_text = target_text
+        self.target_confidence = target_confidence
+        self.following_text = following_text
+        self.following_confidence = following_confidence
+        self.segments_005 = segments_005
+        self.calls = 0
+
+    def word_boxes(
+        self,
+        image,
+        space_threshold: float = 0.07,
+    ) -> tuple[tuple[int, int], ...]:
+        if image.width == 1096:
+            return (
+                (63, 242),
+                (260, 390),
+                (410, 502),
+                (515, 792),
+                (791, 1030),
+            )
+        if image.width != 277:
+            return ((0, image.width),)
+        if space_threshold in {0.04, 0.05, 0.07}:
+            return ((0, 277),)
+        if space_threshold == 0.0001:
+            return ((0, 19), (18, 80), (93, 170), (169, 277))
+        if space_threshold == 0.0003:
+            return ((0, 19), (18, 80), (93, 277))
+        if space_threshold in {0.0005, 0.001}:
+            return ((0, 19), (18, 80), (93, 109), (108, 277))
+        if space_threshold == 0.002:
+            return ((0, 80), (93, 277))
+        if space_threshold == 0.003:
+            return ((0, 64), (63, 80), (93, 277))
+        if space_threshold == 0.005:
+            return self.segments_005
+        assert space_threshold in {0.007, 0.01, 0.015, 0.02, 0.03}
+        return ((0, 80), (93, 277))
+
+    def recognize(self, image):
+        self.calls += 1
+        width, height = image.size
+        if (width, height) == (554, 90):
+            return RecognizedText(
+                self.enhanced_candidate_text,
+                self.enhanced_candidate_confidence,
+            )
+        if height == 90:
+            if width >= 350:
+                return RecognizedText(
+                    self.following_text,
+                    self.following_confidence,
+                )
+            if 150 <= width <= 170:
+                confidence = (
+                    self.wrapper_enhanced_first_confidence
+                    if width == 156
+                    else 0.981
+                )
+                return RecognizedText(
+                    self.wrapper_enhanced_text,
+                    confidence,
+                )
+            if 90 <= width <= 110:
+                return RecognizedText(
+                    self.target_text,
+                    self.target_confidence,
+                )
+        if height == 45:
+            raw_values = {
+                179: RecognizedText(
+                    _wrapped_one_four_hangul(0xC790, 4),
+                    0.999693,
+                ),
+                130: RecognizedText(
+                    _wrapped_one_four_hangul(0xC794, 3),
+                    0.999734,
+                ),
+                92: RecognizedText(
+                    _wrapped_one_four_hangul(0xC797, 2),
+                    0.995145,
+                ),
+                277: RecognizedText(
+                    _WRAPPED_ONE_FOUR_CANDIDATE,
+                    0.993989,
+                ),
+                239: RecognizedText(
+                    _wrapped_one_four_hangul(0xC799, 5),
+                    0.999719,
+                ),
+            }
+            if width in raw_values:
+                return raw_values[width]
+            if width in {177, 181, 182, 184, 186, 187, 189}:
+                return RecognizedText(
+                    self.following_text,
+                    self.following_confidence,
+                )
+            if 78 <= width <= 84:
+                confidence = (
+                    self.wrapper_direct_first_confidence
+                    if width == 78
+                    else 0.984
+                )
+                return RecognizedText(
+                    self.wrapper_direct_text,
+                    confidence,
+                )
+            if 46 <= width <= 52:
+                return RecognizedText(
+                    self.target_text,
+                    self.target_confidence,
+                )
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_wrapped_single_plus_four_geometry_recovers() -> None:
+    raw = wrapped_one_four_raw_words()
+    words = wrapped_one_four_selected_words(raw)
+
+    recovered = _recover_confirmed_wrapped_single_plus_four_geometry(
+        words,
+        raw,
+        Image.new("RGB", (1096, 45)),
+        _WRAPPED_ONE_FOUR_LINE,
+        ConfirmedWrappedSinglePlusFourRecognizer(),
+    )
+
+    assert recovered[:3] == words[:3]
+    assert recovered[3] == (
+        _WRAPPED_ONE_FOUR_CANDIDATE[:3],
+        BoundingBox(
+            576.48,
+            166.3,
+            656.48,
+            166.3 + _WRAPPED_ONE_FOUR_HEIGHT,
+        ),
+        0.9272,
+    )
+    assert recovered[4] == (
+        _WRAPPED_ONE_FOUR_FOLLOWING,
+        BoundingBox(
+            669.48,
+            166.3,
+            853.48,
+            166.3 + _WRAPPED_ONE_FOUR_HEIGHT,
+        ),
+        0.993989,
+    )
+    assert recovered[5] == words[5]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"enhanced_candidate_text": _WRAPPED_ONE_FOUR_OTHER},
+        {"enhanced_candidate_confidence": 0.9956},
+        {"wrapper_direct_text": "/" + _WRAPPED_ONE_FOUR_OTHER + "/"},
+        {"wrapper_direct_first_confidence": 0.9269},
+        {"wrapper_enhanced_text": "/" + _WRAPPED_ONE_FOUR_OTHER + "/"},
+        {"wrapper_enhanced_first_confidence": 0.9599},
+        {"target_text": _WRAPPED_ONE_FOUR_OTHER},
+        {"target_confidence": 0.9992},
+        {
+            "following_text": _wrapped_one_four_hangul(0xC7A0, 4),
+        },
+        {"following_confidence": 0.9996},
+        {"segments_005": ((0, 79), (93, 277))},
+    ],
+)
+def test_confirmed_wrapped_single_plus_four_requires_crop_evidence(
+    changes,
+) -> None:
+    raw = wrapped_one_four_raw_words()
+    words = wrapped_one_four_selected_words(raw)
+
+    assert (
+        _recover_confirmed_wrapped_single_plus_four_geometry(
+            words,
+            raw,
+            Image.new("RGB", (1096, 45)),
+            _WRAPPED_ONE_FOUR_LINE,
+            ConfirmedWrappedSinglePlusFourRecognizer(**changes),
+        )
+        == words
+    )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "selected-count",
+        "raw-count",
+        "raw-shape",
+        "selected-shape",
+        "relationship",
+        "confidence",
+        "width",
+        "gap",
+        "line-width",
+        "crop-size",
+        "candidate-bounds",
+    ],
+)
+def test_confirmed_wrapped_single_plus_four_requires_exact_profile(
+    case: str,
+) -> None:
+    raw = wrapped_one_four_raw_words()
+    words = wrapped_one_four_selected_words(raw)
+    crop = Image.new("RGB", (1096, 45))
+    line_box = _WRAPPED_ONE_FOUR_LINE
+    if case == "selected-count":
+        words.pop()
+    elif case == "raw-count":
+        raw.pop()
+    elif case == "raw-shape":
+        raw[0] = ("A" + raw[0][0], raw[0][1], raw[0][2])
+        words = wrapped_one_four_selected_words(raw)
+    elif case == "selected-shape":
+        words[3] = (
+            words[3][0] + "A",
+            words[3][1],
+            words[3][2],
+        )
+    elif case == "relationship":
+        raw[3] = (
+            "/" + _WRAPPED_ONE_FOUR_OTHER + "/" + raw[3][0][3:],
+            raw[3][1],
+            raw[3][2],
+        )
+    elif case == "confidence":
+        raw[0] = (raw[0][0], raw[0][1], 0.9995)
+        words = wrapped_one_four_selected_words(raw)
+    elif case == "width":
+        raw[0] = (
+            raw[0][0],
+            BoundingBox(
+                raw[0][1].left,
+                raw[0][1].top,
+                raw[0][1].right + 1,
+                raw[0][1].bottom,
+            ),
+            raw[0][2],
+        )
+        words = wrapped_one_four_selected_words(raw)
+    elif case == "gap":
+        raw[1] = (
+            raw[1][0],
+            BoundingBox(
+                raw[1][1].left + 1,
+                raw[1][1].top,
+                raw[1][1].right,
+                raw[1][1].bottom,
+            ),
+            raw[1][2],
+        )
+        words = wrapped_one_four_selected_words(raw)
+    elif case == "line-width":
+        line_box = BoundingBox(
+            line_box.left,
+            line_box.top,
+            line_box.right - 1,
+            line_box.bottom,
+        )
+    elif case == "crop-size":
+        crop = Image.new("RGB", (1095, 45))
+    else:
+        raw[3] = (
+            raw[3][0],
+            BoundingBox(
+                raw[3][1].left + 1,
+                raw[3][1].top,
+                raw[3][1].right,
+                raw[3][1].bottom,
+            ),
+            raw[3][2],
+        )
+        words = wrapped_one_four_selected_words(raw)
+    recognizer = ConfirmedWrappedSinglePlusFourRecognizer()
+
+    assert (
+        _recover_confirmed_wrapped_single_plus_four_geometry(
+            words,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+class WrappedSinglePlusFourDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(_WRAPPED_ONE_FOUR_LINE, 0.994316),
+        )
+
+
+def test_engine_recovers_confirmed_wrapped_single_plus_four_geometry() -> None:
+    engine = PaddleOcrEngine(
+        WrappedSinglePlusFourDetector(),
+        ConfirmedWrappedSinglePlusFourRecognizer(),
+    )
+
+    document = engine.recognize(Image.new("RGB", (1280, 720)))
+
+    line = document.lines[0]
+    target = line.eojeols[3]
+    following = line.eojeols[4]
+    assert target.text == _WRAPPED_ONE_FOUR_TARGET
+    assert target.box.left == pytest.approx(603.1466666666666)
+    assert target.box.right == pytest.approx(629.8133333333334)
+    assert target.confidence == 0.9272
+    assert following.text == _WRAPPED_ONE_FOUR_FOLLOWING
+    assert following.box == BoundingBox(
+        669.48,
+        166.3,
+        853.48,
+        166.3 + _WRAPPED_ONE_FOUR_HEIGHT,
+    )
+    assert line.text == " ".join(
+        word[0]
+        for word in wrapped_one_four_selected_words(
+            wrapped_one_four_raw_words()
+        )
+    )
 
 
 _LEADING_PUNCTUATED_HEIGHT = 24.65

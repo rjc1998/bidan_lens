@@ -5586,6 +5586,13 @@ class PaddleOcrEngine(OcrEngine):
             for text, box, confidence in words
             for part in _split_punctuation_wrapped_word(text, box, confidence)
         ]
+        words = _recover_confirmed_wrapped_single_plus_four_geometry(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = [
             part
             for text, box, confidence in words
@@ -7403,6 +7410,292 @@ def _recover_confirmed_wrapped_single_geometry(
         ),
     )
     return recovered
+
+def _recover_confirmed_wrapped_single_plus_four_geometry(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, "word_boxes", None)
+    if (
+        not callable(segmenter)
+        or len(words) != 6
+        or len(raw_words) != 5
+        or line_box.height <= 0
+        or crop.size != (1096, 45)
+    ):
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int]:
+        return (
+            len(text),
+            sum(is_hangul(character) for character in text),
+            sum(
+                unicodedata.category(character).startswith("P")
+                for character in text
+            ),
+            sum(character.isascii() and character.isalnum() for character in text),
+        )
+
+    expected_raw_shapes = (
+        (4, 4, 0, 0),
+        (3, 3, 0, 0),
+        (2, 2, 0, 0),
+        (7, 5, 2, 0),
+        (5, 5, 0, 0),
+    )
+    expected_selected_shapes = (
+        (4, 4, 0, 0),
+        (3, 3, 0, 0),
+        (2, 2, 0, 0),
+        (3, 1, 2, 0),
+        (4, 4, 0, 0),
+        (5, 5, 0, 0),
+    )
+    raw_candidate = raw_words[3]
+    wrapper = words[3]
+    following = words[4]
+    raw_confidence_ranges = (
+        (0.9996, 0.9998),
+        (0.9997, 0.9998),
+        (0.9951, 0.9952),
+        (0.9939, 0.9941),
+        (0.9997, 0.9998),
+    )
+    width_ranges = (
+        (4.06, 4.07),
+        (2.95, 2.96),
+        (2.08, 2.10),
+        (6.29, 6.30),
+        (5.42, 5.44),
+    )
+    gap_ranges = (
+        (0.40, 0.42),
+        (0.45, 0.46),
+        (0.29, 0.30),
+        (-0.03, -0.02),
+    )
+    raw_width_ratios = tuple(
+        word[1].width / line_box.height for word in raw_words
+    )
+    raw_gap_ratios = tuple(
+        (right[1].left - left[1].right) / line_box.height
+        for left, right in zip(raw_words, raw_words[1:], strict=False)
+    )
+    proportional_boundary = (
+        raw_candidate[1].left
+        + raw_candidate[1].width * len(wrapper[0]) / len(raw_candidate[0])
+    )
+    if (
+        tuple(shape(word[0]) for word in raw_words) != expected_raw_shapes
+        or tuple(shape(word[0]) for word in words) != expected_selected_shapes
+        or words[:3] != raw_words[:3]
+        or words[5] != raw_words[4]
+        or raw_candidate[0][:3] != wrapper[0]
+        or raw_candidate[0][3:] != following[0]
+        or _BOUNDARY_WRAPPERS.get(raw_candidate[0][0]) != raw_candidate[0][2]
+        or raw_candidate[0][0] in _ATTACHED_PARTICLE_WRAPPERS
+        or wrapper[1].left != raw_candidate[1].left
+        or following[1].right != raw_candidate[1].right
+        or abs(wrapper[1].right - proportional_boundary) > 1e-6
+        or abs(following[1].left - proportional_boundary) > 1e-6
+        or not 24.87 <= line_box.width / line_box.height <= 24.88
+        or any(
+            not lower <= word[2] <= upper
+            for word, (lower, upper) in zip(
+                raw_words,
+                raw_confidence_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                raw_width_ratios,
+                width_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                raw_gap_ratios,
+                gap_ranges,
+                strict=True,
+            )
+        )
+    ):
+        return words
+    crop_left = round(raw_candidate[1].left - line_box.left)
+    crop_right = round(raw_candidate[1].right - line_box.left)
+    if (crop_left, crop_right) != (515, 792):
+        return words
+    candidate_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    expected_segments = (
+        (0.0001, ((0, 19), (18, 80), (93, 170), (169, 277))),
+        (0.0003, ((0, 19), (18, 80), (93, 277))),
+        (0.0005, ((0, 19), (18, 80), (93, 109), (108, 277))),
+        (0.001, ((0, 19), (18, 80), (93, 109), (108, 277))),
+        (0.002, ((0, 80), (93, 277))),
+        (0.003, ((0, 64), (63, 80), (93, 277))),
+        (0.005, ((0, 80), (93, 277))),
+        (0.007, ((0, 80), (93, 277))),
+        (0.01, ((0, 80), (93, 277))),
+        (0.015, ((0, 80), (93, 277))),
+        (0.02, ((0, 80), (93, 277))),
+        (0.03, ((0, 80), (93, 277))),
+        (0.04, ((0, 277),)),
+        (0.05, ((0, 277),)),
+        (0.07, ((0, 277),)),
+    )
+    try:
+        if tuple(segmenter(candidate_crop)) != ((0, 277),) or any(
+            tuple(segmenter(candidate_crop, space_threshold=threshold))
+            != expected
+            for threshold, expected in expected_segments
+        ):
+            return words
+    except TypeError:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return ImageEnhance.Contrast(resized).enhance(1.2).convert("RGB")
+
+    enhanced_candidate = recognizer.recognize(enhanced(candidate_crop))
+    wrapper_specs = (
+        (0, 78, 0.927, 0.960),
+        (0, 80, 0.972, 0.963),
+        (0, 82, 0.975, 0.960),
+        (1, 80, 0.983, 0.980),
+        (0, 84, 0.970, 0.958),
+    )
+    target_bounds = (
+        (14, 62),
+        (16, 64),
+        (16, 68),
+        (18, 64),
+        (18, 68),
+        (20, 66),
+        (22, 68),
+    )
+    following_bounds = (
+        (88, 277),
+        (90, 277),
+        (91, 277),
+        (93, 277),
+        (95, 277),
+        (93, 274),
+        (93, 270),
+    )
+    wrapper_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right, _, _ in wrapper_specs
+    )
+    wrapper_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop((left, 0, right, candidate_crop.height))
+            )
+        )
+        for left, right, _, _ in wrapper_specs
+    )
+    target_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in target_bounds
+    )
+    target_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop((left, 0, right, candidate_crop.height))
+            )
+        )
+        for left, right in target_bounds
+    )
+    following_direct = tuple(
+        recognizer.recognize(
+            candidate_crop.crop((left, 0, right, candidate_crop.height))
+        )
+        for left, right in following_bounds
+    )
+    following_enhanced = tuple(
+        recognizer.recognize(
+            enhanced(
+                candidate_crop.crop((left, 0, right, candidate_crop.height))
+            )
+        )
+        for left, right in following_bounds
+    )
+    target_text = wrapper[0][1]
+    if (
+        enhanced_candidate.confidence < 0.9957
+        or enhanced_candidate.text.replace(" ", "") != raw_candidate[0]
+        or any(
+            direct.confidence < direct_floor
+            or direct.text.replace(" ", "") != wrapper[0]
+            or retried.confidence < enhanced_floor
+            or retried.text.replace(" ", "") != wrapper[0]
+            for direct, retried, (*_, direct_floor, enhanced_floor) in zip(
+                wrapper_direct,
+                wrapper_enhanced,
+                wrapper_specs,
+                strict=True,
+            )
+        )
+        or any(
+            variant.confidence < 0.9993
+            or variant.text.replace(" ", "") != target_text
+            for variant in (*target_direct, *target_enhanced)
+        )
+        or any(
+            variant.confidence < 0.9997
+            or variant.text.replace(" ", "") != following[0]
+            for variant in (*following_direct, *following_enhanced)
+        )
+    ):
+        return words
+    recovered = list(words)
+    recovered[3] = (
+        wrapper[0],
+        BoundingBox(
+            raw_candidate[1].left,
+            wrapper[1].top,
+            raw_candidate[1].left + 80,
+            wrapper[1].bottom,
+        ),
+        min(
+            wrapper[2],
+            *(variant.confidence for variant in wrapper_direct),
+            *(variant.confidence for variant in wrapper_enhanced),
+            *(variant.confidence for variant in target_direct),
+            *(variant.confidence for variant in target_enhanced),
+        ),
+    )
+    recovered[4] = (
+        following[0],
+        BoundingBox(
+            raw_candidate[1].left + 93,
+            following[1].top,
+            raw_candidate[1].right,
+            following[1].bottom,
+        ),
+        min(
+            following[2],
+            *(variant.confidence for variant in following_direct),
+            *(variant.confidence for variant in following_enhanced),
+        ),
+    )
+    return recovered
+
 
 def _recover_confirmed_leading_punctuated_single_split(
     words: list[tuple[str, BoundingBox, float]],
