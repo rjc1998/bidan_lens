@@ -1489,11 +1489,16 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.15 report contains 127 decisions: 33 Kiwi-analysis errors, 43 annotation-
-convention differences, 36 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. The current evidence has 103 active cases and 24 resolved
+The current v4.15 report contains 127 decisions: 25 Kiwi-analysis errors, 45 annotation-
+convention differences, 38 equivalent learner interpretations, ten corpus-oracle defects,
+and nine genuinely ambiguous cases. The current evidence has 100 active cases and 27 resolved
 IDs, with no missing or stale decision. Its SHA-256 is
-`8b58b85b6c714e402ffd18090df129e2e127ff2df8bf5b2f883d3828ca22f32d`.
+`4b839420ce9df25d52a0dffcc6cff8744a955aad09079292d370788b3d0e43a4`.
+The closing audit reclassifies eight provisional Kiwi errors: two truncated-context ambiguities,
+two source-tag convention differences, two learner-equivalent noun/proper-noun readings, and two
+corpus-oracle defects involving a wrapped standalone particle and contracted-copula fallback. The
+other two inspected cases remain Kiwi errors; no speculative analyzer promotion was accepted
+because independent contextual and isolated evidence did not support one.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
