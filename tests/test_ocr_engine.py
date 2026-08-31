@@ -31,6 +31,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_leading_three_plus_six_punctuated_split,
     _recover_confirmed_low_confidence_three_plus_five_split,
     _recover_confirmed_mismatched_curly_three_plus_three_split,
+    _recover_confirmed_mismatched_curly_two_plus_one_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
@@ -17103,3 +17104,404 @@ def test_engine_recovers_mismatched_curly_three_plus_three_segment() -> None:
     assert line.eojeols[2].text == _MISMATCHED_CURLY_THREE_TARGET
     assert line.eojeols[2].box.left == pytest.approx(524.0)
     assert line.eojeols[2].box.right == pytest.approx(632.6)
+_MISMATCHED_CURLY_TWO_LINE = BoundingBox(
+    355.4,
+    298.17391304347825,
+    668.6,
+    347.4782608695652,
+)
+_MISMATCHED_CURLY_TWO_SEGMENTS = ((6, 187), (204, 303))
+_MISMATCHED_CURLY_TWO_TARGET = "".join(map(chr, (0xD53C, 0xD560)))
+_MISMATCHED_CURLY_TWO_FOLLOWING = chr(0xC218)
+_MISMATCHED_CURLY_TWO_WRAPPER = (
+    chr(0x201C) + _MISMATCHED_CURLY_TWO_TARGET + chr(0x201D)
+)
+_MISMATCHED_CURLY_TWO_RAW = (
+    '"'
+    + _MISMATCHED_CURLY_TWO_TARGET
+    + chr(0x201D)
+    + _MISMATCHED_CURLY_TWO_FOLLOWING
+)
+_MISMATCHED_CURLY_TWO_SECOND = "".join(map(chr, (0xC5C6, 0xB2E4))) + "."
+_MISMATCHED_CURLY_TWO_CTC = {
+    0.0001: ((0, 55), (54, 96), (95, 138), (137, 181)),
+    **{
+        threshold: ((0, 96), (95, 138), (137, 181))
+        for threshold in (0.0003, 0.0005)
+    },
+    **{
+        threshold: ((0, 138), (137, 181))
+        for threshold in (
+            0.001,
+            0.002,
+            0.003,
+            0.005,
+            0.007,
+            0.01,
+            0.015,
+            0.02,
+            0.03,
+        )
+    },
+    **{
+        threshold: ((0, 181),)
+        for threshold in (0.04, 0.05, 0.07)
+    },
+}
+
+
+def mismatched_curly_two_crop() -> Image.Image:
+    crop = Image.new("RGB", (314, 50))
+    crop.paste((90, 90, 90), (6, 0, 187, 50))
+    crop.paste((40, 40, 40), (204, 0, 303, 50))
+    crop.paste((100, 100, 100), (6, 0, 30, 50))
+    crop.paste((110, 110, 110), (18, 0, 108, 50))
+    crop.paste((120, 120, 120), (99, 0, 150, 50))
+    crop.paste((130, 130, 130), (139, 0, 187, 50))
+    return crop
+
+
+def mismatched_curly_two_words(
+    *,
+    selected: bool,
+    candidate_text: str = _MISMATCHED_CURLY_TWO_RAW,
+    candidate_confidence: float | None = None,
+    candidate_box: BoundingBox | None = None,
+    second_text: str = _MISMATCHED_CURLY_TWO_SECOND,
+) -> list[tuple[str, BoundingBox, float]]:
+    first_confidence = (
+        0.51235
+        if selected and candidate_confidence is None
+        else 0.509356
+        if candidate_confidence is None
+        else candidate_confidence
+    )
+    values = [
+        (
+            candidate_text,
+            BoundingBox(
+                _MISMATCHED_CURLY_TWO_LINE.left + 6,
+                _MISMATCHED_CURLY_TWO_LINE.top,
+                _MISMATCHED_CURLY_TWO_LINE.left + 187,
+                _MISMATCHED_CURLY_TWO_LINE.bottom,
+            ),
+            first_confidence,
+        ),
+        (
+            second_text,
+            BoundingBox(
+                _MISMATCHED_CURLY_TWO_LINE.left + 204,
+                _MISMATCHED_CURLY_TWO_LINE.top,
+                _MISMATCHED_CURLY_TWO_LINE.left + 303,
+                _MISMATCHED_CURLY_TWO_LINE.bottom,
+            ),
+            0.994093,
+        ),
+    ]
+    if candidate_box is not None:
+        values[0] = (candidate_text, candidate_box, first_confidence)
+    return values
+
+
+class ConfirmedMismatchedCurlyTwoRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = (
+            _MISMATCHED_CURLY_TWO_SEGMENTS
+        ),
+        ctc_override: tuple[
+            float, tuple[tuple[int, int], ...]
+        ] | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        wrapper_variant: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        following_variant: RecognizedText | None = None,
+        opening_variant: RecognizedText | None = None,
+        closing_variant: RecognizedText | None = None,
+    ) -> None:
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _MISMATCHED_CURLY_TWO_RAW,
+            0.51235,
+        )
+        self.wrapper_variant = wrapper_variant or RecognizedText(
+            _MISMATCHED_CURLY_TWO_WRAPPER,
+            0.76,
+        )
+        self.target_variant = target_variant or RecognizedText(
+            _MISMATCHED_CURLY_TWO_TARGET,
+            1.0,
+        )
+        self.following_variant = following_variant or RecognizedText(
+            _MISMATCHED_CURLY_TWO_FOLLOWING,
+            1.0,
+        )
+        self.opening_variant = opening_variant or RecognizedText('"', 0.99)
+        self.closing_variant = closing_variant or RecognizedText('"', 0.56)
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (314, 50) and space_threshold is None:
+            return self.default_segments
+        if image.size != (181, 50) or space_threshold is None:
+            return ()
+        if (
+            self.ctc_override is not None
+            and space_threshold == self.ctc_override[0]
+        ):
+            return self.ctc_override[1]
+        return _MISMATCHED_CURLY_TWO_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        enhanced = image.height == 100
+        original_width = image.width // 2 if enhanced else image.width
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        if image.size == (181, 50):
+            return RecognizedText(_MISMATCHED_CURLY_TWO_RAW, 0.509356)
+        if image.size == (362, 100):
+            return self.candidate_enhanced
+        if image.size == (99, 50):
+            return RecognizedText(_MISMATCHED_CURLY_TWO_SECOND, 0.994093)
+        if 136 <= original_width <= 144:
+            confidence = 0.78 if enhanced else self.wrapper_variant.confidence
+            return RecognizedText(self.wrapper_variant.text, confidence)
+        if 80 <= original_width <= 90:
+            return self.target_variant
+        if 16 <= original_width <= 24:
+            return self.opening_variant
+        if 40 <= original_width <= 49:
+            if intensity >= 129:
+                return self.following_variant
+            confidence = 0.57 if enhanced else self.closing_variant.confidence
+            return RecognizedText(self.closing_variant.text, confidence)
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_mismatched_curly_two_plus_one_recovers() -> None:
+    selected = mismatched_curly_two_words(selected=True)
+    recovered = _recover_confirmed_mismatched_curly_two_plus_one_split(
+        selected,
+        mismatched_curly_two_words(selected=False),
+        mismatched_curly_two_crop(),
+        _MISMATCHED_CURLY_TWO_LINE,
+        ConfirmedMismatchedCurlyTwoRecognizer(),
+    )
+
+    assert recovered == [
+        (
+            _MISMATCHED_CURLY_TWO_WRAPPER,
+            BoundingBox(
+                _MISMATCHED_CURLY_TWO_LINE.left + 6,
+                _MISMATCHED_CURLY_TWO_LINE.top,
+                _MISMATCHED_CURLY_TWO_LINE.left + 144,
+                _MISMATCHED_CURLY_TWO_LINE.bottom,
+            ),
+            0.509356,
+        ),
+        (
+            _MISMATCHED_CURLY_TWO_FOLLOWING,
+            BoundingBox(
+                _MISMATCHED_CURLY_TWO_LINE.left + 143,
+                _MISMATCHED_CURLY_TWO_LINE.top,
+                _MISMATCHED_CURLY_TWO_LINE.left + 187,
+                _MISMATCHED_CURLY_TWO_LINE.bottom,
+            ),
+            0.509356,
+        ),
+        selected[1],
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _MISMATCHED_CURLY_TWO_RAW,
+                0.5122,
+            )
+        },
+        {
+            "wrapper_variant": RecognizedText(
+                chr(0x201C) + _MISMATCHED_CURLY_TWO_TARGET + '"',
+                0.9,
+            )
+        },
+        {"target_variant": RecognizedText(chr(0xC790) * 2, 1.0)},
+        {"following_variant": RecognizedText(chr(0xD558), 1.0)},
+        {"opening_variant": RecognizedText("'", 0.99)},
+        {"closing_variant": RecognizedText(chr(0x201D), 0.9)},
+        {"ctc_override": (0.01, ((0, 181),))},
+    ],
+)
+def test_confirmed_mismatched_curly_two_requires_crop_evidence(
+    overrides,
+) -> None:
+    selected = mismatched_curly_two_words(selected=True)
+
+    assert (
+        _recover_confirmed_mismatched_curly_two_plus_one_split(
+            selected,
+            mismatched_curly_two_words(selected=False),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(**overrides),
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            mismatched_curly_two_words(selected=True) * 2,
+            mismatched_curly_two_words(selected=False),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(
+                selected=True,
+                candidate_text="'" + _MISMATCHED_CURLY_TWO_RAW[1:],
+            ),
+            mismatched_curly_two_words(
+                selected=False,
+                candidate_text="'" + _MISMATCHED_CURLY_TWO_RAW[1:],
+            ),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(
+                selected=True,
+                candidate_confidence=0.5122,
+            ),
+            mismatched_curly_two_words(selected=False),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(selected=True),
+            mismatched_curly_two_words(
+                selected=False,
+                candidate_confidence=0.5092,
+            ),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(
+                selected=True,
+                second_text="A1.",
+            ),
+            mismatched_curly_two_words(
+                selected=False,
+                second_text="A1.",
+            ),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(
+                selected=True,
+                candidate_box=BoundingBox(
+                    _MISMATCHED_CURLY_TWO_LINE.left + 7,
+                    _MISMATCHED_CURLY_TWO_LINE.top,
+                    _MISMATCHED_CURLY_TWO_LINE.left + 187,
+                    _MISMATCHED_CURLY_TWO_LINE.bottom,
+                ),
+            ),
+            mismatched_curly_two_words(
+                selected=False,
+                candidate_box=BoundingBox(
+                    _MISMATCHED_CURLY_TWO_LINE.left + 7,
+                    _MISMATCHED_CURLY_TWO_LINE.top,
+                    _MISMATCHED_CURLY_TWO_LINE.left + 187,
+                    _MISMATCHED_CURLY_TWO_LINE.bottom,
+                ),
+            ),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(selected=True),
+            mismatched_curly_two_words(selected=False),
+            Image.new("RGB", (313, 50)),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(selected=True),
+            mismatched_curly_two_words(selected=False),
+            mismatched_curly_two_crop(),
+            BoundingBox(
+                355.4,
+                298.17391304347825,
+                668.62,
+                347.4782608695652,
+            ),
+            ConfirmedMismatchedCurlyTwoRecognizer(),
+        ),
+        (
+            mismatched_curly_two_words(selected=True),
+            mismatched_curly_two_words(selected=False),
+            mismatched_curly_two_crop(),
+            _MISMATCHED_CURLY_TWO_LINE,
+            ConfirmedMismatchedCurlyTwoRecognizer(
+                default_segments=(_MISMATCHED_CURLY_TWO_SEGMENTS[0],)
+            ),
+        ),
+    ],
+)
+def test_confirmed_mismatched_curly_two_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_mismatched_curly_two_plus_one_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class MismatchedCurlyTwoDetector:
+    def detect(self, _image):
+        return (DetectedRegion(_MISMATCHED_CURLY_TWO_LINE, 0.9891),)
+
+
+def test_engine_recovers_mismatched_curly_two_plus_one_segment() -> None:
+    image = Image.new("RGB", (1280, 720))
+    image.paste(mismatched_curly_two_crop(), (355, 298))
+    engine = PaddleOcrEngine(
+        MismatchedCurlyTwoDetector(),
+        ConfirmedMismatchedCurlyTwoRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 10
+    assert [len(word.text) for word in line.eojeols] == [2, 1, 2]
+    assert line.eojeols[0].text == _MISMATCHED_CURLY_TWO_TARGET
+    assert line.eojeols[0].box.left == pytest.approx(395.9)
+    assert line.eojeols[0].box.right == pytest.approx(464.9)
