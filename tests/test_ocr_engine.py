@@ -18383,3 +18383,183 @@ def test_engine_recovers_misplaced_curly_structured_segment() -> None:
     assert line.eojeols[2].text == _MISPLACED_CURLY_STRUCTURED_TARGET
     assert line.eojeols[2].box.left == pytest.approx(486.97333333333336)
     assert line.eojeols[2].box.right == pytest.approx(527.3066666666666)
+
+
+_ELLIPSIS_FIRST = chr(0xB300) + chr(0xAE30)
+_ELLIPSIS_LAST = chr(0xC5C5) + chr(0x2026)
+_ELLIPSIS_CORE = _ELLIPSIS_FIRST + _ELLIPSIS_LAST[0]
+
+
+def terminal_ellipsis_words(
+    *,
+    first_text: str = _ELLIPSIS_FIRST,
+    last_text: str = _ELLIPSIS_LAST,
+    first_confidence: float = 0.9997,
+    last_confidence: float = 0.9989,
+    previous_right: float = 40.0,
+    first_left: float = 52.4,
+    last_left: float = 94.62,
+    last_right: float = 126.62,
+    following_left: float = 138.0,
+):
+    previous_text = chr(0xB098) + chr(0xB77C)
+    following_text = chr(0xB178) + chr(0xB3D9)
+    return [
+        (
+            previous_text,
+            BoundingBox(0, 0, previous_right, 20),
+            0.999,
+        ),
+        (
+            first_text,
+            BoundingBox(first_left, 0, 87.4, 20),
+            first_confidence,
+        ),
+        (
+            last_text,
+            BoundingBox(last_left, 0, last_right, 20),
+            last_confidence,
+        ),
+        (
+            following_text,
+            BoundingBox(following_left, 0, 198, 20),
+            0.999,
+        ),
+    ]
+
+
+class TerminalEllipsisPairRecognizer:
+    def __init__(
+        self,
+        *,
+        full: RecognizedText | None = None,
+        core_direct: RecognizedText | None = None,
+        core_enhanced: RecognizedText | None = None,
+    ) -> None:
+        self.full = full or RecognizedText(
+            _ELLIPSIS_CORE + chr(0x2026),
+            0.9998,
+        )
+        self.core_direct = core_direct or RecognizedText(
+            _ELLIPSIS_CORE,
+            0.9998,
+        )
+        self.core_enhanced = core_enhanced or RecognizedText(
+            _ELLIPSIS_CORE,
+            0.9999,
+        )
+        self.calls = 0
+
+    def recognize(self, image):
+        self.calls += 1
+        if image.size == (75, 20):
+            return self.full
+        if image.size == (59, 20):
+            return self.core_direct
+        if image.size == (118, 40):
+            return self.core_enhanced
+        return RecognizedText("", 0.0)
+
+
+def test_two_plus_terminal_ellipsis_pair_merges() -> None:
+    words = terminal_ellipsis_words()
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new("RGB", (220, 20)),
+        BoundingBox(0, 0, 220, 20),
+        TerminalEllipsisPairRecognizer(),
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            _ELLIPSIS_CORE + chr(0x2026),
+            BoundingBox(52.4, 0, 126.62, 20),
+            0.9989,
+        ),
+        words[3],
+    ]
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        {"first_text": chr(0xB300)},
+        {"last_text": chr(0xC5C5) + "?"},
+        {"first_confidence": 0.9996},
+        {"last_confidence": 0.9987},
+        {"last_left": 94.58},
+        {"previous_right": 40.3},
+        {"following_left": 137.5},
+        {
+            "last_right": 134.62,
+            "following_left": 146.0,
+        },
+    ],
+)
+def test_terminal_ellipsis_pair_requires_profile(profile) -> None:
+    words = terminal_ellipsis_words(**profile)
+    recognizer = TerminalEllipsisPairRecognizer()
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (220, 20)),
+            BoundingBox(0, 0, 220, 20),
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        TerminalEllipsisPairRecognizer(
+            full=RecognizedText(_ELLIPSIS_CORE, 1.0),
+        ),
+        TerminalEllipsisPairRecognizer(
+            full=RecognizedText(
+                _ELLIPSIS_CORE + chr(0x2026),
+                0.9996,
+            ),
+        ),
+        TerminalEllipsisPairRecognizer(
+            core_direct=RecognizedText(chr(0xB300), 1.0),
+        ),
+        TerminalEllipsisPairRecognizer(
+            core_direct=RecognizedText(
+                _ELLIPSIS_CORE,
+                0.9996,
+            ),
+        ),
+        TerminalEllipsisPairRecognizer(
+            core_enhanced=RecognizedText(
+                chr(0xB300),
+                1.0,
+            ),
+        ),
+        TerminalEllipsisPairRecognizer(
+            core_enhanced=RecognizedText(
+                _ELLIPSIS_CORE,
+                0.9997,
+            ),
+        ),
+    ],
+)
+def test_terminal_ellipsis_pair_requires_consensus(
+    recognizer,
+) -> None:
+    words = terminal_ellipsis_words()
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new("RGB", (220, 20)),
+            BoundingBox(0, 0, 220, 20),
+            recognizer,
+        )
+        == words
+    )

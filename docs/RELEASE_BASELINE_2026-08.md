@@ -1042,6 +1042,23 @@ and recognizing their union at 99.8% confidence or better exactly reproduces the
 surface. It resolves two reviewed full-tier reconstruction cases without a new context failure or
 any quick-tier metric change.
 
+The latest accepted v4.15 target follow-up adds one terminal-ellipsis boundary profile. It merges
+only an isolated two-Hangul fragment followed by one Hangul syllable plus an ellipsis, with at
+least 99.97% and 99.88% fragment confidence, a 36% to 36.5% line-height gap, surrounding gaps of
+at least 61% and 56%, compatible pitch, exact punctuation-inclusive union recognition at 99.97%
+or better, and matching direct/enhanced ellipsis-trimmed core recognition at 99.97% and 99.98%.
+The ellipsis remains in sentence context but outside the recovered hover target.
+
+The exact 2,000-case comparison advances only `dev-plain-1755` from target to context, with no ID
+added or removed. The current main result is 98.58% whole-eojeol OCR, 99.85% target selection,
+91.30% functional context, 73.05% exact sentence transcription, 93.25% components, 95.55% exact
+KRDict fidelity, 86.05% fully correct first popups, and 96.80% alternative recovery, with zero
+false promotions and negative activations. Automated latency is 242.01 ms median / 375.72 ms p95.
+Main diagnostics contain three target, 171 context, and 105 analysis failures. The full diagnostic
+SHA-256 is `674e98bd3d2be173882fcfc65fa42da5f7e7956b0a8ba74f31ab6feed392b7af`;
+the accepted quick diagnostic remains byte-identical at
+`0639ae2e1a7c55a6cbb2d125cb0082aa50bd67c7d49109ff773f51c903f9d47b`.
+
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under

@@ -1037,6 +1037,20 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.67
                 and pitch_ratio >= 0.9
             )
+            isolated_two_plus_terminal_ellipsis_profile = (
+                previous is not None
+                and len(first[0]) == 2
+                and all(is_hangul(char) for char in first[0])
+                and len(last[0]) == 2
+                and is_hangul(last[0][0])
+                and last[0][1] == '\u2026'
+                and first[2] >= 0.9997
+                and last[2] >= 0.9988
+                and 0.36 <= gap_ratio <= 0.365
+                and previous_gap >= line_box.height * 0.61
+                and following_gap >= line_box.height * 0.56
+                and pitch_ratio >= 0.9
+            )
             matches_geometry = (
                 contains_hangul(first[0])
                 and contains_hangul(last[0])
@@ -1060,6 +1074,7 @@ def _recover_isolated_close_word_pairs(
                     or overlapping_four_plus_two_profile
                     or overlapping_four_plus_one_profile
                     or isolated_one_plus_four_profile
+                    or isolated_two_plus_terminal_ellipsis_profile
                 )
             )
             if matches_geometry:
@@ -1093,6 +1108,74 @@ def _recover_isolated_close_word_pairs(
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(' ', '')
+                if isolated_two_plus_terminal_ellipsis_profile:
+                    last_core_right = (
+                        last[1].left
+                        + last[1].width / len(last[0])
+                    )
+                    core_crop = crop.crop(
+                        (
+                            max(0, math.floor(candidate_left)),
+                            0,
+                            min(
+                                crop.width,
+                                math.ceil(
+                                    last_core_right - line_box.left
+                                ),
+                            ),
+                            crop.height,
+                        )
+                    )
+                    core_direct = recognizer.recognize(core_crop)
+                    enhanced_core = ImageOps.autocontrast(
+                        core_crop.convert('L')
+                    ).resize(
+                        (
+                            core_crop.width * 2,
+                            core_crop.height * 2,
+                        ),
+                        Image.Resampling.BICUBIC,
+                    )
+                    enhanced_core = ImageEnhance.Contrast(
+                        enhanced_core
+                    ).enhance(1.2)
+                    core_enhanced = recognizer.recognize(
+                        enhanced_core.convert('RGB')
+                    )
+                    expected_full = first[0] + last[0]
+                    expected_core = first[0] + last[0][0]
+                    confirmed = (
+                        combined.confidence >= 0.9997
+                        and combined_text == expected_full
+                        and core_direct.confidence >= 0.9997
+                        and core_direct.text.replace(' ', '')
+                        == expected_core
+                        and core_enhanced.confidence >= 0.9998
+                        and core_enhanced.text.replace(' ', '')
+                        == expected_core
+                    )
+                    if confirmed:
+                        confidence = min(
+                            first[2],
+                            last[2],
+                            combined.confidence,
+                            core_direct.confidence,
+                            core_enhanced.confidence,
+                        )
+                        recovered.append(
+                            (
+                                combined_text,
+                                BoundingBox.union(
+                                    (first[1], last[1])
+                                ),
+                                confidence,
+                            )
+                        )
+                        index += 2
+                        continue
+                    recovered.append(words[index])
+                    index += 1
+                    continue
                 if isolated_two_syllable_profile or isolated_one_plus_two_profile:
                     required_confidence = 0.9999
                 elif (
