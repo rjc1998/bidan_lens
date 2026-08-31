@@ -425,6 +425,16 @@ the split above separate confidence floors. Detector-relative boxes restore the 
 boundary and paired wrapper while excluding both quotes and whitespace from hoverable target
 geometry. Any evidence mismatch leaves the candidate unchanged.
 
+A separate mismatched-curly four-plus-four profile applies only to its exact six-segment,
+browser multi-line fingerprint. The selected and raw candidate must agree on an opening curly
+quote, four-Hangul target, substituted ASCII close, and four-Hangul following word; the enhanced
+candidate must restore the paired curly close without changing either word. The complete
+15-threshold signature and fixed CTC readings must match. Seven target, following-word,
+paired-wrapper, opening-quote, and closing-quote variants independently confirm the split in direct
+and enhanced recognition above separate confidence floors. Detector-relative boxes restore the
+missing word boundary and paired wrapper while excluding both quotes and whitespace from hoverable
+target geometry. Any evidence mismatch leaves the candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
