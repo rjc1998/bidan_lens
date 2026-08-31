@@ -3203,6 +3203,85 @@ def test_wrapper_context_keeps_a_pronoun_over_dictionary_order() -> None:
     assert candidate.lexical_components[0].learner_role == 'pronoun'
 
 
+@pytest.mark.parametrize(
+    ('alternative_score', 'isolated_tag', 'expected_lemma'),
+    [
+        (-5.8, 'VV', '\ud558\ub2e4'),
+        (-5.9, 'VV', '\ud574'),
+        (-5.8, 'NNG', '\ud574'),
+    ],
+)
+def test_wrapper_inflected_predicate_requires_bounded_independent_support(
+    alternative_score: float,
+    isolated_tag: str,
+    expected_lemma: str,
+) -> None:
+    wrapped = "'\ud574' \uc654\ub2e4"
+    unwrapped = '\ud574 \uc654\ub2e4'
+    wrapped_analyses = [
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('\ud574', 'NNG', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('\uc624', 'VV', 4, 1),
+                Token('\uc558', 'EP', 4, 1),
+                Token('\ub2e4', 'EF', 5, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token("'", 'SS', 0, 1),
+                Token('\ud558', 'VV', 1, 1),
+                Token('\uc5b4', 'EC', 1, 1),
+                Token("'", 'SS', 2, 1),
+                Token('\uc624', 'VV', 4, 1),
+                Token('\uc558', 'EP', 4, 1),
+                Token('\ub2e4', 'EF', 5, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    predicate = [Token('\ud558', 'VV', 0, 1), Token('\uc5b4', 'EC', 0, 1)]
+    unwrapped_analyses = [
+        (
+            [
+                *predicate,
+                Token('\uc624', 'VV', 2, 1),
+                Token('\uc558', 'EP', 2, 1),
+                Token('\ub2e4', 'EF', 3, 1),
+            ],
+            -1.0,
+        )
+    ]
+    isolated_analyses = [
+        (
+            predicate
+            if isolated_tag == 'VV'
+            else [Token('\ud574', isolated_tag, 0, 1)],
+            -1.0,
+        )
+    ]
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                values = unwrapped_analyses
+            elif text == '\ud574':
+                values = isolated_analyses
+            else:
+                values = wrapped_analyses
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ReviewedRoleDictionary(),
+        WrapperKiwi([]),
+    ).analyze(wrapped, (1, 2))[0]
+
+    assert candidate.lemma == expected_lemma
+
+
 def test_isolated_action_role_does_not_override_wrapped_hayaman_auxiliary() -> None:
     sentence = '기울여야만 /할/'
     contextual = [

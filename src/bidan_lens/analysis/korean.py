@@ -48,6 +48,7 @@ _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
 _WRAPPER_CONTEXT_DEPENDENT_NOUN_SCORE_MARGIN = 3.1
 _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
+_WRAPPER_CORROBORATED_INFLECTED_PREDICATE_SCORE_MARGIN = 4.9
 _LOCAL_ITDA_NOUN_SCORE_MARGIN = 4.5
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
 _ISOLATED_COMPLETE_CANDIDATE_SCORE_MARGIN = 3.0
@@ -387,6 +388,24 @@ class KoreanAnalyzer:
                 <= wrapper_margin
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
+            if (
+                first.score - candidate.score
+                <= _WRAPPER_CORROBORATED_INFLECTED_PREDICATE_SCORE_MARGIN
+                and first.lemma != candidate.lemma
+                and self._is_whole_surface_nominal_candidate(first)
+                and self._is_inflected_predicate_candidate(candidate)
+            ):
+                isolated = self._analyze_candidates(
+                    surface,
+                    (0, len(surface)),
+                    max_candidates,
+                )
+                if isolated and self._candidate_signature(isolated[0]) == signature:
+                    return (
+                        candidate,
+                        *candidates[:index],
+                        *candidates[index + 1 :],
+                    )
             first_component = first.lexical_components
             alternative_component = candidate.lexical_components
             if (

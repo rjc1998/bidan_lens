@@ -1105,6 +1105,25 @@ activations. The accepted aggregate and diagnostic SHA-256 values are
 `d3d415e532281efe2598c170283f8e08b3c5ff6e9651783cd3167e21ce27fb61` and
 `27818279c41c530f7ff8fb185bb92dfc7c2745b6a40b5cb3325222d05f433f07`.
 
+A later reviewed case has a complete nominal leader only when the one-syllable target is enclosed
+by multiple wrappers. Removing only those immediate wrappers and analyzing the eojeol in isolation
+both select the same existing, dictionary-backed inflected-predicate candidate. The accepted
+promotion requires both independent signals, a complete predicate, a complete nominal leader with
+a different lemma, and a maximum 4.9-point score gap.
+
+The exact full comparison removes only `dev-plain-0398` and adds or changes no failure record.
+The current main result is 98.59% OCR, 99.90% target selection, 91.35% functional context, 73.10%
+exact transcription, 93.55% components, 95.65% exact KRDict fidelity, 86.25% fully correct first
+popups, and 96.85% alternative recovery. Automated latency is 220.41 ms median / 339.08 ms p95;
+false promotions and every negative category remain zero. Main diagnostics contain two target,
+171 context, and 102 analysis failures: 45 primary lemmas, 46 component roles, four component
+counts, and seven grammar roles. Quick diagnostics are byte-identical, and stress and held-out
+language are unchanged. The accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`78381e0ffdb9579ec6e9834fc2452d15eba4d3d47ce94dfbddc85cc2d46852cc` and
+`62ea67d206b954cda83bec98d9671510fae08422b331a4f3e38c699e4b90f09e`.
+The existing popup-review report now has 102 active and 25 resolved IDs with no missing or stale
+decision; its categorical content and hash are unchanged.
+
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under
