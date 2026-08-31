@@ -86,6 +86,9 @@ _AUXILIARY_EXPLANATIONS = {
 _REPORTED_SPEECH_CONNECTIVES = frozenset({'다고', '라고', '냐고', '자고'})
 _NON_AUXILIARY_CONNECTIVES = frozenset({'라도'})
 _STANDALONE_OBJECT_PARTICLES = frozenset({'을', '를'})
+_COUNTING_DETERMINER_FORMS = frozenset(
+    {'\ud55c', '\ub450', '\uc138', '\ub124', '\uba87', '\uc5ec\ub7ec'}
+)
 _DICTIONARY_POS_BY_LEARNER_ROLE = {
     'action verb': 'verb',
     'dependent noun': '의존 명사',
@@ -1175,6 +1178,51 @@ class KoreanAnalyzer:
                 preceding_context_form,
                 lexical_hada_context=lexical_hada_context,
             )
+            context_separator = (
+                sentence[
+                    preceding_context_token.start
+                    + max(
+                        preceding_context_token.length,
+                        len(preceding_context_token.form),
+                    ) : start
+                ]
+                if preceding_context_token is not None
+                else ''
+            )
+            context_prefix = sentence[:start].rstrip()
+            while context_prefix and unicodedata.category(
+                context_prefix[-1]
+            ).startswith('P'):
+                context_prefix = context_prefix[:-1].rstrip()
+            preceding_eojeol = (
+                context_prefix.rsplit(maxsplit=1)[-1]
+                if context_prefix
+                else ''
+            )
+            if (
+                (
+                    preceding_context_tag == 'MM'
+                    and preceding_context_form in _COUNTING_DETERMINER_FORMS
+                    or preceding_eojeol in _COUNTING_DETERMINER_FORMS
+                )
+                and 0 < len(context_separator) <= 3
+                and all(
+                    character.isspace()
+                    or unicodedata.category(character).startswith('P')
+                    for character in context_separator
+                )
+                and len(components) == 1
+                and components[0].learner_role == 'noun'
+                and any(_base_tag(token.tag).startswith('J') for token in target_tokens)
+                and self.dictionary.lookup(
+                    components[0].lemma,
+                    '\uc758\uc874 \uba85\uc0ac',
+                    1,
+                )
+            ):
+                components = (
+                    replace(components[0], learner_role='dependent noun'),
+                )
             if components:
                 lemma = components[0].lemma
             entries = components[0].dictionary_entries if components else ()

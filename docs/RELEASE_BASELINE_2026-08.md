@@ -1146,6 +1146,27 @@ language are unchanged. The accepted aggregate and privacy-safe diagnostic SHA-2
 The existing popup-review report now has 101 active and 26 resolved IDs with no missing or stale
 decision; its categorical content and hash are unchanged.
 
+A subsequent reviewed counter is tagged as an ordinary noun because Kiwi attaches the separately
+written counting form to the preceding word across a real whitespace boundary. The accepted role
+correction requires an exact counting eojeol or counting-determiner tag, a gap of at most three
+whitespace or punctuation characters, one particle-bearing noun component, and a KRDict
+dependent-noun entry. It changes only the learner-facing role while preserving dictionary entry
+order, and negative boundaries exclude non-counting determiners and bare nouns without an attached
+particle.
+
+The exact full comparison removes only `dev-plain-1469` and adds or changes no failure record.
+The current main result is 98.59% OCR, 99.90% target selection, 91.35% functional context, 73.10%
+exact transcription, 93.65% components, 95.70% exact KRDict fidelity, 86.35% fully correct first
+popups, and 96.90% alternative recovery. Automated latency is 223.55 ms median / 344.50 ms p95;
+false promotions and every negative category remain zero. Main diagnostics contain two target,
+171 context, and 100 analysis failures: 44 primary lemmas, 45 component roles, four component
+counts, and seven grammar roles. Quick diagnostics are byte-identical, and stress and held-out
+language are unchanged. The accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`41ae8e67e80ac4e0d8340e48f4160e13dff663c21121e6afc0141c8ee5d98c3d` and
+`bf5986b00330fce9a2023d3bbbaf601192a69bf7d8d8478593f7fb6f7318559f`.
+The existing popup-review report now has 100 active and 27 resolved IDs with no missing or stale
+decision; its categorical content and hash are unchanged.
+
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under

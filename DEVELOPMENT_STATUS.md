@@ -76,11 +76,11 @@ privacy-safe diagnostic SHA-256 is
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.59% whole-eojeol OCR, 99.90% target selection, 91.35%
-functional context, 73.10% exact sentence transcription, 93.60% component accuracy, 95.70% exact
-KRDict fidelity, 86.30% fully correct first popups, and 96.85% alternative recovery. False
-promotions remain zero and the accepted follow-up is 219.21 ms median /
-337.82 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 101 analysis failures;
-the analysis stages are 44 primary lemmas, 46 component roles, four component counts, and seven
+functional context, 73.10% exact sentence transcription, 93.65% component accuracy, 95.70% exact
+KRDict fidelity, 86.35% fully correct first popups, and 96.90% alternative recovery. False
+promotions remain zero and the accepted follow-up is 223.55 ms median /
+344.50 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 100 analysis failures;
+the analysis stages are 44 primary lemmas, 45 component roles, four component counts, and seven
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
 
@@ -93,7 +93,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`4c243cd584b8df858343b6811f8671a691c8b0534bed401abbaa153b5cb9b389a`.
+`bf5986b00330fce9a2023d3bbbaf601192a69bf7d8d8478593f7fb6f7318559f`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -1905,6 +1905,20 @@ accepted aggregate and privacy-safe diagnostic SHA-256 values are
 `b84c079afb7892892f91e09539b2d01f64fcef8279750791edfcea379a0002db` and
 `4c243cd584b8df858343b6811f8671a691c8b0534bed401abbaa153b5cb9b389a`.
 
+One reviewed counter was tagged as an ordinary noun because Kiwi attached the separately written
+counting form to the preceding word across a real whitespace boundary. The accepted contextual
+role correction requires an exact counting eojeol or counting-determiner tag, a gap of at most
+three whitespace or punctuation characters, one particle-bearing noun component, and an existing
+KRDict dependent-noun entry. It changes only the learner-facing component role and preserves the
+dictionary entry order. The focused negative boundaries exclude non-counting determiners and bare
+nouns without an attached particle. The exact full comparison removes only `dev-plain-1469`, adds
+or changes no failure record, and leaves quick diagnostics byte-identical. Main component accuracy
+rises to 93.65%, first-popup correctness to 86.35%, and alternative recovery to 96.90%; exact
+KRDict fidelity remains 95.70%, and false promotions and negative activations remain zero. The
+accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`41ae8e67e80ac4e0d8340e48f4160e13dff663c21121e6afc0141c8ee5d98c3d` and
+`bf5986b00330fce9a2023d3bbbaf601192a69bf7d8d8478593f7fb6f7318559f`.
+
 The complete v4.15 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. The established
 primary-lemma, component-surface, component-role, component-count, grammar-role, multi-lexical,
@@ -1915,8 +1929,8 @@ or English text cannot be inferred from reliable runtime evidence; no speculativ
 implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
 complex for another safe general rule. Three reviewed primary-lemma Kiwi errors likewise lack a
-safe complete candidate or bounded general promotion. Fifteen of the 22 reviewed component-role
-Kiwi errors are now resolved without a regression. The remaining seven were rechecked against
+safe complete candidate or bounded general promotion. Sixteen of the 22 reviewed component-role
+Kiwi errors are now resolved without a regression. The remaining six were rechecked against
 contextual, isolated, and local dictionary evidence; those signals either reinforce the current
 reading or leave a semantic ambiguity that has no bounded structural correction. The two
 geometry-clustering passes, substitution batch, direct-retry and wrapper-fragment recoveries, and

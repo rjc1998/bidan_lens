@@ -1740,6 +1740,69 @@ def test_dictionary_preference_does_not_demote_a_dependent_noun() -> None:
     assert candidate.lexical_components[0].learner_role == 'dependent noun'
 
 
+@pytest.mark.parametrize(
+    ('preceding_form', 'preceding_tag', 'attached_particle', 'expected_role'),
+    [
+        ('\ud55c', 'MM', True, 'dependent noun'),
+        ('\ud55c', 'ETM', True, 'dependent noun'),
+        ('\uadf8', 'MM', True, 'noun'),
+        ('\ud55c', 'MM', False, 'noun'),
+    ],
+)
+def test_counting_determiner_contextualizes_a_dictionary_backed_counter(
+    preceding_form: str,
+    preceding_tag: str,
+    attached_particle: bool,
+    expected_role: str,
+) -> None:
+    class CounterDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            if lemma != '\uac1c':
+                return ()
+            roles = ('noun', '\uc758\uc874 \uba85\uc0ac')
+            if part_of_speech is not None:
+                roles = tuple(role for role in roles if role == part_of_speech)
+            return tuple(
+                DictionaryEntry(
+                    role,
+                    lemma,
+                    role,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                )
+                for role in roles[:limit]
+            )
+
+    target_surface = '\uac1c\uac00' if attached_particle else '\uac1c'
+    sentence = f'{preceding_form} "{target_surface}"'
+    target_tokens = [Token('\uac1c', 'NNG', 3, 1)]
+    if attached_particle:
+        target_tokens.append(Token('\uac00', 'JKS', 4, 1))
+    analyses = [
+        (
+            [
+                Token(preceding_form, preceding_tag, 0, 1),
+                Token('"', 'SSO', 2, 1),
+                *target_tokens,
+                Token('"', 'SSC', 3 + len(target_surface), 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    candidate = KoreanAnalyzer(
+        CounterDictionary(),
+        FakeKiwi(analyses),
+    )._analyze_candidates(sentence, (3, 3 + len(target_surface)), 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+    assert [
+        entry.part_of_speech
+        for entry in candidate.lexical_components[0].dictionary_entries
+    ] == ['noun', '\uc758\uc874 \uba85\uc0ac']
+
+
 def test_dictionary_rejects_an_unsupported_dependent_noun_role() -> None:
     analyses = [
         ([Token('회전', 'NNB', 0, 2), Token('도', 'JX', 2, 1)], -1.0),
