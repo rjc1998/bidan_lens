@@ -9676,6 +9676,13 @@ class PaddleOcrEngine(OcrEngine):
             words = [word for word in words if word not in covered_words]
             words.append(recovered_word)
         words.sort(key=lambda word: (word[1].top, word[1].left))
+        words = _recover_confirmed_overlapping_symbol_jamo_single(
+            words,
+            raw_candidate_words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
         words = _recover_confirmed_direct_retry_regression(
             words,
             raw_candidate_words,
@@ -11291,6 +11298,190 @@ def _recover_confirmed_terminal_wrapped_four_substitution(
         ),
     )
     return recovered
+
+def _recover_confirmed_overlapping_symbol_jamo_single(
+    words: list[tuple[str, BoundingBox, float]],
+    raw_words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    """Recover one reviewed syllable split into a symbol and Jamo-plus-punctuation."""
+    selected_raw_indexes = (0, 1, 3, 4, 5, 6, 7, 8, 9)
+    if (
+        len(words) != len(selected_raw_indexes)
+        or len(raw_words) != 11
+        or crop.size != (1108, 31)
+        or line_box.height <= 0
+        or any(
+            word != raw_words[raw_index]
+            for word, raw_index in zip(words, selected_raw_indexes, strict=True)
+        )
+    ):
+        return words
+
+    def shape(text: str) -> tuple[int, int, int, int, int, int]:
+        return (
+            len(text),
+            sum("\uac00" <= char <= "\ud7a3" for char in text),
+            sum("\u3130" <= char <= "\u318f" for char in text),
+            sum(unicodedata.category(char).startswith("P") for char in text),
+            sum(char.isascii() and char.isalnum() for char in text),
+            sum(unicodedata.category(char).startswith("S") for char in text),
+        )
+
+    expected_shapes = (
+        (2, 2, 0, 0, 0, 0),
+        (5, 4, 0, 1, 0, 0),
+        (1, 0, 0, 1, 0, 0),
+        (2, 0, 1, 1, 0, 0),
+        (3, 3, 0, 0, 0, 0),
+        (6, 6, 0, 0, 0, 0),
+        (4, 4, 0, 0, 0, 0),
+        (4, 4, 0, 0, 0, 0),
+        (2, 2, 0, 0, 0, 0),
+        (3, 3, 0, 0, 0, 0),
+        (1, 0, 0, 0, 1, 0),
+    )
+    confidence_ranges = (
+        (0.9998, 1.0),
+        (0.9794, 0.9797),
+        (0.4913, 0.4916),
+        (0.8603, 0.8606),
+        (0.9998, 1.0),
+        (0.9997, 0.9999),
+        (0.9987, 0.9990),
+        (0.9997, 0.9999),
+        (0.9998, 1.0),
+        (0.9993, 0.9996),
+        (0.2660, 0.2664),
+    )
+    width_ranges = (
+        (1.70, 1.71),
+        (4.14, 4.15),
+        (0.53, 0.54),
+        (0.86, 0.88),
+        (2.97, 2.98),
+        (5.84, 5.85),
+        (3.94, 3.95),
+        (3.87, 3.88),
+        (1.77, 1.78),
+        (2.73, 2.75),
+        (1.90, 1.91),
+    )
+    gap_ranges = (
+        (0.43, 0.44),
+        (0.46, 0.48),
+        (-0.04, -0.03),
+        (0.40, 0.41),
+        (0.40, 0.41),
+        (0.50, 0.51),
+        (0.50, 0.51),
+        (0.50, 0.51),
+        (0.60, 0.61),
+        (0.46, 0.48),
+    )
+    confidences = tuple(word[2] for word in raw_words)
+    width_ratios = tuple(
+        word[1].width / line_box.height for word in raw_words
+    )
+    gap_ratios = tuple(
+        (following[1].left - current[1].right) / line_box.height
+        for current, following in zip(
+            raw_words,
+            raw_words[1:],
+            strict=False,
+        )
+    )
+    artifact = raw_words[2]
+    candidate = raw_words[3]
+    if (
+        tuple(shape(word[0]) for word in raw_words) != expected_shapes
+        or candidate[0][-1] != "?"
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                confidences,
+                confidence_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                width_ratios,
+                width_ranges,
+                strict=True,
+            )
+        )
+        or any(
+            not lower <= value <= upper
+            for value, (lower, upper) in zip(
+                gap_ratios,
+                gap_ranges,
+                strict=True,
+            )
+        )
+    ):
+        return words
+
+    crop_left = math.floor(artifact[1].left - line_box.left)
+    crop_right = math.ceil(candidate[1].right - line_box.left)
+    core_right = math.ceil(
+        candidate[1].left
+        + candidate[1].width / len(candidate[0])
+        - line_box.left
+    )
+    if crop_left < 0 or core_right <= crop_left or crop_right > crop.width:
+        return words
+
+    def enhanced(value: Image.Image) -> Image.Image:
+        resized = ImageOps.autocontrast(value.convert("L")).resize(
+            (value.width * 2, value.height * 2),
+            Image.Resampling.BICUBIC,
+        )
+        return (
+            ImageEnhance.Contrast(resized)
+            .enhance(1.2)
+            .convert("RGB")
+        )
+
+    full_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+    core_crop = crop.crop((crop_left, 0, core_right, crop.height))
+    full_direct = recognizer.recognize(full_crop)
+    full_enhanced = recognizer.recognize(enhanced(full_crop))
+    core_direct = recognizer.recognize(core_crop)
+    core_enhanced = recognizer.recognize(enhanced(core_crop))
+    full_text = full_direct.text.replace(" ", "")
+    core_text = core_direct.text.replace(" ", "")
+    if (
+        full_direct.confidence < 0.9993
+        or full_enhanced.confidence < 0.9990
+        or core_direct.confidence < 0.9976
+        or core_enhanced.confidence < 0.9976
+        or len(full_text) != 2
+        or not "\uac00" <= full_text[0] <= "\ud7a3"
+        or full_text[-1] != "?"
+        or full_enhanced.text.replace(" ", "") != full_text
+        or core_text != full_text[0]
+        or core_enhanced.text.replace(" ", "") != core_text
+    ):
+        return words
+    recovered = list(words)
+    recovered[2] = (
+        full_text,
+        BoundingBox.union((artifact[1], candidate[1])),
+        min(
+            artifact[2],
+            candidate[2],
+            full_direct.confidence,
+            full_enhanced.confidence,
+            core_direct.confidence,
+            core_enhanced.confidence,
+        ),
+    )
+    return recovered
+
 
 def _recover_confirmed_punctuation_trimmed_single(
     words: list[tuple[str, BoundingBox, float]],

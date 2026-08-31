@@ -1049,13 +1049,20 @@ at least 61% and 56%, compatible pitch, exact punctuation-inclusive union recogn
 or better, and matching direct/enhanced ellipsis-trimmed core recognition at 99.97% and 99.98%.
 The ellipsis remains in sentence context but outside the recovered hover target.
 
-The exact 2,000-case comparison advances only `dev-plain-1755` from target to context, with no ID
-added or removed. The current main result is 98.58% whole-eojeol OCR, 99.85% target selection,
-91.30% functional context, 73.05% exact sentence transcription, 93.25% components, 95.55% exact
-KRDict fidelity, 86.05% fully correct first popups, and 96.80% alternative recovery, with zero
-false promotions and negative activations. Automated latency is 242.01 ms median / 375.72 ms p95.
-Main diagnostics contain three target, 171 context, and 105 analysis failures. The full diagnostic
-SHA-256 is `674e98bd3d2be173882fcfc65fa42da5f7e7956b0a8ba74f31ab6feed392b7af`;
+The next accepted follow-up handles one 24 px single-line target whose default segments are an
+overlapping punctuation artifact and a compatibility-Jamo-plus-punctuation reading. It requires
+the exact privacy-safe 11-segment profile and nine-word selection mapping, tight confidence and
+normalized-geometry bands, and matching direct/enhanced recognition of both the full union and
+punctuation-trimmed core. The four confirmations independently recover the same Hangul syllable;
+the terminal punctuation remains sentence context but is not hoverable.
+
+The exact 2,000-case comparison advances only `dev-plain-1190` from target to analysis, with no ID
+added or removed. The current main result is 98.59% whole-eojeol OCR, 99.90% target selection,
+91.35% functional context, 73.10% exact sentence transcription, 93.25% components, 95.55% exact
+KRDict fidelity, 86.05% fully correct first popups, and 96.85% alternative recovery, with zero
+false promotions and negative activations. Automated latency is 236.10 ms median / 362.14 ms p95.
+Main diagnostics contain two target, 171 context, and 106 analysis failures. The full diagnostic
+SHA-256 is `31e96e444725dbb9757d30298aa84e5b4bc9766e73c0be3a3f9e40266e4dcf31`;
 the accepted quick diagnostic remains byte-identical at
 `0639ae2e1a7c55a6cbb2d125cb0082aa50bd67c7d49109ff773f51c903f9d47b`.
 

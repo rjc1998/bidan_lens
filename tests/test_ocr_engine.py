@@ -37,6 +37,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_misplaced_curly_single_plus_structured_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
+    _recover_confirmed_overlapping_symbol_jamo_single,
     _recover_confirmed_paired_wrapped_four_plus_two_split,
     _recover_confirmed_paired_wrapped_three_plus_three_split,
     _recover_confirmed_paired_wrapper_four_substitution,
@@ -18559,6 +18560,299 @@ def test_terminal_ellipsis_pair_requires_consensus(
             words,
             Image.new("RGB", (220, 20)),
             BoundingBox(0, 0, 220, 20),
+            recognizer,
+        )
+        == words
+    )
+
+
+_SYMBOL_JAMO_LINE = BoundingBox(55.68, 201.72, 1162.32, 231.65)
+_SYMBOL_JAMO_SELECTED = (0, 1, 3, 4, 5, 6, 7, 8, 9)
+_SYMBOL_JAMO_RECOVERED = chr(0xC591)
+
+
+def symbol_jamo_words():
+    texts = (
+        chr(0xAC00) + chr(0xB294),
+        "".join(
+            chr(value)
+            for value in (0xD604, 0xC2E4, 0xC5D0, 0xC11C)
+        )
+        + ",",
+        "%",
+        chr(0x3151) + "?",
+        "".join(
+            chr(value)
+            for value in (0xBD80, 0xCC98, 0xC640)
+        ),
+        "".join(
+            chr(value)
+            for value in (
+                0xAC8C,
+                0xC784,
+                0xC0B0,
+                0xC5C5,
+                0xACC4,
+                0xC758,
+            )
+        ),
+        "".join(
+            chr(value)
+            for value in (0xACC4, 0xC18D, 0xB418, 0xB294)
+        ),
+        "".join(
+            chr(value)
+            for value in (0xC785, 0xC7A5, 0xCC28, 0xB85C)
+        ),
+        chr(0xC778) + chr(0xD574),
+        "".join(
+            chr(value)
+            for value in (0xBC95, 0xC548, 0xC774)
+        ),
+        "2",
+    )
+    bounds = (
+        (129.68, 180.68),
+        (193.68, 317.68),
+        (331.68, 347.68),
+        (346.68, 372.68),
+        (384.68, 473.68),
+        (485.68, 660.68),
+        (675.68, 793.68),
+        (808.68, 924.68),
+        (939.68, 992.68),
+        (1010.68, 1092.68),
+        (1106.68, 1163.68),
+    )
+    confidences = (
+        0.999887,
+        0.979528,
+        0.491437,
+        0.860453,
+        0.999892,
+        0.999797,
+        0.998883,
+        0.999785,
+        0.999891,
+        0.999423,
+        0.266216,
+    )
+    raw = [
+        (
+            text,
+            BoundingBox(
+                left,
+                _SYMBOL_JAMO_LINE.top,
+                right,
+                _SYMBOL_JAMO_LINE.bottom,
+            ),
+            confidence,
+        )
+        for text, (left, right), confidence in zip(
+            texts,
+            bounds,
+            confidences,
+            strict=True,
+        )
+    ]
+    return [raw[index] for index in _SYMBOL_JAMO_SELECTED], raw
+
+
+class SymbolJamoRecognizer:
+    def __init__(
+        self,
+        *,
+        full_direct: RecognizedText | None = None,
+        full_enhanced: RecognizedText | None = None,
+        core_direct: RecognizedText | None = None,
+        core_enhanced: RecognizedText | None = None,
+    ) -> None:
+        self.full_direct = full_direct or RecognizedText(
+            _SYMBOL_JAMO_RECOVERED + "?",
+            0.99937,
+        )
+        self.full_enhanced = full_enhanced or RecognizedText(
+            _SYMBOL_JAMO_RECOVERED + "?",
+            0.9991,
+        )
+        self.core_direct = core_direct or RecognizedText(
+            _SYMBOL_JAMO_RECOVERED,
+            0.9978,
+        )
+        self.core_enhanced = core_enhanced or RecognizedText(
+            _SYMBOL_JAMO_RECOVERED,
+            0.9978,
+        )
+        self.calls = 0
+
+    def recognize(self, image):
+        self.calls += 1
+        readings = {
+            (41, 31): self.full_direct,
+            (82, 62): self.full_enhanced,
+            (28, 31): self.core_direct,
+            (56, 62): self.core_enhanced,
+        }
+        return readings.get(
+            image.size,
+            RecognizedText("", 0.0),
+        )
+
+
+def test_overlapping_symbol_jamo_single_recovers() -> None:
+    words, raw = symbol_jamo_words()
+
+    recovered = _recover_confirmed_overlapping_symbol_jamo_single(
+        words,
+        raw,
+        Image.new("RGB", (1108, 31)),
+        _SYMBOL_JAMO_LINE,
+        SymbolJamoRecognizer(),
+    )
+
+    assert recovered == [
+        *words[:2],
+        (
+            _SYMBOL_JAMO_RECOVERED + "?",
+            BoundingBox(331.68, 201.72, 372.68, 231.65),
+            0.491437,
+        ),
+        *words[3:],
+    ]
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "word_count",
+        "raw_count",
+        "mapping",
+        "crop_size",
+        "line_height",
+        "shape",
+        "confidence",
+        "geometry",
+    ],
+)
+def test_overlapping_symbol_jamo_single_requires_profile(
+    case,
+) -> None:
+    words, raw = symbol_jamo_words()
+    crop = Image.new("RGB", (1108, 31))
+    line_box = _SYMBOL_JAMO_LINE
+    if case == "word_count":
+        words = words[:-1]
+    elif case == "raw_count":
+        raw = raw[:-1]
+    elif case == "mapping":
+        words[2] = raw[2]
+    elif case == "crop_size":
+        crop = Image.new("RGB", (1107, 31))
+    elif case == "line_height":
+        line_box = BoundingBox(
+            55.68,
+            201.72,
+            1162.32,
+            201.72,
+        )
+    elif case == "shape":
+        raw[3] = (
+            chr(0x3151) + "!",
+            raw[3][1],
+            raw[3][2],
+        )
+        words[2] = raw[3]
+    elif case == "confidence":
+        raw[2] = (
+            raw[2][0],
+            raw[2][1],
+            0.4912,
+        )
+    else:
+        raw[2] = (
+            raw[2][0],
+            BoundingBox(331.68, 201.72, 348.68, 231.65),
+            raw[2][2],
+        )
+    recognizer = SymbolJamoRecognizer()
+
+    assert (
+        _recover_confirmed_overlapping_symbol_jamo_single(
+            words,
+            raw,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.calls == 0
+
+
+@pytest.mark.parametrize(
+    "recognizer",
+    [
+        SymbolJamoRecognizer(
+            full_direct=RecognizedText(
+                chr(0xC790) + "?",
+                1.0,
+            )
+        ),
+        SymbolJamoRecognizer(
+            full_direct=RecognizedText(
+                _SYMBOL_JAMO_RECOVERED + "?",
+                0.9992,
+            )
+        ),
+        SymbolJamoRecognizer(
+            full_enhanced=RecognizedText(
+                chr(0xC790) + "?",
+                1.0,
+            )
+        ),
+        SymbolJamoRecognizer(
+            full_enhanced=RecognizedText(
+                _SYMBOL_JAMO_RECOVERED + "?",
+                0.9989,
+            )
+        ),
+        SymbolJamoRecognizer(
+            core_direct=RecognizedText(
+                chr(0xC790),
+                1.0,
+            )
+        ),
+        SymbolJamoRecognizer(
+            core_direct=RecognizedText(
+                _SYMBOL_JAMO_RECOVERED,
+                0.9975,
+            )
+        ),
+        SymbolJamoRecognizer(
+            core_enhanced=RecognizedText(
+                chr(0xC790),
+                1.0,
+            )
+        ),
+        SymbolJamoRecognizer(
+            core_enhanced=RecognizedText(
+                _SYMBOL_JAMO_RECOVERED,
+                0.9975,
+            )
+        ),
+    ],
+)
+def test_overlapping_symbol_jamo_single_requires_consensus(
+    recognizer,
+) -> None:
+    words, raw = symbol_jamo_words()
+
+    assert (
+        _recover_confirmed_overlapping_symbol_jamo_single(
+            words,
+            raw,
+            Image.new("RGB", (1108, 31)),
+            _SYMBOL_JAMO_LINE,
             recognizer,
         )
         == words
