@@ -1006,10 +1006,16 @@ def test_dictionary_nominal_role_is_reapplied_after_wrapper_context() -> None:
 
 
 class PrenominalRoleDictionary(DictionaryStore):
+    def __init__(self, *, determiner_backed: bool = True) -> None:
+        self.determiner_backed = determiner_backed
+
     def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
         roles = {
             '\uba87': ('numeral', 'determiner'),
+            '\uc774': ('pronoun', 'determiner'),
         }.get(lemma, ())
+        if not self.determiner_backed:
+            roles = tuple(role for role in roles if role != 'determiner')
         if part_of_speech is not None:
             roles = tuple(role for role in roles if role == part_of_speech)
         return tuple(
@@ -1027,9 +1033,9 @@ class PrenominalRoleDictionary(DictionaryStore):
 
 @pytest.mark.parametrize(
     ('alternative_score', 'expected_role'),
-    [(-4.9, 'determiner'), (-5.0, 'number')],
+    [(-6.8, 'determiner'), (-6.9, 'number')],
 )
-def test_prenominal_determiner_promotion_is_score_bounded(
+def test_dictionary_backed_prenominal_determiner_promotion_is_score_bounded(
     alternative_score: float,
     expected_role: str,
 ) -> None:
@@ -1058,6 +1064,71 @@ def test_prenominal_determiner_promotion_is_score_bounded(
     )._analyze_candidates('\uba87? \ub144', (0, 1), 5)[0]
 
     assert candidate.lexical_components[0].learner_role == expected_role
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-4.9, 'determiner'), (-5.0, 'number')],
+)
+def test_unbacked_prenominal_determiner_uses_base_score_margin(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('\uba87', 'NR', 0, 1),
+                Token('?', 'SF', 1, 1),
+                Token('\ub144', 'NNB', 3, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uba87', 'MM', 0, 1),
+                Token('?', 'SF', 1, 1),
+                Token('\ub144', 'NNB', 3, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        PrenominalRoleDictionary(determiner_backed=False),
+        FakeKiwi(analyses),
+    )._analyze_candidates('\uba87? \ub144', (0, 1), 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
+def test_particle_bearing_prenominal_determiner_uses_base_score_margin() -> None:
+    analyses = [
+        (
+            [
+                Token('\uc774', 'NP', 0, 1),
+                Token('\ub294', 'JX', 1, 1),
+                Token('?', 'SF', 2, 1),
+                Token('\ubb38\ud5cc', 'NNG', 4, 2),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uc774', 'MM', 0, 1),
+                Token('\ub294', 'JX', 1, 1),
+                Token('?', 'SF', 2, 1),
+                Token('\ubb38\ud5cc', 'NNG', 4, 2),
+            ],
+            -5.0,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        PrenominalRoleDictionary(),
+        FakeKiwi(analyses),
+    )._analyze_candidates('\uc774\ub294? \ubb38\ud5cc', (0, 2), 5)[0]
+
+    assert candidate.lexical_components[0].learner_role == 'pronoun'
 
 
 class AdverbNounRoleDictionary(DictionaryStore):

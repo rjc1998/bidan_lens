@@ -116,11 +116,11 @@ Kiwi-analysis errors, 32 annotation-convention differences, 34 equivalent learne
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then has 112 active decisions and SHA-256
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.15 report contains 122 decisions: 30 Kiwi-analysis errors, 42 annotation-
+The current v4.15 report contains 123 decisions: 31 Kiwi-analysis errors, 42 annotation-
 convention differences, 35 equivalent learner interpretations, eight oracle defects, and seven
-genuinely ambiguous cases. The current evidence leaves 101 reviewed active cases and 21 resolved
-IDs, with no missing or stale decision. Its SHA-256 is
-`401fc9ec1592c2aebf991b5c05e77648664c8f04751152345c40903b8de5da30`.
+genuinely ambiguous cases. The current evidence has 105 active cases and 22 resolved IDs. Four
+newly exposed active IDs remain unclassified and no decision is stale. Its SHA-256 is
+`8b1465eb411989c254f7985446f33c4082c9ac7c9d001c5b5d45ad0b2c204622`.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
@@ -1065,6 +1065,22 @@ Main diagnostics contain two target, 171 context, and 106 analysis failures. The
 SHA-256 is `31e96e444725dbb9757d30298aa84e5b4bc9766e73c0be3a3f9e40266e4dcf31`;
 the accepted quick diagnostic remains byte-identical at
 `0639ae2e1a7c55a6cbb2d125cb0082aa50bd67c7d49109ff773f51c903f9d47b`.
+
+The newly exposed `dev-plain-1190` component-role case contains a complete, same-lemma,
+dictionary-backed determiner candidate before a following noun. The accepted promotion extends
+the prenominal ceiling from 4.0 to 5.9 only for a single bare component whose surface exactly
+matches the target and whose candidate-specific KRDict order begins with a determiner entry.
+Particle-bearing and unbacked candidates retain the 4.0 ceiling. A broader dictionary-backed
+experiment was rejected after regressing `dev-plain-0909` and `dev-plain-1575`.
+
+The narrowed exact comparison removes only `dev-plain-1190`, with no addition or stage change.
+The current main result is 98.59% OCR, 99.90% target selection, 91.35% functional context,
+73.10% exact transcription, 93.30% components, 95.60% exact KRDict fidelity, 86.10% fully
+correct first popups, and 96.85% alternative recovery. Automated latency is 235.43 ms median /
+361.92 ms p95, and safety counters remain zero. Main diagnostics contain two target, 171 context,
+and 105 analysis failures. The full diagnostic SHA-256 is
+`d8a9de3d89932601835f214ddd8d7b9c180e72370d316c54d5116f7d13c93e33`; quick diagnostics,
+stress, and held-out language remain unchanged.
 
 ## Historical plain-v1 schema-v4.9 development follow-up
 

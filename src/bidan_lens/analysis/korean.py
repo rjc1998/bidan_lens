@@ -70,6 +70,7 @@ _COMPOUND_TERMINAL_NOUN_SCORE_MARGIN = 6.0
 _DICTIONARY_PREDICATE_ROLE_SCORE_MARGIN = 1.0
 _DICTIONARY_DESCRIPTIVE_ROLE_SCORE_MARGIN = 6.1
 _PRENOMINAL_DETERMINER_SCORE_MARGIN = 4.0
+_DICTIONARY_PRENOMINAL_DETERMINER_SCORE_MARGIN = 5.9
 _LOCATIVE_ITDA_SCORE_MARGIN = 7.0
 _NONCONTEXTUAL_AUXILIARY_SCORE_MARGIN = 7.1
 _NOUN_PARTICLE_SCORE_MARGIN = 3.2
@@ -1353,9 +1354,16 @@ class KoreanAnalyzer:
         for index, candidate in enumerate(candidates[1:], start=1):
             if id(candidate) not in prenominal_determiner_ids:
                 continue
+            score_margin = _PRENOMINAL_DETERMINER_SCORE_MARGIN
             if (
-                first.score - candidate.score
-                > _PRENOMINAL_DETERMINER_SCORE_MARGIN
+                len(candidate.lexical_components) == 1
+                and candidate.surface == candidate.lexical_components[0].surface
+                and candidate.dictionary_entries
+                and candidate.dictionary_entries[0].part_of_speech == 'determiner'
+            ):
+                score_margin = _DICTIONARY_PRENOMINAL_DETERMINER_SCORE_MARGIN
+            if (
+                first.score - candidate.score > score_margin
                 or candidate.lemma != first.lemma
                 or len(candidate.lexical_components) != 1
             ):
