@@ -147,6 +147,8 @@ class PaddleDetector:
 
 
 class PaddleRecognizer:
+    supports_binarized_small_text_retry = True
+
     def __init__(
         self,
         model_path: Path,
@@ -327,6 +329,52 @@ def _structured_ascii_context(text: str) -> bool:
 
 def _context_confidence_threshold(text: str) -> float:
     return 0.75 if re.fullmatch(r'K-\d{4}/v\d+', text) else 0.8
+
+
+def _retry_binarized_small_hangul_word(
+    image: Image.Image,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not 0 < line_height <= 14.1
+        or not 2 <= len(text) <= 5
+        or not all(is_hangul(character) for character in text)
+        or recognized.confidence >= 0.998
+    ):
+        return recognized
+    grayscale = ImageOps.autocontrast(image.convert('L'))
+    retries = tuple(
+        recognizer.recognize(
+            grayscale.resize(
+                (grayscale.width * 3, grayscale.height * 3),
+                resampling,
+            )
+            .point(lambda pixel: 255 if pixel >= 216 else 0)
+            .convert('RGB')
+        )
+        for resampling in (
+            Image.Resampling.BILINEAR,
+            Image.Resampling.BICUBIC,
+            Image.Resampling.LANCZOS,
+        )
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.94
+        or retry_confidence <= recognized.confidence
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
 
 
 def _split_punctuation_wrapped_word(
@@ -9673,6 +9721,12 @@ class PaddleOcrEngine(OcrEngine):
                 retry = self.recognizer.recognize(retry_image.convert("RGB"))
                 if retry.confidence > recognized.confidence:
                     recognized = retry
+            recognized = _retry_binarized_small_hangul_word(
+                word_crop,
+                line_box.height,
+                recognized,
+                self.recognizer,
+            )
             text = recognized.text.replace(" ", "")
             if text and (
                 contains_hangul(text)

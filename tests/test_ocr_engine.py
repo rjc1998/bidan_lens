@@ -77,6 +77,7 @@ from bidan_lens.ocr.paddle import (
     _recover_terminal_overlapping_word_pair,
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
+    _retry_binarized_small_hangul_word,
     _split_mandatory_auxiliary_spacing,
     _split_punctuation_wrapped_word,
     _split_trailing_punctuation_boundary,
@@ -193,6 +194,124 @@ def test_auxiliary_spacing_does_not_split_unrelated_words(text: str) -> None:
     box = BoundingBox(10, 5, 110, 35)
 
     assert _split_mandatory_auxiliary_spacing(text, box, 0.91) == [(text, box, 0.91)]
+
+
+class BinarizedRetryRecognizer:
+    supports_binarized_small_text_retry = True
+
+    def __init__(self, results: tuple[RecognizedText, ...]) -> None:
+        self.results = iter(results)
+        self.sizes: list[tuple[int, int]] = []
+
+    def recognize(self, image: Image.Image) -> RecognizedText:
+        self.sizes.append(image.size)
+        return next(self.results)
+
+
+def test_binarized_small_hangul_retry_accepts_unanimous_stronger_reading() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\uacb0\uc815\ub860\uc774\ub780', 0.99995),
+            RecognizedText('\uacb0\uc815\ub860\uc774\ub780', 0.99993),
+            RecognizedText('\uacb0\uc815\ub860\uc774\ub780', 0.99961),
+        )
+    )
+
+    result = _retry_binarized_small_hangul_word(
+        Image.new('RGB', (20, 12)),
+        14.1,
+        RecognizedText('\uae38\uc815\ub860\uc774\ub780', 0.9974),
+        recognizer,
+    )
+
+    assert result == RecognizedText('\uacb0\uc815\ub860\uc774\ub780', 0.99961)
+    assert recognizer.sizes == [(60, 36), (60, 36), (60, 36)]
+
+
+@pytest.mark.parametrize(
+    ('line_height', 'recognized'),
+    [
+        (14.11, RecognizedText('\uac00\ub098', 0.9)),
+        (14.1, RecognizedText('\uac00', 0.9)),
+        (14.1, RecognizedText('\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14', 0.9)),
+        (14.1, RecognizedText('\uac00A', 0.9)),
+        (14.1, RecognizedText('\uac00\ub098', 0.998)),
+    ],
+)
+def test_binarized_small_hangul_retry_requires_bounded_trigger(
+    line_height: float,
+    recognized: RecognizedText,
+) -> None:
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert (
+        _retry_binarized_small_hangul_word(
+            Image.new('RGB', (20, 12)),
+            line_height,
+            recognized,
+            recognizer,
+        )
+        == recognized
+    )
+    assert recognizer.sizes == []
+
+
+@pytest.mark.parametrize(
+    'retries',
+    [
+        (
+            RecognizedText('\uacb0\uc815', 0.99),
+            RecognizedText('\uacb0\uc815', 0.99),
+            RecognizedText('\uae38\uc815', 0.99),
+        ),
+        (
+            RecognizedText('\uacb0\uc815', 0.95),
+            RecognizedText('\uacb0\uc815', 0.95),
+            RecognizedText('\uacb0\uc815', 0.94),
+        ),
+        (
+            RecognizedText('\uae38\uc815', 0.99),
+            RecognizedText('\uae38\uc815', 0.99),
+            RecognizedText('\uae38\uc815', 0.99),
+        ),
+    ],
+)
+def test_binarized_small_hangul_retry_rejects_weak_or_ambiguous_evidence(
+    retries: tuple[RecognizedText, ...],
+) -> None:
+    original = RecognizedText('\uae38\uc815', 0.95)
+    recognizer = BinarizedRetryRecognizer(retries)
+
+    assert (
+        _retry_binarized_small_hangul_word(
+            Image.new('RGB', (20, 12)),
+            14.1,
+            original,
+            recognizer,
+        )
+        == original
+    )
+
+
+def test_binarized_small_hangul_retry_requires_strong_consensus() -> None:
+    original = RecognizedText('\uae38\uc815', 0.8)
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\uacb0\uc815', 0.939),
+            RecognizedText('\uacb0\uc815', 0.938),
+            RecognizedText('\uacb0\uc815', 0.937),
+        )
+    )
+
+    assert (
+        _retry_binarized_small_hangul_word(
+            Image.new('RGB', (20, 12)),
+            14.1,
+            original,
+            recognizer,
+        )
+        == original
+    )
 
 
 class RetryingRecognizer:
