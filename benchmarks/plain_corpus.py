@@ -621,7 +621,7 @@ def _expected_components(
         entries = _ordered_oracle_entries(oracle, lemma, _component_positions(component_tag, role))
         components.append(OracleComponent(surface, lemma, role, entries))
         index += 1
-    if not components and token.upos == 'ADP':
+    if not components:
         for form, tag in zip(forms, tags, strict=False):
             if tag.startswith('j') and tag != 'jp':
                 particle = _normalized(form)
@@ -631,6 +631,21 @@ def _expected_components(
                         particle,
                         'particle',
                         _oracle_lookup(oracle, particle, 'particle'),
+                    )
+                )
+                break
+    if not components:
+        for form, tag in zip(forms, tags, strict=False):
+            if tag == 'jp':
+                lemma = _normalized(form)
+                if not lemma.endswith('\ub2e4'):
+                    lemma += '\ub2e4'
+                components.append(
+                    OracleComponent(
+                        _normalized(token.form),
+                        lemma,
+                        'linking word',
+                        _ordered_oracle_entries(oracle, lemma, ()),
                     )
                 )
                 break

@@ -53,34 +53,34 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`local-data\evaluations\bidan-lens-eval-ud218-v4.15\dev`; the untouched v4.2 release corpus
+`local-data\evaluations\bidan-lens-eval-ud218-v4.16\dev`; the untouched v4.2 release corpus
 remains under `local-data\evaluations\bidan-lens-eval-ud218-v4.2\release` and has not been
-evaluated. Earlier roots remain preserved. The v4.15 rebuild contains 2,000 main, 250 stress,
+evaluated. Earlier roots remain preserved. The v4.16 rebuild contains 2,000 main, 250 stress,
 400 held-out language, and 200 quick cases, is hash-locked, and passes corpus validation. It uses
 the current corpus builder and
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
-The accepted v4.15 200-case quick tier records 99.32% whole-eojeol OCR, 100.00% target
+The accepted v4.16 200-case quick tier records 99.32% whole-eojeol OCR, 100.00% target
 selection, 96.00% functional context, 76.00% exact sentence transcription, 95.00% component
-accuracy, 95.50% exact KRDict fidelity, and 92.00% fully correct first popups, with 276.72 ms
-median / 391.84 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
+accuracy, 95.50% exact KRDict fidelity, and 92.00% fully correct first popups, with 224.20 ms
+median / 344.51 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles) and eight context cases; no target failures remain. Aggregate and per-category
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`d3d415e532281efe2598c170283f8e08b3c5ff6e9651783cd3167e21ce27fb61`; the
+`5f60c0637eea399308005c38372fe8fc468db7d8fa1e92c48d431297d9341abc`; the
 privacy-safe diagnostic SHA-256 is
 `27818279c41c530f7ff8fb185bb92dfc7c2745b6a40b5cb3325222d05f433f07`.
 
-The complete v4.15 development evaluation has now run against the current OCR and analyzer
+The complete v4.16 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.59% whole-eojeol OCR, 99.90% target selection, 91.35%
-functional context, 73.10% exact sentence transcription, 93.65% component accuracy, 95.70% exact
-KRDict fidelity, 86.35% fully correct first popups, and 96.90% alternative recovery. False
-promotions remain zero and the accepted follow-up is 223.55 ms median /
-344.50 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 100 analysis failures;
-the analysis stages are 44 primary lemmas, 45 component roles, four component counts, and seven
+functional context, 73.10% exact sentence transcription, 93.75% component accuracy, 95.75% exact
+KRDict fidelity, 86.45% fully correct first popups, and 97.00% alternative recovery. False
+promotions remain zero and the accepted follow-up is 265.97 ms median /
+439.00 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 98 analysis failures;
+the analysis stages are 43 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
 
@@ -93,7 +93,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`bf5986b00330fce9a2023d3bbbaf601192a69bf7d8d8478593f7fb6f7318559f`.
+`f5ef5f8c7793ae89cc7edf5e79e2db2b3caf0aa371c6bcedf4f44436cc8065cc`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -103,10 +103,12 @@ punctuation or structured-text cases, 43 missed or merged OCR word boundaries, a
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The current full diagnostics have 170 active context
-cases; the v4.15 fail-closed audit finds every active ID reviewed, with no missing decisions and
+IDs, categorical decisions, and counts. The v4.15 reviewed diagnostics had 170 active context
+cases; its fail-closed audit found every active ID reviewed, with no missing decisions and
 38 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
-review scope and every current stable ID. The decision report SHA-256 is
+review scope and every current stable ID. The strict v4.16 carry-forward detected a changed current
+case set and refused to write a report, so context decisions remain explicitly v4.15-scoped pending
+review of that difference. The v4.15 decision report SHA-256 is
 `0d6907855e33e6e58fbb6a2468c891234c6256a6398b943e60de58588bda7c39`.
 
 Three independently reviewed reconstruction cases contained a one-character eojeol centered
@@ -1489,11 +1491,13 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.15 report contains 127 decisions: 25 Kiwi-analysis errors, 45 annotation-
-convention differences, 38 equivalent learner interpretations, ten corpus-oracle defects,
-and nine genuinely ambiguous cases. The current evidence has 100 active cases and 27 resolved
-IDs, with no missing or stale decision. Its SHA-256 is
-`4b839420ce9df25d52a0dffcc6cff8744a955aad09079292d370788b3d0e43a4`.
+The v4.15 history contains 127 decisions: 25 Kiwi-analysis errors, 45 annotation-convention
+differences, 38 equivalent learner interpretations, ten corpus-oracle defects, and nine genuinely
+ambiguous cases. The current v4.16 matching migration contains all 98 active decisions with no
+missing, resolved, or stale ID: two Kiwi-analysis errors, 42 annotation-convention differences,
+37 equivalent learner interpretations, eight corpus-oracle defects, and nine genuinely ambiguous
+cases. Its SHA-256 is
+`144f1390db59d0cdbe823698b96096d01d4258788940aca6aa38e2d2d25634f2`.
 The closing audit reclassifies eight provisional Kiwi errors: two truncated-context ambiguities,
 two source-tag convention differences, two learner-equivalent noun/proper-noun readings, and two
 corpus-oracle defects involving a wrapped standalone particle and contracted-copula fallback. The
@@ -1924,30 +1928,34 @@ accepted aggregate and privacy-safe diagnostic SHA-256 values are
 `41ae8e67e80ac4e0d8340e48f4160e13dff663c21121e6afc0141c8ee5d98c3d` and
 `bf5986b00330fce9a2023d3bbbaf601192a69bf7d8d8478593f7fb6f7318559f`.
 
-The complete v4.15 development run now shows that aggregate functional context clears 88%, while
-main popup correctness and required render strata still block release evidence. The established
-primary-lemma, component-surface, component-role, component-count, grammar-role, multi-lexical,
-and negative-activation review remains classified, including every newly exposed popup case.
-Two line/sentence reconstruction cases remain active because their
-intended punctuation
-or English text cannot be inferred from reliable runtime evidence; no speculative rule is
-implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
-characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
-complex for another safe general rule. Three reviewed primary-lemma Kiwi errors likewise lack a
-safe complete candidate or bounded general promotion. Sixteen of the 22 reviewed component-role
-Kiwi errors are now resolved without a regression. The remaining six were rechecked against
-contextual, isolated, and local dictionary evidence; those signals either reinforce the current
-reading or leave a semantic ambiguity that has no bounded structural correction. The two
-geometry-clustering passes, substitution batch, direct-retry and wrapper-fragment recoveries, and
-the forty-seven latest boundary recoveries resolve 56 targets and leave two main target failures,
-both equal-length wrong-text hits in matching geometry. No known length-changing or no-hit target
-failure remains. A 140-variant direct/enhanced crop sweep produced no independent exact reading
-for either remaining substitution. The next development target is another bounded later-stage
-Kiwi correction backed by an existing complete candidate and independent contextual or dictionary
-evidence; no further bounded crop-consensus correction remains for the reviewed main target set.
-Thresholds are not frozen, and neither the untouched release
-split nor the 500-attempt foreground benchmark has been run. See
-`docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
+The v4.16 corpus rebuild corrects the two closing-audit oracle defects without mutating prior
+evidence. Standalone particles annotated as conjunctions now receive a particle-first oracle group,
+and standalone contracted copulas receive a whole-surface `linking word` component backed by
+`이다`. Runtime analysis promotes a lower-ranked standalone particle only between separately
+wrapped neighboring phrases and within the existing score margin. It recognizes only Kiwi's exact
+zero-length `이/VCP` plus target-covering `ETM` contracted-copula shape; a positive-length
+copula is a tested negative boundary. The exact v4.15-to-v4.16 diagnostic comparison removes only
+`dev-plain-1391` and `dev-plain-1926`, adds or changes no failure record, and leaves quick
+diagnostics byte-identical. The v4.16 lock SHA-256 is
+`1c5661f511a49c4931214c614b812aedf298edb746e95c951113d9829158aa62`; the accepted full aggregate
+report SHA-256 is `4aaade668b813e340e831943767f875274e07af88de739f1d5e87d0d42834d78`.
+
+The complete v4.16 development run now shows that aggregate functional context clears 88%, while
+main popup correctness and required render strata still block release evidence. Every active popup
+case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
+`dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
+context carry-forward detected a changed current case set, so its 208 historical decisions remain
+v4.15-scoped until that difference is reviewed. Two historical line/sentence reconstruction cases
+require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
+remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
+another safe general rule. The geometry-clustering, substitution, direct-retry, wrapper-fragment,
+and boundary recoveries leave two main target failures, both equal-length wrong-text hits in
+matching geometry. A 140-variant direct/enhanced crop sweep produced no independent exact reading
+for either substitution. The next development target is to reconcile the changed v4.16
+context-review case set, then continue required-render and OCR work without speculative analyzer
+rules. Thresholds are not frozen, and neither the untouched release split nor the 500-attempt
+foreground benchmark has been run. See `docs/RELEASE_BASELINE_2026-08.md` for the measurement
+breakdown.
 
 ## Required before a public v1 release
 

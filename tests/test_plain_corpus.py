@@ -205,6 +205,39 @@ def test_particle_only_oracle_component_uses_first_annotated_particle() -> None:
     assert component.entries[0].entry_id == "particle"
 
 
+def test_conjunction_particle_oracle_component_is_role_ordered() -> None:
+    token = UdToken("12", "\uacfc", "\uacfc", "CCONJ", "jcj", "", "case")
+    oracle = {
+        "\uacfc": (
+            OracleEntry("noun", "\uacfc", ((1, "department"),), "noun"),
+            OracleEntry("particle", "\uacfc", ((1, "and"),), "particle"),
+        )
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.surface == "\uacfc"
+    assert component.learner_role == "particle"
+    assert [entry.entry_id for entry in component.entries] == ["particle", "noun"]
+
+
+def test_standalone_copula_oracle_uses_a_linking_component() -> None:
+    token = UdToken("4", "\ub77c\ub294", "\uc774+\ub780", "AUX", "jp+etm", "", "cop")
+    oracle = {
+        "\uc774\ub2e4": (
+            OracleEntry("particle", "\uc774\ub2e4", ((1, "be"),), "particle"),
+            OracleEntry("verb", "\uc774\ub2e4", ((1, "be"),), "verb"),
+        )
+    }
+
+    component = _expected_components(token, oracle)[0]
+
+    assert component.surface == "\ub77c\ub294"
+    assert component.lemma == "\uc774\ub2e4"
+    assert component.learner_role == "linking word"
+    assert [entry.entry_id for entry in component.entries] == ["particle", "verb"]
+
+
 def test_oracle_noun_suffix_before_copula_remains_unattached() -> None:
     token = UdToken(
         "1",

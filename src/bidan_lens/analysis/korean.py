@@ -339,15 +339,35 @@ class KoreanAnalyzer:
             morpheme.learner_label for morpheme in alternative.morphemes
         )
         surface = sentence[start:end]
+        contextual_particle = next(
+            (
+                candidate
+                for candidate in contextual
+                if not candidate.lexical_components
+                and 'particle'
+                in {
+                    *(feature.label for feature in candidate.features),
+                    *(morpheme.learner_label for morpheme in candidate.morphemes),
+                }
+            ),
+            None,
+        )
         if (
-            not alternative.lexical_components
-            and 'particle' in alternative_labels
+            contextual_particle is not None
             and self._is_whole_surface_nominal_candidate(first)
             and self.dictionary.lookup(surface, 'particle', 1)
+            and (
+                contextual_particle is alternative
+                or (
+                    alternative.score - contextual_particle.score
+                    <= _NOUN_PARTICLE_SCORE_MARGIN
+                    and self._has_wrapped_phrase_neighbors(sentence, left, right)
+                )
+            )
         ):
             particle_entries = self._ordered_entries(surface, 'JKG')
             promoted = replace(
-                alternative,
+                contextual_particle,
                 score=first.score,
                 dictionary_entries=particle_entries,
                 lexical_components=(
@@ -517,6 +537,22 @@ class KoreanAnalyzer:
             return candidates
         promoted = replace(alternative, score=first.score, uncertain=True)
         return (promoted, first)[:max_candidates]
+
+    @staticmethod
+    def _has_wrapped_phrase_neighbors(sentence: str, left: int, right: int) -> bool:
+        before = sentence[:left].rstrip()
+        after = sentence[right:].lstrip()
+        if not before or not after:
+            return False
+        closing = before[-1]
+        opening = after[0]
+        return bool(
+            (unicodedata.category(closing) in {'Pe', 'Pf'} or closing in {'>', '"', "'"})
+            and (
+                unicodedata.category(opening) in {'Ps', 'Pi'}
+                or opening in {'<', '"', "'"}
+            )
+        )
 
     def _promote_local_itda_noun_candidate(
         self,
@@ -1018,6 +1054,13 @@ class KoreanAnalyzer:
     def _particle_candidate(
         self, surface: str, candidates: tuple[AnalysisCandidate, ...]
     ) -> AnalysisCandidate | None:
+        if (
+            candidates
+            and len(candidates[0].lexical_components) == 1
+            and candidates[0].lexical_components[0].learner_role == 'linking word'
+            and candidates[0].dictionary_entries
+        ):
+            return None
         if surface in _STANDALONE_OBJECT_PARTICLES:
             entries = self.dictionary.lookup(surface, 'particle', 10)
             if entries:
@@ -1178,6 +1221,23 @@ class KoreanAnalyzer:
                 preceding_context_form,
                 lexical_hada_context=lexical_hada_context,
             )
+            if not components:
+                copula_entries = self._contracted_copula_entries(
+                    target_tokens,
+                    surface,
+                    start,
+                    end,
+                )
+                if copula_entries:
+                    components = (
+                        LexicalComponent(
+                            surface,
+                            '\uc774\ub2e4',
+                            'linking word',
+                            copula_entries,
+                            'links the preceding noun to what follows',
+                        ),
+                    )
             context_separator = (
                 sentence[
                     preceding_context_token.start
@@ -2228,6 +2288,36 @@ class KoreanAnalyzer:
             previous_form = token.form
             index += 1
         return tuple(components)
+
+    def _contracted_copula_entries(
+        self,
+        tokens: list[_Token],
+        surface: str,
+        start: int,
+        end: int,
+    ) -> tuple[DictionaryEntry, ...]:
+        if len(tokens) != 2:
+            return ()
+        copula = next(
+            (token for token in tokens if _base_tag(token.tag) == 'VCP'),
+            None,
+        )
+        ending = next(
+            (token for token in tokens if _base_tag(token.tag) == 'ETM'),
+            None,
+        )
+        if (
+            copula is None
+            or ending is None
+            or copula.form != '\uc774'
+            or copula.start != start
+            or copula.length > 0
+            or ending.start != start
+            or ending.form != surface
+            or ending.start + max(ending.length, len(ending.form)) != end
+        ):
+            return ()
+        return self._ordered_entries('\uc774\ub2e4', 'VCP')
 
     def _has_auxiliary_entry(self, lemma: str) -> bool:
         return bool(

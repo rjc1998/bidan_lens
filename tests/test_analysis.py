@@ -2428,6 +2428,138 @@ def test_wrapper_context_recovers_a_dictionary_backed_standalone_particle() -> N
     ]
 
 
+class ContractedCopulaDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        roles = {
+            '\uc774\ub2e4': ('particle', 'verb'),
+            '\ub77c': ('noun',),
+        }.get(lemma, ())
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+def test_zero_length_contracted_copula_forms_a_linking_component() -> None:
+    analyses = [
+        (
+            [Token('\ub77c', 'NNG', 0, 1), Token('\ub294', 'JX', 1, 1)],
+            -1.0,
+        ),
+        (
+            [Token('\uc774', 'VCP', 0, 0), Token('\ub77c\ub294', 'ETM', 0, 2)],
+            -0.7,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        ContractedCopulaDictionary(),
+        FakeKiwi(analyses),
+    ).analyze('\ub77c\ub294', (0, 2))[0]
+
+    assert candidate.lemma == '\uc774\ub2e4'
+    assert candidate.lexical_components[0].surface == '\ub77c\ub294'
+    assert candidate.lexical_components[0].learner_role == 'linking word'
+    assert [entry.part_of_speech for entry in candidate.dictionary_entries] == [
+        'particle',
+        'verb',
+    ]
+
+
+def test_positive_length_copula_is_not_synthesized_as_a_contraction() -> None:
+    candidate = KoreanAnalyzer(
+        ContractedCopulaDictionary(),
+        FakeKiwi(
+            [
+                (
+                    [Token('\uc774', 'VCP', 0, 1), Token('\ub77c\ub294', 'ETM', 1, 2)],
+                    -1.0,
+                )
+            ]
+        ),
+    )._analyze_candidates('\uc774\ub77c\ub294', (0, 3), 5)[0]
+
+    assert candidate.lemma == '\uc774\ub77c\ub294'
+    assert candidate.lexical_components == ()
+
+
+class WrappedPhraseParticleDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma != '\uacfc':
+            return ()
+        roles = ('noun', 'particle')
+        if part_of_speech is not None:
+            roles = tuple(role for role in roles if role == part_of_speech)
+        return tuple(
+            DictionaryEntry(
+                lemma + role,
+                lemma,
+                role,
+                None,
+                None,
+                (DictionarySense('definition'),),
+            )
+            for role in roles[:limit]
+        )
+
+
+@pytest.mark.parametrize(
+    ('wrapped', 'unwrapped', 'span', 'expected_role'),
+    [
+        ('<\uaddc\uc728> [\uacfc] <\ud56d>', '<\uaddc\uc728> \uacfc <\ud56d>', (6, 7), 'particle'),
+        ('\uaddc\uc728 [\uacfc] \ud56d', '\uaddc\uc728 \uacfc \ud56d', (4, 5), 'noun'),
+    ],
+)
+def test_lower_ranked_wrapper_particle_requires_wrapped_phrase_neighbors(
+    wrapped: str,
+    unwrapped: str,
+    span: tuple[int, int],
+    expected_role: str,
+) -> None:
+    target_start, target_end = span
+    wrapper_start = target_start - 1
+    wrapper_end = target_end
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                unwrapped_start = unwrapped.index('\uacfc')
+                values = [
+                    ([Token('\uacfc', 'NNG', unwrapped_start, 1)], -1.0),
+                    ([Token('\uacfc', 'JCJ', unwrapped_start, 1)], -3.7),
+                ]
+            elif text == '\uacfc':
+                values = [([Token('\uacfc', 'NNG', 0, 1)], -1.0)]
+            else:
+                values = [
+                    (
+                        [
+                            Token('[', 'SSO', wrapper_start, 1),
+                            Token('\uacfc', 'NNG', target_start, 1),
+                            Token(']', 'SSC', wrapper_end, 1),
+                        ],
+                        -1.0,
+                    )
+                ]
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        WrappedPhraseParticleDictionary(),
+        WrapperKiwi([]),
+    ).analyze(wrapped, span)[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
 class WrapperDependentNounDictionary(DictionaryStore):
     def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
         if lemma != '\uc218' or part_of_speech not in {None, 'noun'}:
