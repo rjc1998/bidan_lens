@@ -76,11 +76,11 @@ privacy-safe diagnostic SHA-256 is
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.59% whole-eojeol OCR, 99.90% target selection, 91.35%
-functional context, 73.10% exact sentence transcription, 93.55% component accuracy, 95.65% exact
-KRDict fidelity, 86.25% fully correct first popups, and 96.85% alternative recovery. False
-promotions remain zero and the accepted follow-up is 220.41 ms median /
-339.08 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 102 analysis failures;
-the analysis stages are 45 primary lemmas, 46 component roles, four component counts, and seven
+functional context, 73.10% exact sentence transcription, 93.60% component accuracy, 95.70% exact
+KRDict fidelity, 86.30% fully correct first popups, and 96.85% alternative recovery. False
+promotions remain zero and the accepted follow-up is 219.21 ms median /
+337.82 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 101 analysis failures;
+the analysis stages are 44 primary lemmas, 46 component roles, four component counts, and seven
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
 
@@ -93,7 +93,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`62ea67d206b954cda83bec98d9671510fae08422b331a4f3e38c699e4b90f09e`.
+`4c243cd584b8df858343b6811f8671a691c8b0534bed401abbaa153b5cb9b389a`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -1890,6 +1890,21 @@ language are unchanged, false promotions and negative activations remain zero, a
 privacy-safe diagnostic SHA-256 is
 `62ea67d206b954cda83bec98d9671510fae08422b331a4f3e38c699e4b90f09e`.
 
+One reviewed quoted target followed an explicit object particle but ranked a fragmented
+adverb-plus-`hada` reading ahead of the existing complete action verb. The accepted correction
+requires the object-particle tag, two dictionary-backed leader components with the exact
+adverb-plus-`hada` shape, a single dictionary-backed action-verb alternative reconstructing the
+same surface, preserved learner features, no unrepresented word part, and a score gap of at most
+6.0. That contextual signature survives immediate-wrapper analysis and prevents the later
+isolated-form role tie-breaker from overriding the object evidence. An unrelated object-taking
+predicate retains its existing isolated complete-form recovery. The exact full comparison removes
+only `dev-plain-0310`, adds or changes no failure record, and leaves quick diagnostics
+byte-identical. Main component accuracy rises to 93.60%, exact KRDict fidelity to 95.70%, and
+first-popup correctness to 86.30%; false promotions and negative activations remain zero. The
+accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`b84c079afb7892892f91e09539b2d01f64fcef8279750791edfcea379a0002db` and
+`4c243cd584b8df858343b6811f8671a691c8b0534bed401abbaa153b5cb9b389a`.
+
 The complete v4.15 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. The established
 primary-lemma, component-surface, component-role, component-count, grammar-role, multi-lexical,
@@ -1899,7 +1914,7 @@ intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
 implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
-complex for another safe general rule. Four reviewed primary-lemma Kiwi errors likewise lack a
+complex for another safe general rule. Three reviewed primary-lemma Kiwi errors likewise lack a
 safe complete candidate or bounded general promotion. Fifteen of the 22 reviewed component-role
 Kiwi errors are now resolved without a regression. The remaining seven were rechecked against
 contextual, isolated, and local dictionary evidence; those signals either reinforce the current

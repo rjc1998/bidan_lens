@@ -1124,6 +1124,28 @@ language are unchanged. The accepted aggregate and privacy-safe diagnostic SHA-2
 The existing popup-review report now has 102 active and 25 resolved IDs with no missing or stale
 decision; its categorical content and hash are unchanged.
 
+A subsequent reviewed quoted target follows an explicit object particle but initially ranks a
+fragmented adverb-plus-`hada` reading ahead of the existing complete action verb. The accepted
+correction requires the object-particle tag, the exact dictionary-backed adverb-plus-`hada`
+leader shape, a single dictionary-backed action-verb alternative reconstructing the same surface,
+preserved learner features, no unrepresented word part, and a maximum 6.0-point score gap. The
+contextual signature survives immediate-wrapper analysis and prevents isolated-form evidence from
+changing the corroborated action-verb role. An unrelated object-taking predicate retains its
+existing isolated complete-form recovery.
+
+The exact full comparison removes only `dev-plain-0310` and adds or changes no failure record.
+The current main result is 98.59% OCR, 99.90% target selection, 91.35% functional context, 73.10%
+exact transcription, 93.60% components, 95.70% exact KRDict fidelity, 86.30% fully correct first
+popups, and 96.85% alternative recovery. Automated latency is 219.21 ms median / 337.82 ms p95;
+false promotions and every negative category remain zero. Main diagnostics contain two target,
+171 context, and 101 analysis failures: 44 primary lemmas, 46 component roles, four component
+counts, and seven grammar roles. Quick diagnostics are byte-identical, and stress and held-out
+language are unchanged. The accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`b84c079afb7892892f91e09539b2d01f64fcef8279750791edfcea379a0002db` and
+`4c243cd584b8df858343b6811f8671a691c8b0534bed401abbaa153b5cb9b389a`.
+The existing popup-review report now has 101 active and 26 resolved IDs with no missing or stale
+decision; its categorical content and hash are unchanged.
+
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under

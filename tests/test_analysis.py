@@ -892,6 +892,124 @@ def test_complete_inflected_candidate_promotion_is_score_bounded(
     assert candidate.lemma == expected_lemma
 
 
+@pytest.mark.parametrize(
+    ('particle_tag', 'alternative_score', 'expected_lemma', 'expected_role'),
+    [
+        ('JKO', -6.94, '\ub354\ud558\ub2e4', 'action verb'),
+        ('JKO', -6.96, '\ub354', 'adverb'),
+        ('JKS', -6.94, '\ub354', 'adverb'),
+    ],
+)
+def test_object_particle_derived_predicate_promotion_is_narrow_and_score_bounded(
+    particle_tag: str,
+    alternative_score: float,
+    expected_lemma: str,
+    expected_role: str,
+) -> None:
+    class ObjectDerivedDictionary(DictionaryStore):
+        def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+            roles = {
+                '\ub354': ('adverb',),
+                '\ud558\ub2e4': ('verb',),
+                '\ub354\ud558\ub2e4': ('verb',),
+            }.get(lemma, ())
+            if part_of_speech is not None:
+                roles = tuple(role for role in roles if role == part_of_speech)
+            return tuple(
+                DictionaryEntry(
+                    lemma + role,
+                    lemma,
+                    role,
+                    None,
+                    None,
+                    (DictionarySense('definition'),),
+                )
+                for role in roles[:limit]
+            )
+
+    particle_form = '\uc744' if particle_tag == 'JKO' else '\uc774'
+    sentence = f'\ub9e4\ub825{particle_form} "\ub354\ud560" \uac83\uc774\ub2e4'
+    contextual = [
+        (
+            [
+                Token('\ub9e4\ub825', 'NNG', 0, 2),
+                Token(particle_form, particle_tag, 2, 1),
+                Token('"', 'SSO', 4, 1),
+                Token('\ub354', 'MAG', 5, 1),
+                Token('\ud558', 'VV', 6, 1),
+                Token('\u3139', 'ETM', 6, 1),
+                Token('"', 'SSC', 7, 1),
+                Token('\uac83', 'NNB', 9, 1),
+                Token('\uc774', 'VCP', 10, 1),
+                Token('\ub2e4', 'EF', 11, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\ub9e4\ub825', 'NNG', 0, 2),
+                Token(particle_form, particle_tag, 2, 1),
+                Token('"', 'SSO', 4, 1),
+                Token('\ub354', 'MAG', 5, 1),
+                Token('\ud558', 'XSV', 6, 1),
+                Token('\u3139', 'ETM', 6, 1),
+                Token('"', 'SSC', 7, 1),
+                Token('\uac83', 'NNB', 9, 1),
+                Token('\uc774', 'VCP', 10, 1),
+                Token('\ub2e4', 'EF', 11, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    unwrapped_sentence = f'\ub9e4\ub825{particle_form} \ub354\ud560 \uac83\uc774\ub2e4'
+    unwrapped = [
+        (
+            [
+                Token(
+                    token.form,
+                    token.tag,
+                    token.start
+                    - (1 if token.start > 4 else 0)
+                    - (1 if token.start > 7 else 0),
+                    token.len,
+                )
+                for token in tokens
+                if token.start not in {4, 7}
+            ],
+            score,
+        )
+        for tokens, score in contextual
+    ]
+    isolated = [
+        (
+            [
+                Token('\ub354', 'MAG', 0, 1),
+                Token('\ud558', 'XSA', 1, 1),
+                Token('\u3139', 'ETM', 1, 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    class ContextKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == sentence:
+                values = contextual
+            elif text == unwrapped_sentence:
+                values = unwrapped
+            else:
+                values = isolated
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        ObjectDerivedDictionary(),
+        ContextKiwi([]),
+    ).analyze(sentence, (5, 7))[0]
+
+    assert candidate.lemma == expected_lemma
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
 class NominalRoleDictionary(DictionaryStore):
     def __init__(self, preferred_role: str) -> None:
         self.preferred_role = preferred_role
@@ -1964,7 +2082,7 @@ def test_isolated_complete_predicate_has_bounded_margin(
         (
             [
                 Token('그', 'NP', 0, 1),
-                Token('가', 'JKS', 1, 1),
+                Token('를', 'JKO', 1, 1),
                 Token('맡', 'VV', 3, 1),
                 Token('기', 'ETN', 4, 1),
                 Token('는', 'JX', 5, 1),
@@ -1974,7 +2092,7 @@ def test_isolated_complete_predicate_has_bounded_margin(
         (
             [
                 Token('그', 'NP', 0, 1),
-                Token('가', 'JKS', 1, 1),
+                Token('를', 'JKO', 1, 1),
                 Token('맡기', 'VV', 3, 2),
                 Token('는', 'ETM', 5, 1),
             ],
@@ -1993,7 +2111,7 @@ def test_isolated_complete_predicate_has_bounded_margin(
     candidate = KoreanAnalyzer(
         IsolatedCompleteDictionary(),
         ContextKiwi([]),
-    ).analyze('그가 맡기는…', (3, 6))[0]
+    ).analyze('그를 맡기는…', (3, 6))[0]
 
     assert candidate.lemma == expected_lemma
 

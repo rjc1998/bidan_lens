@@ -28,6 +28,9 @@ class _Token:
     length: int
 
 
+_CandidateSignature = tuple[str, tuple[tuple[str, str, str], ...]]
+
+
 _VERB_TAGS = {"VV", "VA", "VX", "VCN", "XSV", "XSA"}
 
 
@@ -57,6 +60,7 @@ _ISOLATED_INFLECTED_PREDICATE_SCORE_MARGIN = 7.0
 _ISOLATED_MULTI_COMPONENT_SCORE_MARGIN = 4.25
 _CONTEXTUAL_MULTI_COMPONENT_SCORE_MARGIN = 6.5
 _INFLECTED_VERB_SCORE_MARGIN = 0.75
+_OBJECT_PARTICLE_DERIVED_PREDICATE_SCORE_MARGIN = 6.0
 _ADNOMINAL_DEPENDENT_NOUN_SCORE_MARGIN = 1.0
 _ADNOMINAL_COPULAR_DEPENDENT_NOUN_SCORE_MARGIN = 4.3
 _COMPLETE_INFLECTED_SCORE_MARGIN = 2.0
@@ -140,12 +144,19 @@ class KoreanAnalyzer:
         sentence = unicodedata.normalize("NFC", sentence)
         start, end = target_span
         surface = sentence[start:end]
-        candidates = self._analyze_candidates(sentence, target_span, max_candidates)
+        contextual_object_action_signatures: set[_CandidateSignature] = set()
+        candidates = self._analyze_candidates(
+            sentence,
+            target_span,
+            max_candidates,
+            contextual_object_action_signatures,
+        )
         wrapper_candidates = self._promote_close_wrapper_context_candidate(
             sentence,
             target_span,
             candidates,
             max_candidates,
+            contextual_object_action_signatures,
         )
         wrapper_synthesized = bool(wrapper_candidates) and all(
             wrapper_candidates[0] is not candidate for candidate in candidates
@@ -156,6 +167,7 @@ class KoreanAnalyzer:
             surface,
             wrapper_candidates,
             max_candidates,
+            contextual_object_action_signatures,
         )
         if wrapper_synthesized:
             candidates = wrapper_candidates
@@ -294,6 +306,7 @@ class KoreanAnalyzer:
         target_span: tuple[int, int],
         candidates: tuple[AnalysisCandidate, ...],
         max_candidates: int,
+        contextual_object_action_signatures: set[_CandidateSignature] | None = None,
     ) -> tuple[AnalysisCandidate, ...]:
         if not candidates:
             return candidates
@@ -312,6 +325,7 @@ class KoreanAnalyzer:
             unwrapped,
             unwrapped_span,
             max_candidates,
+            contextual_object_action_signatures,
         )
         if not contextual:
             return candidates
@@ -587,9 +601,24 @@ class KoreanAnalyzer:
         surface: str,
         candidates: tuple[AnalysisCandidate, ...],
         max_candidates: int,
+        contextual_object_action_signatures: set[_CandidateSignature] | None = None,
     ) -> tuple[AnalysisCandidate, ...]:
         if sentence == surface or len(candidates) < 2:
             return candidates
+        if contextual_object_action_signatures:
+            for index, candidate in enumerate(candidates):
+                if (
+                    self._candidate_signature(candidate)
+                    not in contextual_object_action_signatures
+                ):
+                    continue
+                if index == 0:
+                    return candidates
+                return (
+                    candidate,
+                    *candidates[:index],
+                    *candidates[index + 1 :],
+                )
         start, end = target_span
         punctuation_or_fragment_boundary = (
             start == 0
@@ -1052,6 +1081,7 @@ class KoreanAnalyzer:
         sentence: str,
         target_span: tuple[int, int],
         max_candidates: int,
+        contextual_object_action_signatures: set[_CandidateSignature] | None = None,
     ) -> tuple[AnalysisCandidate, ...]:
         start, end = target_span
         surface = sentence[start:end]
@@ -1063,6 +1093,7 @@ class KoreanAnalyzer:
         prenominal_determiner_ids: set[int] = set()
         locative_itda_ids: set[int] = set()
         post_particle_inflected_verb_ids: set[int] = set()
+        object_particle_derived_predicate_ids: set[int] = set()
         adnominal_dependent_noun_ids: set[int] = set()
         adnominal_copular_dependent_noun_ids: set[int] = set()
         seen: set[tuple[str, tuple[tuple[str, str], ...]]] = set()
@@ -1199,6 +1230,13 @@ class KoreanAnalyzer:
             ):
                 post_particle_inflected_verb_ids.add(id(candidate))
             if (
+                preceding_context_tag == 'JKO'
+                and len(components) == 1
+                and components[0].learner_role == 'action verb'
+                and any(feature.label == 'verb ending' for feature in features)
+            ):
+                object_particle_derived_predicate_ids.add(id(candidate))
+            if (
                 following_context_tag == 'NNB'
                 and any(_base_tag(token.tag) == 'ETM' for token in target_tokens)
                 and any(
@@ -1243,8 +1281,19 @@ class KoreanAnalyzer:
             candidates, contextual_auxiliary_ids
         )
         candidates = self._promote_close_inflected_verb_after_particle(
-            candidates, post_particle_inflected_verb_ids
+            candidates,
+            post_particle_inflected_verb_ids,
+            object_particle_derived_predicate_ids,
         )
+        if (
+            contextual_object_action_signatures is not None
+            and candidates
+            and id(candidates[0]) in object_particle_derived_predicate_ids
+            and self._is_dictionary_backed_adverb_hada_derivation(candidates[0])
+        ):
+            contextual_object_action_signatures.add(
+                self._candidate_signature(candidates[0])
+            )
         candidates = self._promote_adnominal_before_dependent_noun(
             candidates,
             adnominal_dependent_noun_ids,
@@ -1653,11 +1702,25 @@ class KoreanAnalyzer:
 
     @staticmethod
     def _promote_close_inflected_verb_after_particle(
-        candidates: list[AnalysisCandidate], inflected_verb_ids: set[int]
+        candidates: list[AnalysisCandidate],
+        inflected_verb_ids: set[int],
+        object_derived_predicate_ids: set[int] | None = None,
     ) -> list[AnalysisCandidate]:
-        if not candidates or id(candidates[0]) in inflected_verb_ids:
+        if not candidates:
             return candidates
         first = candidates[0]
+        has_object_derived_alternative = bool(
+            object_derived_predicate_ids
+            and any(
+                id(candidate) in object_derived_predicate_ids
+                for candidate in candidates[1:]
+            )
+        )
+        if (
+            id(first) in inflected_verb_ids
+            and not has_object_derived_alternative
+        ):
+            return candidates
         noun_roles = {
             'noun',
             'name or proper noun',
@@ -1665,17 +1728,50 @@ class KoreanAnalyzer:
             'number',
             'dependent noun',
         }
-        if not first.lexical_components or not all(
+        if first.lexical_components and all(
             component.learner_role in noun_roles
             for component in first.lexical_components
         ):
+            for index, candidate in enumerate(candidates[1:], start=1):
+                if (
+                    id(candidate) in inflected_verb_ids
+                    and first.score - candidate.score <= _INFLECTED_VERB_SCORE_MARGIN
+                ):
+                    return [candidate, *candidates[:index], *candidates[index + 1 :]]
+        components = first.lexical_components
+        if (
+            object_derived_predicate_ids is None
+            or len(components) != 2
+            or components[0].learner_role != 'adverb'
+            or components[1].lemma != '\ud558\ub2e4'
+            or components[1].learner_role != 'action verb'
+            or not all(component.dictionary_entries for component in components)
+        ):
             return candidates
+        combined_surface = ''.join(component.surface for component in components)
+        first_features = {feature.label for feature in first.features}
         for index, candidate in enumerate(candidates[1:], start=1):
+            alternative = candidate.lexical_components
             if (
-                id(candidate) in inflected_verb_ids
-                and first.score - candidate.score <= _INFLECTED_VERB_SCORE_MARGIN
+                id(candidate) not in object_derived_predicate_ids
+                or first.score - candidate.score
+                > _OBJECT_PARTICLE_DERIVED_PREDICATE_SCORE_MARGIN
+                or len(alternative) != 1
+                or alternative[0].surface != combined_surface
+                or alternative[0].lemma != combined_surface + '\ub2e4'
+                or alternative[0].learner_role != 'action verb'
+                or not alternative[0].dictionary_entries
+                or not candidate.dictionary_entries
+                or not first_features
+                <= {feature.label for feature in candidate.features}
+                or any(
+                    morpheme.learner_label == 'word part'
+                    and morpheme.surface not in alternative[0].surface
+                    for morpheme in candidate.morphemes
+                )
             ):
-                return [candidate, *candidates[:index], *candidates[index + 1 :]]
+                continue
+            return [candidate, *candidates[:index], *candidates[index + 1 :]]
         return candidates
 
     def _promote_adnominal_before_dependent_noun(
