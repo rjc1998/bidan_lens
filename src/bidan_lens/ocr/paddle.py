@@ -989,6 +989,30 @@ def _recover_isolated_close_word_pairs(
                 and following_gap >= line_box.height * 0.61
                 and pitch_ratio >= 0.96
             )
+            relative_wide_two_plus_one_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 2
+                and len(last[0]) == 1
+                and first[2] >= 0.9995
+                and last[2] >= 0.9991
+                and 0.36 <= gap_ratio <= 0.365
+                and previous_gap >= line_box.height * 0.7
+                and following_gap >= line_box.height * 0.5
+                and pitch_ratio >= 0.94
+            )
+            relative_wide_two_plus_two_profile = (
+                previous is not None
+                and pure_hangul_pair
+                and len(first[0]) == 2
+                and len(last[0]) == 2
+                and first[2] >= 0.9999
+                and last[2] >= 0.9998
+                and 0.36 <= gap_ratio <= 0.365
+                and previous_gap >= line_box.height * 0.5
+                and following_gap >= line_box.height * 0.6
+                and pitch_ratio >= 0.97
+            )
             positive_gap_four_plus_two_profile = (
                 previous is not None
                 and pure_hangul_pair
@@ -1070,6 +1094,8 @@ def _recover_isolated_close_word_pairs(
                     or isolated_three_plus_three_profile
                     or narrow_gap_three_plus_two_profile
                     or isolated_wide_three_plus_two_profile
+                    or relative_wide_two_plus_one_profile
+                    or relative_wide_two_plus_two_profile
                     or positive_gap_four_plus_two_profile
                     or overlapping_four_plus_two_profile
                     or overlapping_four_plus_one_profile
@@ -1087,6 +1113,8 @@ def _recover_isolated_close_word_pairs(
                     or isolated_three_plus_three_profile
                     or narrow_gap_three_plus_two_profile
                     or isolated_wide_three_plus_two_profile
+                    or relative_wide_two_plus_one_profile
+                    or relative_wide_two_plus_two_profile
                     or positive_gap_four_plus_two_profile
                     or overlapping_four_plus_two_profile
                     or isolated_three_plus_one_profile
@@ -1191,6 +1219,11 @@ def _recover_isolated_close_word_pairs(
                     required_confidence = 0.9979
                 elif isolated_wide_three_plus_two_profile:
                     required_confidence = 0.9977
+                elif (
+                    relative_wide_two_plus_one_profile
+                    or relative_wide_two_plus_two_profile
+                ):
+                    required_confidence = 0.9995
                 elif positive_gap_four_plus_two_profile:
                     required_confidence = 0.997
                 elif overlapping_four_plus_two_profile:
@@ -1258,6 +1291,8 @@ def _recover_isolated_close_word_pairs(
                         or isolated_three_plus_three_profile
                         or narrow_gap_three_plus_two_profile
                         or isolated_wide_three_plus_two_profile
+                        or relative_wide_two_plus_one_profile
+                        or relative_wide_two_plus_two_profile
                         or positive_gap_four_plus_two_profile
                         or overlapping_four_plus_two_profile
                         or isolated_three_plus_one_profile
@@ -1306,14 +1341,24 @@ def _recover_isolated_close_word_pairs(
                                 isolated_three_plus_one_profile
                                 or isolated_wide_three_plus_one_profile
                                 or narrow_gap_three_plus_two_profile
+                                or relative_wide_two_plus_one_profile
+                                or relative_wide_two_plus_two_profile
                             ):
                                 competing_limit = 0.99
                             else:
                                 competing_limit = 0.995
-                            competing_confidence = recognizer.recognize(
-                                competing_crop
-                            ).confidence
-                            if competing_confidence >= competing_limit:
+                            competing = recognizer.recognize(competing_crop)
+                            explicit_boundary_support = (
+                                (
+                                    relative_wide_two_plus_one_profile
+                                    or relative_wide_two_plus_two_profile
+                                )
+                                and ' ' in competing.text.strip()
+                            )
+                            if (
+                                competing.confidence >= competing_limit
+                                and not explicit_boundary_support
+                            ):
                                 has_strong_competitor = True
                                 break
                         if has_strong_competitor:

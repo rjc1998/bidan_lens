@@ -8915,6 +8915,187 @@ def test_relative_gap_two_plus_two_pair_rejects_ordinary_space() -> None:
     )
 
 
+class RelativeWideSplitRecognizer:
+    def __init__(
+        self,
+        candidate_width: int,
+        candidate_text: str,
+        *,
+        candidate_confidence: float = 0.9996,
+        competitor_confidence: float = 0.8,
+        competitor_text: str = 'competing',
+    ) -> None:
+        self.candidate_width = candidate_width
+        self.candidate_text = candidate_text
+        self.candidate_confidence = candidate_confidence
+        self.competitor_confidence = competitor_confidence
+        self.competitor_text = competitor_text
+
+    def recognize(self, image):
+        if image.width == self.candidate_width:
+            return RecognizedText(self.candidate_text, self.candidate_confidence)
+        return RecognizedText(self.competitor_text, self.competitor_confidence)
+
+
+@pytest.mark.parametrize(
+    ('words', 'candidate_width', 'candidate_text', 'merged_box'),
+    [
+        (
+            [
+                ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+                ('말이', BoundingBox(44, 0, 80, 20), 0.9996),
+                ('나', BoundingBox(87.2, 0, 104.2, 20), 0.9991),
+                ('뒷말', BoundingBox(114.2, 0, 146.2, 20), 0.999),
+            ],
+            61,
+            '말이나',
+            BoundingBox(44, 0, 104.2, 20),
+        ),
+        (
+            [
+                ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+                ('우리', BoundingBox(40, 0, 77, 20), 0.9999),
+                ('나라', BoundingBox(84.2, 0, 122.2, 20), 0.9999),
+                ('뒷말', BoundingBox(134.3, 0, 164.3, 20), 0.999),
+            ],
+            83,
+            '우리나라',
+            BoundingBox(40, 0, 122.2, 20),
+        ),
+    ],
+)
+def test_relative_wide_hangul_pair_merges_exact_union(
+    words,
+    candidate_width: int,
+    candidate_text: str,
+    merged_box: BoundingBox,
+) -> None:
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new('RGB', (180, 20)),
+        BoundingBox(0, 0, 180, 20),
+        RelativeWideSplitRecognizer(candidate_width, candidate_text),
+    )
+
+    assert recovered == [
+        words[0],
+        (candidate_text, merged_box, min(words[1][2], words[2][2], 0.9996)),
+        words[3],
+    ]
+
+
+@pytest.mark.parametrize(
+    ('words', 'candidate_width', 'candidate_text'),
+    [
+        (
+            [
+                ('앞말', BoundingBox(0, 0, 34, 20), 0.999),
+                ('말이', BoundingBox(44, 0, 80, 20), 0.9996),
+                ('나', BoundingBox(87.2, 0, 104.2, 20), 0.9991),
+                ('뒷말', BoundingBox(114.2, 0, 146.2, 20), 0.999),
+            ],
+            61,
+            '말이나',
+        ),
+        (
+            [
+                ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+                ('우리', BoundingBox(40, 0, 77, 20), 0.9999),
+                ('나라', BoundingBox(84.2, 0, 122.2, 20), 0.9999),
+                ('뒷말', BoundingBox(132.2, 0, 164.2, 20), 0.999),
+            ],
+            83,
+            '우리나라',
+        ),
+    ],
+)
+def test_relative_wide_hangul_pair_requires_wider_neighbors(
+    words,
+    candidate_width: int,
+    candidate_text: str,
+) -> None:
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new('RGB', (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            RelativeWideSplitRecognizer(candidate_width, candidate_text),
+        )
+        == words
+    )
+
+
+def test_relative_wide_hangul_pair_rejects_strong_competitor() -> None:
+    words = [
+        ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+        ('말이', BoundingBox(44, 0, 80, 20), 0.9996),
+        ('나', BoundingBox(87.2, 0, 104.2, 20), 0.9991),
+        ('뒷말', BoundingBox(114.2, 0, 146.2, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new('RGB', (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            RelativeWideSplitRecognizer(
+                61,
+                '말이나',
+                competitor_confidence=0.99,
+            ),
+        )
+        == words
+    )
+
+
+def test_relative_wide_two_plus_two_pair_requires_part_confidence() -> None:
+    words = [
+        ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+        ('우리', BoundingBox(40, 0, 77, 20), 0.9999),
+        ('나라', BoundingBox(84.2, 0, 122.2, 20), 0.99979),
+        ('뒷말', BoundingBox(134.3, 0, 164.3, 20), 0.999),
+    ]
+
+    assert (
+        _recover_isolated_close_word_pairs(
+            words,
+            Image.new('RGB', (180, 20)),
+            BoundingBox(0, 0, 180, 20),
+            RelativeWideSplitRecognizer(83, '우리나라'),
+        )
+        == words
+    )
+
+
+def test_relative_wide_hangul_pair_accepts_explicit_boundary_competitor() -> None:
+    words = [
+        ('앞말', BoundingBox(0, 0, 30, 20), 0.999),
+        ('말이', BoundingBox(44, 0, 80, 20), 0.9996),
+        ('나', BoundingBox(87.2, 0, 104.2, 20), 0.9991),
+        ('뒷말', BoundingBox(114.2, 0, 146.2, 20), 0.999),
+    ]
+
+    assert _recover_isolated_close_word_pairs(
+        words,
+        Image.new('RGB', (180, 20)),
+        BoundingBox(0, 0, 180, 20),
+        RelativeWideSplitRecognizer(
+            61,
+            '말이나',
+            competitor_confidence=0.999,
+            competitor_text='앞말 말이',
+        ),
+    ) == [
+        words[0],
+        (
+            '말이나',
+            BoundingBox(44, 0, 104.2, 20),
+            0.9991,
+        ),
+        words[3],
+    ]
+
+
 class ConfirmedWrappedFourSyllableTripletRecognizer:
     def __init__(
         self,
