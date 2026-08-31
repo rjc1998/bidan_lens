@@ -2247,6 +2247,89 @@ def test_wrapper_context_recovers_a_dictionary_backed_standalone_particle() -> N
     ]
 
 
+class WrapperDependentNounDictionary(DictionaryStore):
+    def lookup(self, lemma: str, part_of_speech=None, limit: int = 10):
+        if lemma != '\uc218' or part_of_speech not in {None, 'noun'}:
+            return ()
+        return (
+            DictionaryEntry(
+                'number-of-ways',
+                lemma,
+                'noun',
+                None,
+                None,
+                (DictionarySense('definition'),),
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ('alternative_score', 'expected_role'),
+    [(-4.0, 'dependent noun'), (-4.1, 'noun')],
+)
+def test_wrapper_context_dependent_noun_promotion_is_score_bounded(
+    alternative_score: float,
+    expected_role: str,
+) -> None:
+    wrapped = '\uba39\uc744 [\uc218] \uc788\ub2e4'
+    unwrapped = '\uba39\uc744 \uc218 \uc788\ub2e4'
+    wrapped_analyses = [
+        (
+            [
+                Token('\uba39', 'VV', 0, 1),
+                Token('\uc744', 'ETM', 1, 1),
+                Token('[', 'SSO', 3, 1),
+                Token('\uc218', 'NNG', 4, 1),
+                Token(']', 'SSC', 5, 1),
+                Token('\uc788', 'VA', 7, 1),
+                Token('\ub2e4', 'EF', 8, 1),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uba39', 'VV', 0, 1),
+                Token('\uc744', 'ETM', 1, 1),
+                Token('[', 'SSO', 3, 1),
+                Token('\uc218', 'NNB', 4, 1),
+                Token(']', 'SSC', 5, 1),
+                Token('\uc788', 'VA', 7, 1),
+                Token('\ub2e4', 'EF', 8, 1),
+            ],
+            alternative_score,
+        ),
+    ]
+    unwrapped_analyses = [
+        (
+            [
+                Token('\uba39', 'VV', 0, 1),
+                Token('\uc744', 'ETM', 1, 1),
+                Token('\uc218', 'NNB', 3, 1),
+                Token('\uc788', 'VA', 5, 1),
+                Token('\ub2e4', 'EF', 6, 1),
+            ],
+            -1.0,
+        )
+    ]
+
+    class WrapperKiwi(FakeKiwi):
+        def analyze(self, text: str, top_n: int = 1):
+            if text == unwrapped:
+                values = unwrapped_analyses
+            elif text == '\uc218':
+                values = [([Token('\uc218', 'NNG', 0, 1)], -1.0)]
+            else:
+                values = wrapped_analyses
+            return values[:top_n]
+
+    candidate = KoreanAnalyzer(
+        WrapperDependentNounDictionary(),
+        WrapperKiwi([]),
+    ).analyze(wrapped, (4, 5))[0]
+
+    assert candidate.lexical_components[0].learner_role == expected_role
+
+
 def test_wrapper_context_recovers_a_copular_adnominal_before_a_dependent_noun() -> None:
     wrapped = '전자의 /경우일/ 터'
     unwrapped = '전자의 경우일 터'

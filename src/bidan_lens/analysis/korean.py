@@ -46,6 +46,7 @@ _MULTI_COMPONENT_SCORE_MARGIN = 2.0
 _SAME_LEMMA_AUXILIARY_SCORE_MARGIN = 1.5
 _GE_DOEDA_AUXILIARY_SCORE_MARGIN = 10.0
 _WRAPPER_CONTEXT_SCORE_MARGIN = 1.0
+_WRAPPER_CONTEXT_DEPENDENT_NOUN_SCORE_MARGIN = 3.1
 _WRAPPER_CORROBORATED_ADVERB_SCORE_MARGIN = 6.0
 _LOCAL_ITDA_NOUN_SCORE_MARGIN = 4.5
 _ISOLATED_VERB_ROLE_SCORE_MARGIN = 2.0
@@ -372,10 +373,18 @@ class KoreanAnalyzer:
         for index, candidate in enumerate(candidates[1:], start=1):
             if self._candidate_signature(candidate) != signature:
                 continue
+            wrapper_margin = _WRAPPER_CONTEXT_SCORE_MARGIN
+            if (
+                self._is_whole_surface_nominal_candidate(first)
+                and self._is_whole_surface_nominal_candidate(candidate)
+                and first.lexical_components[0].learner_role == 'noun'
+                and candidate.lexical_components[0].learner_role == 'dependent noun'
+            ):
+                wrapper_margin = _WRAPPER_CONTEXT_DEPENDENT_NOUN_SCORE_MARGIN
             if (
                 candidate.dictionary_entries
                 and candidates[0].score - candidate.score
-                <= _WRAPPER_CONTEXT_SCORE_MARGIN
+                <= wrapper_margin
             ):
                 return (candidate, *candidates[:index], *candidates[index + 1 :])
             first_component = first.lexical_components

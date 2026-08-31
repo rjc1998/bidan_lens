@@ -61,25 +61,25 @@ the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experim
 but rejected because it changed more already-visible geometry than the viewport defect required.
 
 The accepted v4.15 200-case quick tier records 99.32% whole-eojeol OCR, 100.00% target
-selection, 96.00% functional context, 76.00% exact sentence transcription, 94.50% component
-accuracy, 95.50% exact KRDict fidelity, and 91.50% fully correct first popups, with 236.07 ms
-median / 358.54 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
-promotions remain zero. Its remaining failures are nine analysis cases (four primary lemmas and
-five component roles) and eight context cases; no target failures remain. Aggregate and per-category
+selection, 96.00% functional context, 76.00% exact sentence transcription, 95.00% component
+accuracy, 95.50% exact KRDict fidelity, and 92.00% fully correct first popups, with 276.72 ms
+median / 391.84 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
+promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
+four component roles) and eight context cases; no target failures remain. Aggregate and per-category
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
 The aggregate report SHA-256 is
-`fa806860ecfef7988d490e3f01b374aa66f15bb71e4ea8e7d4f4c7c45ab54093`; the
+`d3d415e532281efe2598c170283f8e08b3c5ff6e9651783cd3167e21ce27fb61`; the
 privacy-safe diagnostic SHA-256 is
-`0639ae2e1a7c55a6cbb2d125cb0082aa50bd67c7d49109ff773f51c903f9d47b`.
+`27818279c41c530f7ff8fb185bb92dfc7c2745b6a40b5cb3325222d05f433f07`.
 
 The complete v4.15 development evaluation has now run against the current OCR and analyzer
 cleanup. Its 2,000 main cases record 98.59% whole-eojeol OCR, 99.90% target selection, 91.35%
-functional context, 73.10% exact sentence transcription, 93.30% component accuracy, 95.60% exact
-KRDict fidelity, 86.10% fully correct first popups, and 96.85% alternative recovery. False
-promotions remain zero and the accepted follow-up is 235.43 ms median /
-361.92 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 105 analysis failures;
-the analysis stages are 46 primary lemmas, 48 component roles, four component counts, and seven
+functional context, 73.10% exact sentence transcription, 93.50% component accuracy, 95.60% exact
+KRDict fidelity, 86.20% fully correct first popups, and 96.85% alternative recovery. False
+promotions remain zero and the accepted follow-up is 271.91 ms median /
+417.82 ms p95. Privacy-safe diagnostics contain 2 target, 171 context, and 103 analysis failures;
+the analysis stages are 46 primary lemmas, 46 component roles, four component counts, and seven
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
 
@@ -92,7 +92,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`d8a9de3d89932601835f214ddd8d7b9c180e72370d316c54d5116f7d13c93e33`.
+`05b8b4211050b688b9c373b0e3ec93aba18f1a329e51d8049045b0207ec6d25a`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -1466,6 +1466,19 @@ transcription, alternative recovery, quick metrics, stress, held-out language, p
 negative probes do not regress. The full diagnostic SHA-256 is
 `d8a9de3d89932601835f214ddd8d7b9c180e72370d316c54d5116f7d13c93e33`.
 
+The next categorical review classifies `dev-plain-0147` and `dev-plain-1391` as Kiwi-analysis
+errors, `dev-plain-0220` as an annotation-convention difference, and `dev-plain-1578` as an
+equivalent learner interpretation. Removing the synthetic brackets around `dev-plain-0147`
+makes Kiwi's complete dependent-noun reading lead, while the wrapped reading trails a complete
+noun by 3.076 score points. The accepted wrapper-context promotion therefore extends the
+dictionary-backed margin from 1.0 to 3.1 only for a complete noun-to-dependent-noun alternative
+that exactly matches the unwrapped contextual leader. The exact full comparison removes
+`dev-plain-0147` and the already reviewed bracketed month-unit convention case
+`dev-plain-0759`, with no addition or stage change. The quick comparison removes only
+`dev-plain-0147`. `dev-plain-1391` has no complete particle candidate to promote, so no
+speculative synthesis is added; the other two reviewed cases already provide learner-useful
+analyses.
+
 The first-popup reviewer now has the same separately scoped full-tier mode, repeated stable-ID
 batch inspection, structure-only output, batch categorical recording, and matching-only migration
 for an oracle-corrected corpus. Full reports use the `first_popup_analysis_full` kind and cannot
@@ -1475,13 +1488,11 @@ defects, and six genuinely ambiguous cases. Its SHA-256 is
 `76d089614630f196eb4c003382e2879756bf349fda2b5aaa8eb4e7cbdbb9aed5`.
 The v4.13 history then contains 112 active decisions; its SHA-256 is
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
-The current v4.15 report contains 123 decisions: 31 Kiwi-analysis errors, 42 annotation-
-convention differences, 35 equivalent learner interpretations, eight corpus-oracle defects,
-and seven genuinely ambiguous cases. The current evidence has 105 active cases and 22 resolved
-IDs, with no stale decision. `dev-plain-0147`, `dev-plain-0220`, `dev-plain-1391`, and
-`dev-plain-1578` remain unclassified, so the audit correctly reports four missing decisions.
-Its SHA-256 is
-`8b1465eb411989c254f7985446f33c4082c9ac7c9d001c5b5d45ad0b2c204622`.
+The current v4.15 report contains 127 decisions: 33 Kiwi-analysis errors, 43 annotation-
+convention differences, 36 equivalent learner interpretations, eight corpus-oracle defects,
+and seven genuinely ambiguous cases. The current evidence has 103 active cases and 24 resolved
+IDs, with no missing or stale decision. Its SHA-256 is
+`8b58b85b6c714e402ffd18090df129e2e127ff2df8bf5b2f883d3828ca22f32d`.
 
 The second full-tier review batch exposed repeated noun-plus-`화` derivations that Kiwi split into
 a noun, derivational noun suffix, and action-verb suffix even though KRDict contains the complete
@@ -1870,14 +1881,14 @@ SHA-256 is `2534d28a3bf9650f8a61120a6577e7e3397fc5a3e87f1c8b8544772d38913765`.
 The complete v4.15 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. The established
 primary-lemma, component-surface, component-role, component-count, grammar-role, multi-lexical,
-and negative-activation review remains classified, while four newly exposed popup cases still
-need categorical decisions. Two line/sentence reconstruction cases remain active because their
+and negative-activation review remains classified, including every newly exposed popup case.
+Two line/sentence reconstruction cases remain active because their
 intended punctuation
 or English text cannot be inferred from reliable runtime evidence; no speculative rule is
 implemented. All nine active reviewed missed-or-merged OCR word-boundary cases are now
 characterized, and the remaining evidence is too weak, punctuation-dependent, ambiguous, or
 complex for another safe general rule. Five reviewed primary-lemma Kiwi errors likewise lack a
-safe complete candidate or bounded general promotion. Fourteen of the 21 reviewed component-role
+safe complete candidate or bounded general promotion. Fifteen of the 22 reviewed component-role
 Kiwi errors are now resolved without a regression. The remaining seven were rechecked against
 contextual, isolated, and local dictionary evidence; those signals either reinforce the current
 reading or leave a semantic ambiguity that has no bounded structural correction. The two
@@ -1885,9 +1896,9 @@ geometry-clustering passes, substitution batch, direct-retry and wrapper-fragmen
 the forty-seven latest boundary recoveries resolve 56 targets and leave two main target failures,
 both equal-length wrong-text hits in matching geometry. No known length-changing or no-hit target
 failure remains. A 140-variant direct/enhanced crop sweep produced no independent exact reading
-for either remaining substitution. The next development target is categorical review of the four
-newly exposed popup cases, followed by any bounded correction their evidence supports; no further
-bounded crop-consensus correction remains for the reviewed main target set.
+for either remaining substitution. The next development target is another bounded later-stage
+Kiwi correction backed by an existing complete candidate and independent contextual or dictionary
+evidence; no further bounded crop-consensus correction remains for the reviewed main target set.
 Thresholds are not frozen, and neither the untouched release
 split nor the 500-attempt foreground benchmark has been run. See
 `docs/RELEASE_BASELINE_2026-08.md` for the measurement breakdown.
