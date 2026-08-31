@@ -12,6 +12,7 @@ from benchmarks.context_review import (
     ContextReviewDecision,
     audit_context_review,
     carry_forward_context_decisions,
+    carry_forward_matching_context_decisions,
     inspection_context_cases,
     load_context_review,
     record_context_decision,
@@ -188,6 +189,28 @@ def test_context_review_carry_forward_requires_every_current_id() -> None:
 
     with pytest.raises(CorpusError, match='current cases changed'):
         carry_forward_context_decisions(cases, ())  # type: ignore[arg-type]
+
+
+def test_context_review_can_carry_forward_only_matching_reviewed_cases() -> None:
+    cases = (
+        SimpleNamespace(sample=SimpleNamespace(sample_id='reviewed')),
+        SimpleNamespace(sample=SimpleNamespace(sample_id='new')),
+    )
+    prior = (
+        ContextReviewDecision(
+            'reviewed',
+            'incorrect_line_sentence_reconstruction',
+        ),
+        ContextReviewDecision(
+            'resolved',
+            'missed_or_merged_ocr_word_boundary',
+        ),
+    )
+
+    assert carry_forward_matching_context_decisions(  # type: ignore[arg-type]
+        cases,
+        prior,
+    ) == (prior[0],)
 
 
 def test_context_review_rejects_unknown_decision(tmp_path: Path) -> None:

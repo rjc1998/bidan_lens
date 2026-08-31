@@ -175,10 +175,11 @@ When a new development corpus intentionally preserves the reviewed quick cases, 
 `--carry-forward PRIOR_DECISIONS` with either reviewer. It writes a new report only when every
 current stable ID is present in the prior report; the popup reviewer additionally requires an
 exact failure-stage match. It refuses to overwrite an existing report and carries no corpus text.
-When a corrected oracle intentionally resolves reviewed cases while exposing new cases, the popup
-reviewer also supports `--carry-forward-matching PRIOR_DECISIONS`. It copies only current stable
-IDs whose failure stage still matches, rejects stage changes, and leaves every new case explicitly
-missing in the resulting audit. Resolved history remains in the prior report.
+When a corrected corpus intentionally resolves reviewed cases while exposing new cases, both
+reviewers support `--carry-forward-matching PRIOR_DECISIONS`. They copy only current stable IDs
+and leave every new case explicitly missing in the resulting audit. The popup reviewer also
+requires the failure stage to match and rejects stage changes. Resolved history remains in the
+prior report.
 
 Run the complete development corpus until its provisional gates pass and the thresholds are
 explicitly frozen. Build and lock the release corpus beforehand, but do not evaluate it until

@@ -85,13 +85,16 @@ The full aggregate report and privacy-safe diagnostic SHA-256 values are
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
-main image. The current 208-decision review is 90 non-target OCR transcription errors, 68 punctuation
-or structured-text cases, 43 missed or merged OCR word boundaries, and seven incorrect line/sentence
-reconstructions. The v4.15 full diagnostics had 170 active context cases; its fail-closed audit
-found every active ID reviewed with no missing decisions and 38 resolved IDs. Cross-lock
-carry-forward accepts a prior corpus ID while still requiring the same review scope and every
-current stable ID. The strict v4.16 carry-forward detected a changed current case set and refused
-to write a report, so context decisions remain explicitly v4.15-scoped pending review.
+main image. The v4.15 history contains 208 decisions: 90 non-target OCR transcription errors, 68
+punctuation or structured-text cases, 43 missed or merged OCR word boundaries, and seven incorrect
+line/sentence reconstructions. Matching-only carry-forward copies reviewed current IDs without
+weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration retained
+all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified its two
+inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed audit now covers
+all 171 current cases: 90 non-target transcription errors, 68 punctuation or structured-text cases,
+11 word-boundary cases, and two line/sentence reconstructions, with no missing or resolved ID.
+The decision report SHA-256 is
+`0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.
 The additional
 transcription category distinguishes non-target character
 substitution or omission from sentence reconstruction and target-span defects. Three reconstruction

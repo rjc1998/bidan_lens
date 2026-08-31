@@ -98,18 +98,19 @@ The current privacy-safe diagnostic SHA-256 is
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
 initialization and categorized one stable ID at a time, writing each categorical decision
-immediately. The current 208-decision review contains 90 non-target OCR transcription errors, 68
+immediately. The v4.15 history contains 208 decisions: 90 non-target OCR transcription errors, 68
 punctuation or structured-text cases, 43 missed or merged OCR word boundaries, and seven incorrect
 line/sentence reconstructions. The added transcription category
 covers substitutions or omissions outside the correct target when line reconstruction and target
 geometry are otherwise intact. The full report contains only its corpus ID, review scope, stable
-IDs, categorical decisions, and counts. The v4.15 reviewed diagnostics had 170 active context
-cases; its fail-closed audit found every active ID reviewed, with no missing decisions and
-38 resolved IDs. Cross-lock carry-forward accepts a prior corpus ID while still requiring the same
-review scope and every current stable ID. The strict v4.16 carry-forward detected a changed current
-case set and refused to write a report, so context decisions remain explicitly v4.15-scoped pending
-review of that difference. The v4.15 decision report SHA-256 is
-`0d6907855e33e6e58fbb6a2468c891234c6256a6398b943e60de58588bda7c39`.
+IDs, categorical decisions, and counts. Matching-only carry-forward copies reviewed current IDs
+without weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration
+retained all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified
+its two inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed v4.16
+audit now covers all 171 active cases: 90 non-target transcription errors, 68 punctuation or
+structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions, with no
+missing or resolved ID. The decision report SHA-256 is
+`0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.
 
 Three independently reviewed reconstruction cases contained a one-character eojeol centered
 inside a two-character eojeol while exactly repeating its punctuation-normalized suffix. The
@@ -1944,18 +1945,17 @@ The complete v4.16 development run now shows that aggregate functional context c
 main popup correctness and required render strata still block release evidence. Every active popup
 case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
 `dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
-context carry-forward detected a changed current case set, so its 208 historical decisions remain
-v4.15-scoped until that difference is reviewed. Two historical line/sentence reconstruction cases
-require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
+context matching migration retained 170 prior active decisions and exposed one new boundary case;
+the recorded decision and full audit now cover all 171 current cases. Two historical line/sentence
+reconstruction cases require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
 remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
 another safe general rule. The geometry-clustering, substitution, direct-retry, wrapper-fragment,
 and boundary recoveries leave two main target failures, both equal-length wrong-text hits in
 matching geometry. A 140-variant direct/enhanced crop sweep produced no independent exact reading
-for either substitution. The next development target is to reconcile the changed v4.16
-context-review case set, then continue required-render and OCR work without speculative analyzer
-rules. Thresholds are not frozen, and neither the untouched release split nor the 500-attempt
-foreground benchmark has been run. See `docs/RELEASE_BASELINE_2026-08.md` for the measurement
-breakdown.
+for either substitution. The next development target is required-render and OCR work without
+speculative analyzer rules. Thresholds are not frozen, and neither the untouched release split nor
+the 500-attempt foreground benchmark has been run. See `docs/RELEASE_BASELINE_2026-08.md` for the
+measurement breakdown.
 
 ## Required before a public v1 release
 

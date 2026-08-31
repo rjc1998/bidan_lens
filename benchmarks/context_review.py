@@ -169,13 +169,24 @@ def carry_forward_context_decisions(
     prior: tuple[ContextReviewDecision, ...],
 ) -> tuple[ContextReviewDecision, ...]:
     current = {item.sample.sample_id for item in cases}
-    reviewed = {item.sample_id: item for item in prior}
-    missing = sorted(current - set(reviewed))
+    matching = carry_forward_matching_context_decisions(cases, prior)
+    missing = sorted(current - {item.sample_id for item in matching})
     if missing:
         raise CorpusError(
             'context review cannot be carried forward because current cases changed'
         )
-    return tuple(reviewed[sample_id] for sample_id in sorted(current))
+    return matching
+
+
+def carry_forward_matching_context_decisions(
+    cases: tuple[ContextReviewCase, ...],
+    prior: tuple[ContextReviewDecision, ...],
+) -> tuple[ContextReviewDecision, ...]:
+    current = {item.sample.sample_id for item in cases}
+    reviewed = {item.sample_id: item for item in prior}
+    return tuple(
+        reviewed[sample_id] for sample_id in sorted(current & set(reviewed))
+    )
 
 
 def audit_context_review(
@@ -847,7 +858,13 @@ def main() -> None:
         '--carry-forward',
         type=Path,
         metavar='PRIOR_DECISIONS',
-        help='copy only matching categorical decisions from a prior corpus',
+        help='copy every current categorical decision from a prior corpus',
+    )
+    parser.add_argument(
+        '--carry-forward-matching',
+        type=Path,
+        metavar='PRIOR_DECISIONS',
+        help='copy matching reviewed cases and leave new cases missing',
     )
     parser.add_argument(
         '--compact',
@@ -936,15 +953,20 @@ def main() -> None:
         parser.error('--target-geometry cannot be combined with another review mode')
     if arguments.target_segmentation and not arguments.target_geometry:
         parser.error('--target-segmentation requires --target-geometry')
-    if arguments.carry_forward and (
+    carry_forward_path = (
+        arguments.carry_forward or arguments.carry_forward_matching
+    )
+    if arguments.carry_forward and arguments.carry_forward_matching:
+        parser.error('choose only one carry-forward mode')
+    if carry_forward_path and (
         arguments.inspect
         or arguments.audit
         or arguments.target_geometry
         or arguments.record_decision
     ):
-        parser.error('--carry-forward cannot be combined with another review mode')
-    if arguments.carry_forward and arguments.decisions.is_file():
-        parser.error('--carry-forward refuses to replace an existing decision report')
+        parser.error('carry-forward cannot be combined with another review mode')
+    if carry_forward_path and arguments.decisions.is_file():
+        parser.error('carry-forward refuses to replace an existing decision report')
 
     validate_plain_corpus(arguments.corpus)
     corpus_id, locked = _lock_files(arguments.corpus)
@@ -993,13 +1015,16 @@ def main() -> None:
             scope = 'full-tier' if arguments.full else 'quick-tier'
             parser.error(f'unknown {scope} sample ID: {missing[0]}')
     cases = collect_context_review_cases(engine, case_samples)
-    if arguments.carry_forward:
+    if carry_forward_path:
         prior = load_context_review(
-            arguments.carry_forward,
+            carry_forward_path,
             None,
             review_kind,
         )
-        decisions = carry_forward_context_decisions(cases, prior)
+        if arguments.carry_forward_matching:
+            decisions = carry_forward_matching_context_decisions(cases, prior)
+        else:
+            decisions = carry_forward_context_decisions(cases, prior)
         write_context_review(
             arguments.decisions,
             corpus_id,
