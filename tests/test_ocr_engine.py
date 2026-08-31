@@ -34,6 +34,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_mismatched_curly_three_plus_three_split,
     _recover_confirmed_mismatched_curly_two_plus_one_split,
     _recover_confirmed_mismatched_wrapped_three_plus_one_split,
+    _recover_confirmed_misplaced_curly_single_plus_structured_split,
     _recover_confirmed_numeric_ellipsis_tail_split,
     _recover_confirmed_one_plus_one_split,
     _recover_confirmed_paired_wrapped_four_plus_two_split,
@@ -17957,3 +17958,428 @@ def test_engine_recovers_mismatched_curly_four_plus_four_segment() -> None:
     assert line.eojeols[3].text == _MISMATCHED_CURLY_FOUR_TARGET
     assert line.eojeols[3].box.left == pytest.approx(410.3066666666667)
     assert line.eojeols[3].box.right == pytest.approx(504.97333333333336)
+
+_MISPLACED_CURLY_STRUCTURED_LINE = BoundingBox(
+    95.64,
+    638.804347826087,
+    724.36,
+    700.4347826086956,
+)
+_MISPLACED_CURLY_STRUCTURED_SEGMENTS = (
+    (0, 174),
+    (173, 352),
+    (351, 630),
+)
+_MISPLACED_CURLY_STRUCTURED_TARGET = chr(0xACFC)
+_MISPLACED_CURLY_STRUCTURED_FOLLOWING = "<8" + chr(0xD56D)
+_MISPLACED_CURLY_STRUCTURED_WRAPPER = (
+    chr(0x2018) + _MISPLACED_CURLY_STRUCTURED_TARGET + chr(0x2019)
+)
+_MISPLACED_CURLY_STRUCTURED_ASCII_WRAPPER = (
+    "'" + _MISPLACED_CURLY_STRUCTURED_TARGET + "'"
+)
+_MISPLACED_CURLY_STRUCTURED_RAW = (
+    chr(0x2018)
+    + _MISPLACED_CURLY_STRUCTURED_TARGET
+    + "'"
+    + _MISPLACED_CURLY_STRUCTURED_FOLLOWING
+    + chr(0x2019)
+)
+_MISPLACED_CURLY_STRUCTURED_TEXTS = (
+    "<3" + chr(0xB300),
+    chr(0xADDC) + chr(0xC728) + ">",
+    _MISPLACED_CURLY_STRUCTURED_RAW,
+)
+_MISPLACED_CURLY_STRUCTURED_CTC = {
+    **{
+        threshold: ((0, 121), (120, 279))
+        for threshold in (0.0001, 0.0003, 0.0005, 0.001)
+    },
+    **{
+        threshold: ((0, 279),)
+        for threshold in (
+            0.002,
+            0.003,
+            0.005,
+            0.007,
+            0.01,
+            0.015,
+            0.02,
+            0.03,
+            0.04,
+            0.05,
+            0.07,
+        )
+    },
+}
+
+
+def misplaced_curly_structured_crop() -> Image.Image:
+    crop = Image.new("RGB", (630, 63))
+    for intensity, (left, right) in zip(
+        (10, 20, 90),
+        _MISPLACED_CURLY_STRUCTURED_SEGMENTS,
+        strict=True,
+    ):
+        crop.paste((intensity, intensity, intensity), (left, 0, right, 63))
+    candidate_left = _MISPLACED_CURLY_STRUCTURED_SEGMENTS[2][0]
+    crop.paste((100, 100, 100), (candidate_left, 0, candidate_left + 36, 63))
+    crop.paste((110, 110, 110), (candidate_left + 15, 0, candidate_left + 90, 63))
+    crop.paste((120, 120, 120), (candidate_left + 75, 0, candidate_left + 125, 63))
+    crop.paste((130, 130, 130), (candidate_left + 115, 0, candidate_left + 279, 63))
+    return crop
+
+
+def misplaced_curly_structured_words(
+    *,
+    selected: bool = True,
+    candidate_text: str = _MISPLACED_CURLY_STRUCTURED_RAW,
+    candidate_confidence: float | None = None,
+    candidate_box: BoundingBox | None = None,
+    first_text: str = _MISPLACED_CURLY_STRUCTURED_TEXTS[0],
+) -> list[tuple[str, BoundingBox, float]]:
+    if candidate_confidence is None:
+        candidate_confidence = 0.508923 if selected else 0.495151
+    confidences = (0.995817, 0.995666, candidate_confidence)
+    values = []
+    for index, ((left, right), text, confidence) in enumerate(
+        zip(
+            _MISPLACED_CURLY_STRUCTURED_SEGMENTS,
+            _MISPLACED_CURLY_STRUCTURED_TEXTS,
+            confidences,
+            strict=True,
+        )
+    ):
+        if index == 0:
+            text = first_text
+        if index == 2:
+            text = candidate_text
+        box = BoundingBox(
+            _MISPLACED_CURLY_STRUCTURED_LINE.left + left,
+            _MISPLACED_CURLY_STRUCTURED_LINE.top,
+            _MISPLACED_CURLY_STRUCTURED_LINE.left + right,
+            _MISPLACED_CURLY_STRUCTURED_LINE.bottom,
+        )
+        if index == 2 and candidate_box is not None:
+            box = candidate_box
+        values.append((text, box, confidence))
+    return values
+
+
+class ConfirmedMisplacedCurlyStructuredRecognizer:
+    def __init__(
+        self,
+        *,
+        default_segments: tuple[tuple[int, int], ...] = (
+            _MISPLACED_CURLY_STRUCTURED_SEGMENTS
+        ),
+        ctc_override: tuple[
+            float, tuple[tuple[int, int], ...]
+        ] | None = None,
+        candidate_enhanced: RecognizedText | None = None,
+        wrapper_variant: RecognizedText | None = None,
+        target_variant: RecognizedText | None = None,
+        following_variant: RecognizedText | None = None,
+        opening_variant: RecognizedText | None = None,
+        closing_variant: RecognizedText | None = None,
+    ) -> None:
+        self.default_segments = default_segments
+        self.ctc_override = ctc_override
+        self.candidate_enhanced = candidate_enhanced or RecognizedText(
+            _MISPLACED_CURLY_STRUCTURED_RAW,
+            0.508923,
+        )
+        self.wrapper_variant = wrapper_variant
+        self.target_variant = target_variant or RecognizedText(
+            _MISPLACED_CURLY_STRUCTURED_TARGET,
+            0.9998,
+        )
+        self.following_variant = following_variant or RecognizedText(
+            _MISPLACED_CURLY_STRUCTURED_FOLLOWING,
+            0.998,
+        )
+        self.opening_variant = opening_variant or RecognizedText("'", 0.8)
+        self.closing_variant = closing_variant or RecognizedText("'", 0.99)
+        self.recognition_calls = 0
+
+    def word_boxes(self, image, *, space_threshold=None):
+        if image.size == (630, 63) and space_threshold is None:
+            return self.default_segments
+        if image.size != (279, 63) or space_threshold is None:
+            return ()
+        if (
+            self.ctc_override is not None
+            and space_threshold == self.ctc_override[0]
+        ):
+            return self.ctc_override[1]
+        return _MISPLACED_CURLY_STRUCTURED_CTC[space_threshold]
+
+    def recognize(self, image):
+        self.recognition_calls += 1
+        enhanced = image.height == 126
+        original_width = image.width // 2 if enhanced else image.width
+        pixel = image.getpixel((image.width // 2, image.height // 2))
+        intensity = pixel[0] if isinstance(pixel, tuple) else pixel
+        segment_reads = {
+            (174, 10): RecognizedText(
+                _MISPLACED_CURLY_STRUCTURED_TEXTS[0],
+                0.995817,
+            ),
+            (179, 20): RecognizedText(
+                _MISPLACED_CURLY_STRUCTURED_TEXTS[1],
+                0.995666,
+            ),
+        }
+        if not enhanced and (original_width, intensity) in segment_reads:
+            return segment_reads[(original_width, intensity)]
+        if image.size == (279, 63):
+            return RecognizedText(_MISPLACED_CURLY_STRUCTURED_RAW, 0.495151)
+        if image.size == (558, 126):
+            return self.candidate_enhanced
+        if 115 <= original_width <= 125:
+            if self.wrapper_variant is not None:
+                return self.wrapper_variant
+            if original_width in (123, 125) or (
+                original_width == 121 and not enhanced
+            ):
+                text = _MISPLACED_CURLY_STRUCTURED_WRAPPER
+            else:
+                text = _MISPLACED_CURLY_STRUCTURED_ASCII_WRAPPER
+            confidence = 0.99 if original_width == 121 else 0.94
+            return RecognizedText(text, confidence)
+        if 63 <= original_width <= 68:
+            return self.target_variant
+        if 20 <= original_width <= 36:
+            return self.opening_variant
+        if 40 <= original_width <= 47:
+            return self.closing_variant
+        if 154 <= original_width <= 164:
+            return self.following_variant
+        return RecognizedText("", 0.0)
+
+
+def test_confirmed_misplaced_curly_structured_split_recovers() -> None:
+    selected = misplaced_curly_structured_words()
+    recovered = _recover_confirmed_misplaced_curly_single_plus_structured_split(
+        selected,
+        misplaced_curly_structured_words(selected=False),
+        misplaced_curly_structured_crop(),
+        _MISPLACED_CURLY_STRUCTURED_LINE,
+        ConfirmedMisplacedCurlyStructuredRecognizer(),
+    )
+
+    assert recovered == [
+        *selected[:2],
+        (
+            _MISPLACED_CURLY_STRUCTURED_WRAPPER,
+            BoundingBox(
+                _MISPLACED_CURLY_STRUCTURED_LINE.left + 351,
+                _MISPLACED_CURLY_STRUCTURED_LINE.top,
+                _MISPLACED_CURLY_STRUCTURED_LINE.left + 472,
+                _MISPLACED_CURLY_STRUCTURED_LINE.bottom,
+            ),
+            0.495151,
+        ),
+        (
+            _MISPLACED_CURLY_STRUCTURED_FOLLOWING,
+            BoundingBox(
+                _MISPLACED_CURLY_STRUCTURED_LINE.left + 471,
+                _MISPLACED_CURLY_STRUCTURED_LINE.top,
+                _MISPLACED_CURLY_STRUCTURED_LINE.left + 630,
+                _MISPLACED_CURLY_STRUCTURED_LINE.bottom,
+            ),
+            0.495151,
+        ),
+    ]
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {
+            "candidate_enhanced": RecognizedText(
+                _MISPLACED_CURLY_STRUCTURED_RAW[:-1],
+                0.9,
+            )
+        },
+        {
+            "wrapper_variant": RecognizedText(
+                '"' + _MISPLACED_CURLY_STRUCTURED_TARGET + '"',
+                0.99,
+            )
+        },
+        {"target_variant": RecognizedText(chr(0xC790), 1.0)},
+        {"following_variant": RecognizedText("<7" + chr(0xD56D), 1.0)},
+        {"opening_variant": RecognizedText('"', 1.0)},
+        {"closing_variant": RecognizedText('"', 1.0)},
+        {"ctc_override": (0.001, ((0, 279),))},
+    ],
+)
+def test_confirmed_misplaced_curly_structured_requires_crop_evidence(
+    overrides,
+) -> None:
+    selected = misplaced_curly_structured_words()
+
+    assert (
+        _recover_confirmed_misplaced_curly_single_plus_structured_split(
+            selected,
+            misplaced_curly_structured_words(selected=False),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(**overrides),
+        )
+        == selected
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "raw_words", "crop", "line_box", "recognizer"),
+    [
+        (
+            misplaced_curly_structured_words() * 2,
+            misplaced_curly_structured_words(selected=False),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(
+                candidate_text='"'
+                + _MISPLACED_CURLY_STRUCTURED_RAW[1:],
+            ),
+            misplaced_curly_structured_words(
+                selected=False,
+                candidate_text='"'
+                + _MISPLACED_CURLY_STRUCTURED_RAW[1:],
+            ),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(candidate_confidence=0.5088),
+            misplaced_curly_structured_words(selected=False),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(),
+            misplaced_curly_structured_words(
+                selected=False,
+                candidate_confidence=0.4950,
+            ),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(
+                first_text="A3" + chr(0xB300),
+            ),
+            misplaced_curly_structured_words(
+                selected=False,
+                first_text="A3" + chr(0xB300),
+            ),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(
+                candidate_box=BoundingBox(
+                    _MISPLACED_CURLY_STRUCTURED_LINE.left + 352,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.top,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.left + 630,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.bottom,
+                )
+            ),
+            misplaced_curly_structured_words(
+                selected=False,
+                candidate_box=BoundingBox(
+                    _MISPLACED_CURLY_STRUCTURED_LINE.left + 352,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.top,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.left + 630,
+                    _MISPLACED_CURLY_STRUCTURED_LINE.bottom,
+                ),
+            ),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(),
+            misplaced_curly_structured_words(selected=False),
+            Image.new("RGB", (629, 63)),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(),
+            misplaced_curly_structured_words(selected=False),
+            misplaced_curly_structured_crop(),
+            BoundingBox(
+                95.64,
+                638.804347826087,
+                724.38,
+                700.4347826086956,
+            ),
+            ConfirmedMisplacedCurlyStructuredRecognizer(),
+        ),
+        (
+            misplaced_curly_structured_words(),
+            misplaced_curly_structured_words(selected=False),
+            misplaced_curly_structured_crop(),
+            _MISPLACED_CURLY_STRUCTURED_LINE,
+            ConfirmedMisplacedCurlyStructuredRecognizer(
+                default_segments=_MISPLACED_CURLY_STRUCTURED_SEGMENTS[:-1]
+            ),
+        ),
+    ],
+)
+def test_confirmed_misplaced_curly_structured_requires_exact_profile(
+    words,
+    raw_words,
+    crop,
+    line_box,
+    recognizer,
+) -> None:
+    assert (
+        _recover_confirmed_misplaced_curly_single_plus_structured_split(
+            words,
+            raw_words,
+            crop,
+            line_box,
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.recognition_calls == 0
+
+
+class MisplacedCurlyStructuredDetector:
+    def detect(self, _image):
+        return (
+            DetectedRegion(
+                _MISPLACED_CURLY_STRUCTURED_LINE,
+                0.991306,
+            ),
+        )
+
+
+def test_engine_recovers_misplaced_curly_structured_segment() -> None:
+    image = Image.new("RGB", (1280, 720))
+    image.paste(misplaced_curly_structured_crop(), (95, 638))
+    engine = PaddleOcrEngine(
+        MisplacedCurlyStructuredDetector(),
+        ConfirmedMisplacedCurlyStructuredRecognizer(),
+    )
+
+    document = engine.recognize(image)
+
+    line = document.lines[0]
+    assert len(line.text) == 15
+    assert [len(word.text) for word in line.eojeols] == [3, 3, 1, 3]
+    assert line.eojeols[2].text == _MISPLACED_CURLY_STRUCTURED_TARGET
+    assert line.eojeols[2].box.left == pytest.approx(486.97333333333336)
+    assert line.eojeols[2].box.right == pytest.approx(527.3066666666666)

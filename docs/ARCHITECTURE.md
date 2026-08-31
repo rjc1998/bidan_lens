@@ -435,6 +435,17 @@ and enhanced recognition above separate confidence floors. Detector-relative box
 missing word boundary and paired wrapper while excluding both quotes and whitespace from hoverable
 target geometry. Any evidence mismatch leaves the candidate unchanged.
 
+A separate misplaced-curly single-plus-structured profile applies only to its exact three-segment,
+desktop multi-line fingerprint. The selected candidate must be the enhanced retry of the raw
+candidate while preserving its opening curly quote, one-Hangul target, substituted ASCII close,
+three-character structured following word, and misplaced terminal curly close. The complete
+15-threshold signature must match: four lowest thresholds expose the same overlapping split and
+eleven remain fused. Fixed wrapper and following crops plus seven wrapper, target, following-word,
+opening-quote, and closing-quote variants independently confirm the readings in direct and enhanced
+recognition above separate confidence floors. Detector-relative boxes restore the paired wrapper
+and missing word boundary, discard the misplaced terminal close, and exclude both quotes and
+whitespace from hoverable target geometry. Any evidence mismatch leaves the candidate unchanged.
+
 Matched opening/closing quote signals and a strong trailing ellipsis signal may restore edge
 punctuation that CTC otherwise leaves blank; these operations do not change the selected
 Korean surface. A line-level recognition path remains as a fallback when segmentation is
