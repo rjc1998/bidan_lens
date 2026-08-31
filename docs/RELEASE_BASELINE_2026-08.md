@@ -40,8 +40,8 @@ verbs across four ending patterns and 50 reviewed common nouns across two partic
 ## Plain-v1 schema-v4.15 development follow-up
 
 The current development-only corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.15\dev`. It contains 2,000 main, 250 stress, 400 held-out
-language, and 200 quick cases and records the `viewport-v3` policy for both renderers. The policy
+`local-data\evaluations\bidan-lens-eval-ud218-v4.15\dev`. It contains 2,000 main, 250 stress,
+400 held-out language, and 200 quick cases and records the `viewport-v3` policy for both renderers. The policy
 shifts only targets outside the 1280 by 720 image into a 10 px safe band and removes clipped words
 from rendering and expected geometry together. The intermediate v4.10 card-anchoring build is
 preserved as rejected evidence because its correction was broader than the viewport defect.
@@ -1108,8 +1108,8 @@ activations. The accepted aggregate and diagnostic SHA-256 values are
 ## Historical plain-v1 schema-v4.9 development follow-up
 
 The historical development-only corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.9\dev`. It contains 2,000 main, 250 nonblocking stress,
-400 held-out language, and 200 locked quick cases. Its language tier is 90.50% overall,
+`local-data\evaluations\bidan-lens-eval-ud218-v4.9\dev`. It contains 2,000 main, 250 nonblocking
+stress, 400 held-out language, and 200 locked quick cases. Its language tier is 90.50% overall,
 93.00% auxiliary, and 88.00% multi-lexical, with 100% direct KRDict conformance across
 244 independent groups. The multi-lexical exceptional floor therefore remains met.
 
@@ -1219,8 +1219,8 @@ untouched v4.2 release split and foreground benchmark remain unevaluated.
 ## Superseded plain-v1 schema-v4.5 development follow-up
 
 The former development-only corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.5\dev`. Its 400-case held-out language tier is 90.50%
-overall, 93.00% for auxiliary cases, and 88.00% for multi-lexical cases, with 100% direct
+`local-data\evaluations\bidan-lens-eval-ud218-v4.5\dev`. Its 400-case held-out language tier is
+90.50% overall, 93.00% for auxiliary cases, and 88.00% for multi-lexical cases, with 100% direct
 KRDict conformance across 244 independent groups. Multi-lexical accuracy therefore recovers
 11 net cases from the v4.2 82.50% result and reaches the exceptional floor. Its remaining
 multi-lexical failures are 18 primary lemmas, two grammar roles, two component roles, one
@@ -1268,7 +1268,8 @@ untouched v4.2 release split and the foreground benchmark remain unevaluated.
 
 ## Superseded plain-v1 schema-v4.2 follow-up
 
-The corrected corpora are locked under `F:\bidan-lens-eval-ud218-v4.2`; the release split is
+The corrected corpora are locked under `local-data\evaluations\bidan-lens-eval-ud218-v4.2`;
+the release split is
 unevaluated. Independent direct KRDict conformance is now separated from analyzer correctness
 and passes 243/243 unique groups. After conservative score-bounded multi-component promotion,
 the 400-case development language tier is 88.00% overall, 93.50% for auxiliary cases, and
@@ -1304,7 +1305,8 @@ reports remain preserved under their original filenames.
 
 ## Superseded plain-v1 schema-v4 development evidence
 
-The v4 corpora are under `F:\bidan-lens-eval-ud218-v4`. Development and release locks both
+The v4 corpora are under `local-data\evaluations\bidan-lens-eval-ud218-v4`. Development and
+release locks both
 validate with 2,000 main, 250 stress, 400 held-out language, and 200 quick cases. The release
 split remains unevaluated. The complete development results are:
 
@@ -1335,9 +1337,10 @@ foreground evaluation has begun.
 
 ## Superseded schema-v3 development evidence
 
-The preserved `F:\bidan-lens-eval-ud218` evidence predates contextual components and the
-functional-context contract. Pinned acquisition completed outside Git, and complete development and release corpora
-were independently built, locked, and validated. The release corpus uses only official
+The preserved `local-data\evaluations\bidan-lens-eval-ud218` evidence predates contextual
+components and the functional-context contract. Pinned acquisition completed outside Git, and
+complete development and release corpora were independently built, locked, and validated. The
+release corpus uses only official
 test splits and remains unevaluated. The development report uses all 2,000 primary samples;
 the 250-sample 10 px stress tier remains nonblocking.
 

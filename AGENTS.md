@@ -25,6 +25,20 @@ as product decisions: do not change them without explicit user direction. Update
 technical documentation and development status when an implementation change makes
 them inaccurate.
 
+## Local evaluation workspace
+
+- Store all acquired evaluation sources, generated corpora, decision reports, diagnostics,
+  and aggregate reports under the repository-relative `local-data/evaluations/` directory.
+  The complete `local-data/` tree is intentionally ignored by Git.
+- Resolve the evaluation home from the current repository root in every session; do not
+  create or use drive-root folders such as `F:\bidan-lens-eval-*`.
+- The current development corpus is
+  `local-data/evaluations/bidan-lens-eval-ud218-v4.15/dev`. Preserved historical and release
+  corpora sit beside that versioned directory under the same evaluation home.
+- Create every future versioned evaluation root as a new child of
+  `local-data/evaluations/`, and keep development and release splits separate as required by
+  `docs/QUALITY_TARGETS.md`.
+
 ## Non-negotiable behavior
 
 - Keep screenshots as in-memory objects. Never log, persist, upload, or include screenshot

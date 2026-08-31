@@ -53,10 +53,11 @@
 ## Local plain-v1 development evidence
 
 The current development corpus is locked under
-`F:\bidan-lens-eval-ud218-v4.15\dev`; the untouched v4.2 release corpus remains under
-`F:\bidan-lens-eval-ud218-v4.2\release` and has not been evaluated. Earlier roots remain
-preserved. The v4.15 rebuild contains 2,000 main, 250 stress, 400 held-out language, and 200
-quick cases, is hash-locked, and passes corpus validation. It uses the current corpus builder and
+`local-data\evaluations\bidan-lens-eval-ud218-v4.15\dev`; the untouched v4.2 release corpus
+remains under `local-data\evaluations\bidan-lens-eval-ud218-v4.2\release` and has not been
+evaluated. Earlier roots remain preserved. The v4.15 rebuild contains 2,000 main, 250 stress,
+400 held-out language, and 200 quick cases, is hash-locked, and passes corpus validation. It uses
+the current corpus builder and
 the `viewport-v3` renderer policy. The intermediate v4.10 card-anchoring experiment is preserved
 but rejected because it changed more already-visible geometry than the viewport defect required.
 

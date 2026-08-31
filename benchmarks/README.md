@@ -27,6 +27,25 @@ python -m pip install -e ".[dev,evaluation]"
 playwright install chromium
 ```
 
+Keep every local evaluation artifact below the repository's ignored evaluation home. Choose a
+new versioned directory name instead of reusing or overwriting a locked corpus:
+
+```powershell
+$evaluationHome = Join-Path (git rev-parse --show-toplevel) "local-data\evaluations"
+$evaluationRoot = Join-Path $evaluationHome "bidan-lens-eval-ud218-vNEXT"
+$acquired = Join-Path $evaluationRoot "acquired"
+$devCorpus = Join-Path $evaluationRoot "dev"
+$releaseCorpus = Join-Path $evaluationRoot "release"
+$reports = Join-Path $evaluationRoot "reports"
+$quickDiagnostics = Join-Path $reports "dev-failures.json"
+$releaseReport = Join-Path $reports "plain-v1-release.json"
+$foregroundReport = Join-Path $reports "foreground-latency.json"
+New-Item -ItemType Directory -Force $reports | Out-Null
+```
+
+Replace `vNEXT` with the new corpus version before acquiring or generating data. Do not create
+drive-root evaluation directories.
+
 ## Acquire pinned sources
 
 `acquire-plain` downloads and verifies every artifact in `plain_sources.lock.json` before
@@ -37,7 +56,7 @@ KRDict archive may be supplied to avoid downloading it again.
 
 ```powershell
 $env:PYTHONPATH = "src;."
-python -m benchmarks.corpus_builder acquire-plain D:\bidan-eval\acquired `
+python -m benchmarks.corpus_builder acquire-plain $acquired `
   --local-krdict D:\downloads\krdict-2026-08-json.zip
 ```
 
@@ -55,14 +74,14 @@ is recorded in `renderer.json`, so this behavior change requires a new corpus di
 never rebuild over an existing locked corpus.
 
 ```powershell
-python -m benchmarks.corpus_builder build-plain D:\bidan-eval\acquired `
-  D:\bidan-eval\dev --profile dev
-python -m benchmarks.corpus_builder lock-plain D:\bidan-eval\dev `
+python -m benchmarks.corpus_builder build-plain $acquired `
+  $devCorpus --profile dev
+python -m benchmarks.corpus_builder lock-plain $devCorpus `
   --corpus-id bidan-plain-v4-dev-ud218
 
-python -m benchmarks.corpus_builder build-plain D:\bidan-eval\acquired `
-  D:\bidan-eval\release --profile release
-python -m benchmarks.corpus_builder lock-plain D:\bidan-eval\release `
+python -m benchmarks.corpus_builder build-plain $acquired `
+  $releaseCorpus --profile release
+python -m benchmarks.corpus_builder lock-plain $releaseCorpus `
   --corpus-id bidan-plain-v4-release-ud218
 ```
 
@@ -70,7 +89,7 @@ The lock covers every image, annotation, source/license record, font/browser/ren
 and quick manifest. Validation enforces exact sample counts and balanced release strata:
 
 ```powershell
-python -m benchmarks.corpus_builder validate-plain D:\bidan-eval\release
+python -m benchmarks.corpus_builder validate-plain $releaseCorpus
 ```
 
 `--count`, `--stress-count`, and `--allow-incomplete` are available only for developer
@@ -82,8 +101,8 @@ Use the 200-sample development subset while iterating:
 
 ```powershell
 python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
-  D:\bidan-eval\dev --profile plain-v1 --quick `
-  --diagnostics D:\bidan-eval\reports\dev-failures.json
+  $devCorpus --profile plain-v1 --quick `
+  --diagnostics $quickDiagnostics
 ```
 
 Diagnostics include stable sample IDs, failed stages, and render strata only. They never
@@ -167,8 +186,8 @@ then. The eventual release command is:
 
 ```powershell
 python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
-  D:\bidan-eval\release --profile plain-v1 `
-  > D:\bidan-eval\reports\plain-v1-release.json
+  $releaseCorpus --profile plain-v1 `
+  > $releaseReport
 ```
 
 The aggregate report includes Wilson intervals, functional context and exact-transcription
@@ -185,7 +204,7 @@ scores 500 fixed attempts without replacing failures. Do not use the computer du
 
 ```powershell
 python -m benchmarks.plain_live assets\runtime\installed\2026.08.1 `
-  D:\bidan-eval\release D:\bidan-eval\reports\foreground-latency.json `
+  $releaseCorpus $foregroundReport `
   --bundle-version 2026.08.1 --confirm-foreground
 ```
 
