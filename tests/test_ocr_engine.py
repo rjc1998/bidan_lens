@@ -228,10 +228,31 @@ def test_binarized_small_hangul_retry_accepts_unanimous_stronger_reading() -> No
     assert recognizer.sizes == [(60, 36), (60, 36), (60, 36)]
 
 
+def test_binarized_small_hangul_retry_accepts_slightly_taller_two_syllable_word() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\uacb0\uc815', 0.9998),
+            RecognizedText('\uacb0\uc815', 0.9997),
+            RecognizedText('\uacb0\uc815', 0.9996),
+        )
+    )
+
+    result = _retry_binarized_small_hangul_word(
+        Image.new('RGB', (20, 12)),
+        15.9,
+        RecognizedText('\uae38\uc815', 0.9973),
+        recognizer,
+    )
+
+    assert result == RecognizedText('\uacb0\uc815', 0.9996)
+    assert recognizer.sizes == [(60, 36), (60, 36), (60, 36)]
+
+
 @pytest.mark.parametrize(
     ('line_height', 'recognized'),
     [
-        (14.11, RecognizedText('\uac00\ub098', 0.9)),
+        (15.91, RecognizedText('\uac00\ub098', 0.9)),
+        (15.9, RecognizedText('\uac00\ub098\ub2e4', 0.9)),
         (14.1, RecognizedText('\uac00', 0.9)),
         (14.1, RecognizedText('\uac00\ub098\ub2e4\ub77c\ub9c8\ubc14', 0.9)),
         (14.1, RecognizedText('\uac00A', 0.9)),

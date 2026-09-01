@@ -338,10 +338,12 @@ def _retry_binarized_small_hangul_word(
     recognizer: Any,
 ) -> RecognizedText:
     text = recognized.text.replace(' ', '')
+    eligible_size = (
+        0 < line_height <= 14.1 and 2 <= len(text) <= 5
+    ) or (14.1 < line_height <= 15.9 and len(text) == 2)
     if (
         not getattr(recognizer, 'supports_binarized_small_text_retry', False)
-        or not 0 < line_height <= 14.1
-        or not 2 <= len(text) <= 5
+        or not eligible_size
         or not all(is_hangul(character) for character in text)
         or recognized.confidence >= 0.998
     ):

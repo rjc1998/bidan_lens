@@ -75,11 +75,11 @@ privacy-safe diagnostic SHA-256 is
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 
 The complete v4.16 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.62% whole-eojeol OCR, 99.90% target selection, 91.65%
+cleanup. Its 2,000 main cases record 98.62% whole-eojeol OCR, 99.90% target selection, 91.70%
 functional context, 73.35% exact sentence transcription, 93.75% component accuracy, 95.75% exact
-KRDict fidelity, 86.75% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 227.09 ms median /
-345.60 ms p95. Privacy-safe diagnostics contain 2 target, 165 context, and 98 analysis failures;
+KRDict fidelity, 86.80% fully correct first popups, and 97.00% alternative recovery. False
+promotions remain zero and the accepted follow-up is 250.12 ms median /
+388.55 ms p95. Privacy-safe diagnostics contain 2 target, 164 context, and 98 analysis failures;
 the analysis stages are 43 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -93,7 +93,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`73b1ca7ad522f7a898c220c706ba7d70fa547d4295fe3e56da4eb061c58fbf4e`.
+`ef762fb7e8476bf7a91c143879b1aa849967772b9f83effcda2ec6af70b4e2f0`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -107,8 +107,8 @@ IDs, categorical decisions, and counts. Matching-only carry-forward copies revie
 without weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration
 retained all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified
 its two inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed v4.16
-audit now covers all 165 active cases with no missing decision. It preserves six resolved IDs:
-`dev-plain-0001`, `dev-plain-0801`, `dev-plain-1281`, `dev-plain-1601`,
+audit now covers all 164 active cases with no missing decision. It preserves seven resolved IDs:
+`dev-plain-0001`, `dev-plain-0257`, `dev-plain-0801`, `dev-plain-1281`, `dev-plain-1601`,
 `dev-plain-1755`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target
 transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence
@@ -1942,7 +1942,7 @@ copula is a tested negative boundary. The exact v4.15-to-v4.16 diagnostic compar
 `dev-plain-1391` and `dev-plain-1926`, adds or changes no failure record, and leaves quick
 diagnostics byte-identical. The v4.16 lock SHA-256 is
 `1c5661f511a49c4931214c614b812aedf298edb746e95c951113d9829158aa62`; the accepted full aggregate
-report SHA-256 is `807ad2dfd3ed1a50404a540681213a4f5edc60cd97de216b3d9d6026c522c32c`.
+report SHA-256 is `70fec242d3ee7f04f743fbb17f8494c98a1c703d16b99ca6397c23ff6efc5943`.
 
 The next bounded OCR batch recovers the two false spaces in `dev-plain-1755`: `2 + 1` and `2 + 2`
 pure-Hangul pairs at a narrowly measured relative gap. The profiles require high-confidence part
@@ -1976,13 +1976,23 @@ correctness. Bracket and natural-punctuation strata improve, stress OCR/context/
 rise to 94.36% / 68.40% / 64.40%, and held-out language and every safety gate remain unchanged.
 The accepted full report and diagnostic SHA-256 values are the current values above.
 
+A bounded follow-up extends the same retry only for exactly two-syllable pure-Hangul words on
+detector lines above 14.1 px and no taller than 15.9 px. A broader 17.7 px trial retained the 94%
+confidence floor but recovered one main context case while adding six, so it was rejected. The
+retained two-tier boundary removes only `dev-plain-0257|context|`, adds or changes no diagnostic,
+and reduces the full diagnostic count from 354 to 353. Aggregate functional context and first-popup
+correctness rise to 91.70% and 86.80%. The 12 px context/popup stratum rises to 86.40% / 83.20%,
+and natural punctuation rises to 87.60% / 83.20%. Quick diagnostics remain byte-identical;
+stress, held-out language, target, analysis, dictionary, promotion, and negative-category results
+are unchanged. The accepted full report and diagnostic SHA-256 values are the current values above.
+
 The complete v4.16 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. Every active popup
 case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
 `dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
 context matching migration retained 170 prior active decisions and exposed one new boundary case;
-the recorded decision remains in the ledger, and the latest full audit retains it with five
-additional resolved transcription decisions, leaving 165 active cases with complete review
+the recorded decision remains in the ledger, and the latest full audit retains it with six
+additional resolved transcription decisions, leaving 164 active cases with complete review
 coverage. Two historical line/sentence
 reconstruction cases require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
 remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
