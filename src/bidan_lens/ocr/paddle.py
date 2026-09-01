@@ -30,6 +30,7 @@ _BOUNDARY_WRAPPERS = {
     '[': ']',
 }
 _ATTACHED_PARTICLE_WRAPPERS = frozenset('\x22\x27\u2018\u201c([')
+_CROSS_SEGMENT_QUOTE_WRAPPERS = {'\x22': '\x22', '\u201c': '\u201d'}
 _TRAILING_BOUNDARY_PUNCTUATION = frozenset(':?!')
 
 
@@ -429,6 +430,63 @@ def _split_punctuation_wrapped_word(
                 ]
             closing = text.find(closing_punctuation, closing + 1)
     return [(text, box, confidence)]
+
+
+def _split_cross_segment_quote_boundary(
+    words: list[tuple[str, BoundingBox, float]],
+) -> list[tuple[str, BoundingBox, float]]:
+    '''Recover a boundary before a quoted phrase whose closer is in a later eojeol.'''
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for word_index, (text, box, confidence) in enumerate(words):
+        split = None
+        for opening, punctuation in enumerate(text[1:-1], start=1):
+            closing_punctuation = _CROSS_SEGMENT_QUOTE_WRAPPERS.get(punctuation)
+            if closing_punctuation is None or closing_punctuation in text[opening + 1 :]:
+                continue
+            prefix = text[:opening]
+            quoted_start = text[opening + 1 :]
+            if not (
+                all(is_hangul(character) for character in prefix)
+                and len(quoted_start) >= 2
+                and all(is_hangul(character) for character in quoted_start)
+                and confidence >= 0.95
+            ):
+                continue
+            has_later_closer = any(
+                any(
+                    contains_hangul(later_text[:closing])
+                    and (
+                        not later_text[closing + 1 :]
+                        or (
+                            len(later_text[closing + 1 :]) == 1
+                            and is_hangul(later_text[closing + 1])
+                        )
+                    )
+                    for closing, character in enumerate(later_text)
+                    if character == closing_punctuation
+                )
+                for later_text, _, later_confidence in words[word_index + 1 :]
+                if later_confidence >= 0.95
+            )
+            if not has_later_closer:
+                continue
+            width = box.width / len(text)
+            boundary = box.left + opening * width
+            split = [
+                (
+                    prefix,
+                    BoundingBox(box.left, box.top, boundary, box.bottom),
+                    confidence,
+                ),
+                (
+                    text[opening:],
+                    BoundingBox(boundary, box.top, box.right, box.bottom),
+                    confidence,
+                ),
+            ]
+            break
+        recovered.extend(split or [(text, box, confidence)])
+    return recovered
 
 
 def _split_trailing_punctuation_boundary(
@@ -9980,6 +10038,7 @@ class PaddleOcrEngine(OcrEngine):
             for text, box, confidence in words
             for part in _split_punctuation_wrapped_word(text, box, confidence)
         ]
+        words = _split_cross_segment_quote_boundary(words)
         words = _recover_confirmed_wrapped_single_plus_four_geometry(
             words,
             raw_candidate_words,

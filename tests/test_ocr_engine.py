@@ -78,6 +78,7 @@ from bidan_lens.ocr.paddle import (
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _retry_binarized_small_hangul_word,
+    _split_cross_segment_quote_boundary,
     _split_mandatory_auxiliary_spacing,
     _split_punctuation_wrapped_word,
     _split_trailing_punctuation_boundary,
@@ -87,6 +88,58 @@ from bidan_lens.ocr.paddle import (
 class Detector:
     def detect(self, _image):
         return (DetectedRegion(BoundingBox(10, 5, 110, 35), 0.9),)
+
+
+def test_cross_segment_quote_recovers_opening_boundary() -> None:
+    words = [
+        ('\ub300\ud574"\uad6d\uac00\uc5d0', BoundingBox(10, 5, 130, 35), 0.96),
+        ('\ub300\ud55c', BoundingBox(140, 5, 200, 35), 0.99),
+        ('\uc788\ub2e4"\uba70', BoundingBox(210, 5, 290, 35), 0.99),
+    ]
+
+    parts = _split_cross_segment_quote_boundary(words)
+
+    assert [part[0] for part in parts] == [
+        '\ub300\ud574',
+        '"\uad6d\uac00\uc5d0',
+        '\ub300\ud55c',
+        '\uc788\ub2e4"\uba70',
+    ]
+    assert parts[0][1] == BoundingBox(10, 5, 50, 35)
+    assert parts[1][1] == BoundingBox(50, 5, 130, 35)
+
+
+def test_cross_segment_quote_requires_confident_closer() -> None:
+    quote = chr(34)
+    words = [
+        (f'\ub300\ud574{quote}\uad6d\uac00\uc5d0', BoundingBox(10, 5, 130, 35), 0.96),
+        (f'\uc788\ub2e4{quote}\uba70', BoundingBox(140, 5, 220, 35), 0.9499),
+    ]
+
+    assert _split_cross_segment_quote_boundary(words) == words
+
+
+@pytest.mark.parametrize(
+    ('first', 'last', 'confidence'),
+    [
+        ('\ub300\ud574"\uad6d\uac00\uc5d0', '\uc788\ub2e4\uba70', 0.96),
+        ('\ub300\ud574(\uad6d\uac00\uc5d0', '\uc788\ub2e4)\uba70', 0.96),
+        ('\ub300\ud574"\uad6d\uac00\uc5d0', '\uc788\ub2e4"\uba70', 0.9499),
+        ('\ub300\ud574"\uad6d', '\uc788\ub2e4"\uba70', 0.96),
+        ('\ub300\ud574"\uad6d\uac00\uc5d0', '\uc788\ub2e4"\ub77c\uace0', 0.96),
+    ],
+)
+def test_cross_segment_quote_requires_bounded_pairing(
+    first: str,
+    last: str,
+    confidence: float,
+) -> None:
+    words = [
+        (first, BoundingBox(10, 5, 130, 35), confidence),
+        (last, BoundingBox(140, 5, 220, 35), 0.99),
+    ]
+
+    assert _split_cross_segment_quote_boundary(words) == words
 
 
 @pytest.mark.parametrize(
