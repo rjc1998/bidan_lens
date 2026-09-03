@@ -78,6 +78,7 @@ from bidan_lens.ocr.paddle import (
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _retry_binarized_small_hangul_word,
+    _retry_confirmed_trimmed_two_hangul_word,
     _split_cross_segment_quote_boundary,
     _split_mandatory_auxiliary_spacing,
     _split_punctuation_wrapped_word,
@@ -387,6 +388,85 @@ def test_binarized_small_hangul_retry_requires_strong_consensus() -> None:
         == original
     )
 
+
+
+def test_trimmed_two_hangul_retry_accepts_five_matching_variants() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        tuple(RecognizedText('\ub9d0\ub9cc', confidence) for confidence in (
+            0.9991,
+            0.9989,
+            0.9988,
+            0.9987,
+            0.9986,
+        ))
+    )
+
+    result = _retry_confirmed_trimmed_two_hangul_word(
+        Image.new('RGB', (100, 18)),
+        16,
+        49,
+        54,
+        17.6,
+        RecognizedText('\ub9e1\ub9cc', 0.744),
+        recognizer,
+    )
+
+    assert result == RecognizedText('\ub9d0\ub9cc', 0.9986)
+    assert recognizer.sizes == [(58, 36), (60, 36), (62, 36), (64, 36), (66, 36)]
+
+
+def test_trimmed_two_hangul_retry_rejects_disagreement() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\ub9d0\ub9cc', 0.999),
+            RecognizedText('\ub9d0\ub9cc', 0.999),
+            RecognizedText('\ub9e1\ub9cc', 0.999),
+            RecognizedText('\ub9d0\ub9cc', 0.999),
+            RecognizedText('\ub9d0\ub9cc', 0.999),
+        )
+    )
+    original = RecognizedText('\ub9e1\ub9cc', 0.744)
+
+    assert _retry_confirmed_trimmed_two_hangul_word(
+        Image.new('RGB', (100, 18)),
+        16,
+        49,
+        54,
+        17.6,
+        original,
+        recognizer,
+    ) == original
+
+
+@pytest.mark.parametrize(
+    ('line_height', 'recognized', 'left', 'right', 'following_left'),
+    [
+        (17.4, RecognizedText('\ub9e1\ub9cc', 0.744), 16, 49, 54),
+        (17.6, RecognizedText('\ub9e1\ub9cc\uc774', 0.744), 16, 49, 54),
+        (17.6, RecognizedText('\ub9e1\ub9cc', 0.81), 16, 49, 54),
+        (17.6, RecognizedText('\ub9e1\ub9cc', 0.744), 10, 43, 48),
+        (17.6, RecognizedText('\ub9e1\ub9cc', 0.744), 16, 49, 52),
+    ],
+)
+def test_trimmed_two_hangul_retry_requires_bounded_profile(
+    line_height: float,
+    recognized: RecognizedText,
+    left: int,
+    right: int,
+    following_left: int,
+) -> None:
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _retry_confirmed_trimmed_two_hangul_word(
+        Image.new('RGB', (100, 18)),
+        left,
+        right,
+        following_left,
+        line_height,
+        recognized,
+        recognizer,
+    ) == recognized
+    assert recognizer.sizes == []
 
 class RetryingRecognizer:
     def __init__(self):

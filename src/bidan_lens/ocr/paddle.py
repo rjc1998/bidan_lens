@@ -380,6 +380,64 @@ def _retry_binarized_small_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_trimmed_two_hangul_word(
+    line_image: Image.Image,
+    left: int,
+    right: int,
+    following_left: int,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    width_ratio = (right - left) / line_height
+    leading_margin_ratio = left / line_height
+    following_gap_ratio = (following_left - right) / line_height
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not 17.5 <= line_height <= 17.7
+        or len(text) != 2
+        or not all(is_hangul(character) for character in text)
+        or not 0.70 <= recognized.confidence <= 0.80
+        or not 1.80 <= width_ratio <= 1.95
+        or not 0.85 <= leading_margin_ratio <= 0.95
+        or not 0.25 <= following_gap_ratio <= 0.35
+        or left + 2 >= right - 2
+        or right + 2 >= following_left
+    ):
+        return recognized
+    retries = tuple(
+        recognizer.recognize(
+            ImageOps.autocontrast(
+                line_image.crop((left + 2, 0, right + right_delta, line_image.height))
+                .convert('L')
+            )
+            .resize(
+                (
+                    (right + right_delta - left - 2) * 2,
+                    line_image.height * 2,
+                ),
+                Image.Resampling.BICUBIC,
+            )
+            .point(lambda pixel: 255 if pixel >= 232 else 0)
+            .convert('RGB')
+        )
+        for right_delta in (-2, -1, 0, 1, 2)
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.998
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _split_punctuation_wrapped_word(
     text: str,
     box: BoundingBox,
@@ -9756,7 +9814,7 @@ class PaddleOcrEngine(OcrEngine):
             return None
         words: list[tuple[str, BoundingBox, float]] = []
         raw_candidate_words: list[tuple[str, BoundingBox, float]] = []
-        for left, right in segments:
+        for index, (left, right) in enumerate(segments):
             word_crop = crop.crop((left, 0, right, crop.height))
             recognized = self.recognizer.recognize(word_crop)
             raw_text = recognized.text.replace(" ", "")
@@ -9781,6 +9839,16 @@ class PaddleOcrEngine(OcrEngine):
                 retry = self.recognizer.recognize(retry_image.convert("RGB"))
                 if retry.confidence > recognized.confidence:
                     recognized = retry
+            if index == 0 and len(segments) > 1:
+                recognized = _retry_confirmed_trimmed_two_hangul_word(
+                    crop,
+                    left,
+                    right,
+                    segments[1][0],
+                    line_box.height,
+                    recognized,
+                    self.recognizer,
+                )
             recognized = _retry_binarized_small_hangul_word(
                 word_crop,
                 line_box.height,
