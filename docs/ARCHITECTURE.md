@@ -54,7 +54,10 @@ Paddle detector -> CTC-guided eojeol crops -> Paddle Korean recognizer -> OCR do
     demonstrative-adverb pattern do not alone turn lexical `hada` into a helping verb; explicit
     obligative context retains its dedicated promotion. When immediate punctuation
     separates a target from the following nominal, a close same-lemma determiner interpretation
-    may lead without changing the displayed context. Dictionary-backed noun prefixes can be restored to the
+    may lead without changing the displayed context. A one-morpheme leader with no lexical
+    component may also yield to that determiner only when its learner label is `word part`, surface
+    and lemma are unchanged, the determiner is dictionary-backed, and the existing 5.9-point
+    score bound holds. Dictionary-backed noun prefixes can be restored to the
     following lexical component, and a terminal noun suffix can extend that component only in
     conservative end/particle contexts; plural `들`, between-noun suffixes, and copular
     contexts are not rewritten.
@@ -251,6 +254,14 @@ resampling. All three readings must agree on one different same-length pure-Hang
 their weakest confidence must reach 91% and exceed the selected reading. A confirmed replacement
 retains the original segment geometry and uses the weakest threshold confidence; any profile or
 consensus mismatch keeps the original reading.
+A separately reviewed tall-line two-Hangul recalibration profile applies only on a 19.3-19.4 px
+detector line when the selected reading is 84-85% confident, its width is 1.39-1.40 times line
+height, and the preceding and following gaps are respectively 25-26% and 20-21% of line height.
+The autocontrasted crop is thresholded at 224 and recognized at 2x and 3x with bilinear, bicubic,
+and Lanczos resampling. All six readings must agree on one different same-length pure-Hangul
+candidate; their weakest confidence must reach 89% and exceed the selected reading. A confirmed
+replacement retains the original geometry and uses that weakest confidence. Any profile or
+consensus mismatch keeps the selected reading.
 A separately reviewed right-wrapper recalibration profile can replace one five-Hangul segment only
 under an exact 16-raw-segment/12-selected-word line profile. The candidate must sit between three
 reviewed punctuation or symbol fragments with the expected zero-gap geometry, while the surrounding

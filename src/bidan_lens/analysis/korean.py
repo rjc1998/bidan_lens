@@ -1531,6 +1531,33 @@ class KoreanAnalyzer:
         if not candidates or id(candidates[0]) in prenominal_determiner_ids:
             return candidates
         first = candidates[0]
+        if (
+            not first.lexical_components
+            and len(first.morphemes) == 1
+            and first.morphemes[0].surface == first.surface == first.lemma
+            and first.morphemes[0].learner_label == 'word part'
+        ):
+            for index, candidate in enumerate(candidates[1:], start=1):
+                if id(candidate) not in prenominal_determiner_ids:
+                    continue
+                if (
+                    first.score - candidate.score
+                    > _DICTIONARY_PRENOMINAL_DETERMINER_SCORE_MARGIN
+                    or len(candidate.lexical_components) != 1
+                    or candidate.surface != first.surface
+                    or candidate.lemma != first.lemma
+                    or not candidate.dictionary_entries
+                    or candidate.dictionary_entries[0].part_of_speech != 'determiner'
+                ):
+                    continue
+                alternative = candidate.lexical_components[0]
+                if (
+                    alternative.surface == first.surface
+                    and alternative.lemma == first.lemma
+                    and alternative.learner_role == 'determiner'
+                ):
+                    return [candidate, *candidates[:index], *candidates[index + 1 :]]
+            return candidates
         if len(first.lexical_components) != 1:
             return candidates
         current = first.lexical_components[0]

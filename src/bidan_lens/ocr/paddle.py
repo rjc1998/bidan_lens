@@ -428,6 +428,58 @@ def _retry_confirmed_crowded_four_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_tall_two_hangul_word(
+    image: Image.Image,
+    previous_gap: int,
+    following_gap: int,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or len(text) != 2
+        or not all(is_hangul(character) for character in text)
+        or not 19.3 <= line_height <= 19.4
+        or not 0.84 <= recognized.confidence <= 0.85
+        or not 1.39 <= image.width / line_height <= 1.40
+        or not 0.25 <= previous_gap / line_height <= 0.26
+        or not 0.20 <= following_gap / line_height <= 0.21
+    ):
+        return recognized
+    thresholded = ImageOps.autocontrast(image.convert('L')).point(
+        lambda pixel: 255 if pixel >= 224 else 0
+    )
+    retries = tuple(
+        recognizer.recognize(
+            thresholded.resize(
+                (thresholded.width * scale, thresholded.height * scale),
+                resampling,
+            ).convert('RGB')
+        )
+        for scale in (2, 3)
+        for resampling in (
+            Image.Resampling.BILINEAR,
+            Image.Resampling.BICUBIC,
+            Image.Resampling.LANCZOS,
+        )
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.89
+        or retry_confidence <= recognized.confidence
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _retry_confirmed_trimmed_two_hangul_word(
     line_image: Image.Image,
     left: int,
@@ -10391,6 +10443,14 @@ class PaddleOcrEngine(OcrEngine):
                 )
             if 0 < index < len(segments) - 1:
                 recognized = _retry_confirmed_crowded_four_hangul_word(
+                    word_crop,
+                    left - segments[index - 1][1],
+                    segments[index + 1][0] - right,
+                    line_box.height,
+                    recognized,
+                    self.recognizer,
+                )
+                recognized = _retry_confirmed_tall_two_hangul_word(
                     word_crop,
                     left - segments[index - 1][1],
                     segments[index + 1][0] - right,

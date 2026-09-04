@@ -84,6 +84,7 @@ from bidan_lens.ocr.paddle import (
     _retry_confirmed_crowded_four_hangul_word,
     _retry_confirmed_expanded_first_hangul_word,
     _retry_confirmed_large_first_hangul_word,
+    _retry_confirmed_tall_two_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
     _split_cross_segment_quote_boundary,
     _split_mandatory_auxiliary_spacing,
@@ -392,6 +393,75 @@ def test_crowded_four_hangul_retry_requires_reviewed_neighbor_geometry() -> None
             4,
             -1,
             17.608695652173907,
+            original,
+            recognizer,
+        )
+        == original
+    )
+    assert recognizer.sizes == []
+
+
+def test_tall_two_hangul_retry_accepts_six_threshold_consensus() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\uc598\ub4e4', 0.904026),
+            RecognizedText('\uc598\ub4e4', 0.896573),
+            RecognizedText('\uc598\ub4e4', 0.935102),
+            RecognizedText('\uc598\ub4e4', 0.890170),
+            RecognizedText('\uc598\ub4e4', 0.917832),
+            RecognizedText('\uc598\ub4e4', 0.935555),
+        )
+    )
+
+    result = _retry_confirmed_tall_two_hangul_word(
+        Image.new('RGB', (27, 20)),
+        5,
+        4,
+        19.36956521739134,
+        RecognizedText('\uc560\ub4e4', 0.846053),
+        recognizer,
+    )
+
+    assert result == RecognizedText('\uc598\ub4e4', 0.890170)
+    assert recognizer.sizes == [(54, 40)] * 3 + [(81, 60)] * 3
+
+
+def test_tall_two_hangul_retry_rejects_threshold_disagreement() -> None:
+    original = RecognizedText('\uc560\ub4e4', 0.846053)
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\uc598\ub4e4', 0.904026),
+            RecognizedText('\uc598\ub4e4', 0.896573),
+            RecognizedText('\uc598\ub4e4', 0.935102),
+            RecognizedText('\uc560\ub4e4', 0.890170),
+            RecognizedText('\uc598\ub4e4', 0.917832),
+            RecognizedText('\uc598\ub4e4', 0.935555),
+        )
+    )
+
+    assert (
+        _retry_confirmed_tall_two_hangul_word(
+            Image.new('RGB', (27, 20)),
+            5,
+            4,
+            19.36956521739134,
+            original,
+            recognizer,
+        )
+        == original
+    )
+
+
+def test_tall_two_hangul_retry_requires_reviewed_neighbor_geometry() -> None:
+    original = RecognizedText('\uc560\ub4e4', 0.846053)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert (
+        _retry_confirmed_tall_two_hangul_word(
+            Image.new('RGB', (27, 20)),
+            4,
+            4,
+            19.36956521739134,
             original,
             recognizer,
         )

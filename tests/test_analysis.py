@@ -1249,6 +1249,49 @@ def test_particle_bearing_prenominal_determiner_uses_base_score_margin() -> None
     assert candidate.lexical_components[0].learner_role == 'pronoun'
 
 
+@pytest.mark.parametrize(
+    ('alternative_score', 'determiner_backed', 'expected_role'),
+    [
+        (-2.0, True, 'determiner'),
+        (-7.4, True, None),
+        (-2.0, False, None),
+    ],
+)
+def test_dictionary_backed_prenominal_determiner_replaces_close_word_part(
+    alternative_score: float,
+    determiner_backed: bool,
+    expected_role: str | None,
+) -> None:
+    analyses = [
+        (
+            [
+                Token('\uc774', 'IC', 0, 1),
+                Token('\u2026', 'SE', 1, 1),
+                Token('\ud559\uad50', 'NNG', 3, 2),
+            ],
+            -1.0,
+        ),
+        (
+            [
+                Token('\uc774', 'MM', 0, 1),
+                Token('\u2026', 'SE', 1, 1),
+                Token('\ud559\uad50', 'NNG', 3, 2),
+            ],
+            alternative_score,
+        ),
+    ]
+
+    candidate = KoreanAnalyzer(
+        PrenominalRoleDictionary(determiner_backed=determiner_backed),
+        FakeKiwi(analyses),
+    )._analyze_candidates('\uc774\u2026 \ud559\uad50', (0, 1), 5)[0]
+
+    if expected_role is None:
+        assert candidate.lexical_components == ()
+    else:
+        assert candidate.lexical_components[0].learner_role == expected_role
+
+
 class AdverbNounRoleDictionary(DictionaryStore):
     def __init__(self, preferred_role: str) -> None:
         self.preferred_role = preferred_role
