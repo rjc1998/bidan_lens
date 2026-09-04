@@ -72,12 +72,14 @@ from bidan_lens.ocr.paddle import (
     _recover_isolated_overlapping_word_pairs,
     _recover_overlapping_suffix_pairs,
     _recover_overlapping_word_triplets,
+    _recover_relative_gap_three_plus_one_pairs,
     _recover_relative_gap_two_plus_two_pairs,
     _recover_terminal_digit_hangul_pair,
     _recover_terminal_overlapping_word_pair,
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _retry_binarized_small_hangul_word,
+    _retry_confirmed_large_first_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
     _split_cross_segment_quote_boundary,
     _split_mandatory_auxiliary_spacing,
@@ -467,6 +469,95 @@ def test_trimmed_two_hangul_retry_requires_bounded_profile(
         recognizer,
     ) == recognized
     assert recognizer.sizes == []
+
+
+def test_large_first_hangul_retry_accepts_five_matching_variants() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        tuple(
+            RecognizedText('\ub808\ub2cc\uc740', confidence)
+            for confidence in (0.9986, 0.9985, 0.9984, 0.9983, 0.9982)
+        )
+    )
+
+    result = _retry_confirmed_large_first_hangul_word(
+        Image.new('RGB', (200, 29)),
+        70,
+        155,
+        170,
+        28.2,
+        RecognizedText('\ub7ec\ub2cc\uc740', 0.985),
+        True,
+        recognizer,
+    )
+
+    assert result == RecognizedText('\ub808\ub2cc\uc740', 0.9982)
+    assert recognizer.sizes == [(166, 58), (168, 58), (170, 58), (172, 58), (174, 58)]
+
+
+def test_large_first_hangul_retry_rejects_disagreement() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\ub808\ub2cc\uc740', 0.999),
+            RecognizedText('\ub808\ub2cc\uc740', 0.999),
+            RecognizedText('\ub7ec\ub2cc\uc740', 0.999),
+            RecognizedText('\ub808\ub2cc\uc740', 0.999),
+            RecognizedText('\ub808\ub2cc\uc740', 0.999),
+        )
+    )
+    original = RecognizedText('\ub7ec\ub2cc\uc740', 0.985)
+
+    assert _retry_confirmed_large_first_hangul_word(
+        Image.new('RGB', (200, 29)),
+        70,
+        155,
+        170,
+        28.2,
+        original,
+        True,
+        recognizer,
+    ) == original
+
+
+@pytest.mark.parametrize(
+    (
+        'line_height',
+        'recognized',
+        'left',
+        'right',
+        'following_left',
+        'weak_leading_noise',
+    ),
+    [
+        (28.0, RecognizedText('\ub7ec\ub2cc\uc740', 0.985), 70, 155, 170, True),
+        (28.2, RecognizedText('\ub7ec\ub2cc', 0.985), 70, 155, 170, True),
+        (28.2, RecognizedText('\ub7ec\ub2cc\uc740', 0.991), 70, 155, 170, True),
+        (28.2, RecognizedText('\ub7ec\ub2cc\uc740', 0.985), 60, 145, 160, True),
+        (28.2, RecognizedText('\ub7ec\ub2cc\uc740', 0.985), 70, 155, 165, True),
+        (28.2, RecognizedText('\ub7ec\ub2cc\uc740', 0.985), 70, 155, 170, False),
+    ],
+)
+def test_large_first_hangul_retry_requires_bounded_profile(
+    line_height: float,
+    recognized: RecognizedText,
+    left: int,
+    right: int,
+    following_left: int,
+    weak_leading_noise: bool,
+) -> None:
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _retry_confirmed_large_first_hangul_word(
+        Image.new('RGB', (200, 29)),
+        left,
+        right,
+        following_left,
+        line_height,
+        recognized,
+        weak_leading_noise,
+        recognizer,
+    ) == recognized
+    assert recognizer.sizes == []
+
 
 class RetryingRecognizer:
     def __init__(self):
@@ -9047,6 +9138,96 @@ def test_confirmed_three_plus_two_split_requires_exact_strong_parts(
         )
         == words
     )
+
+
+
+class RelativeGapThreePlusOneRecognizer:
+    def __init__(self, results: tuple[RecognizedText, ...]) -> None:
+        self.results = iter(results)
+        self.sizes: list[tuple[int, int]] = []
+
+    def recognize(self, image):
+        self.sizes.append(image.size)
+        return next(self.results)
+
+
+def _relative_gap_three_plus_one_words() -> list[tuple[str, BoundingBox, float]]:
+    return [
+        ('\ud574\uc11d\ud558\ub294', BoundingBox(514, 0, 653, 31.7), 0.9992),
+        ('\ubcf4\uc218\uc801', BoundingBox(670, 0, 770, 31.7), 0.9977),
+        ('\uc778', BoundingBox(781, 0, 808, 31.7), 0.999955),
+        ('\uc2e0\ud559\uc790\ub4e4\uc740', BoundingBox(828, 0, 1003, 31.7), 0.973733),
+    ]
+
+
+def test_relative_gap_three_plus_one_pair_merges_confirmed_union() -> None:
+    words = _relative_gap_three_plus_one_words()
+    recognizer = RelativeGapThreePlusOneRecognizer(
+        (
+            RecognizedText('\ubcf4\uc218\uc801\uc778', 0.9887),
+            RecognizedText('\ubcf4\uc218\uc801\uc778', 0.9952),
+        )
+    )
+
+    recovered = _recover_relative_gap_three_plus_one_pairs(
+        words,
+        Image.new('RGB', (1100, 32)),
+        BoundingBox(0, 0, 1100, 31.7),
+        recognizer,
+    )
+
+    assert recovered == [
+        words[0],
+        ('\ubcf4\uc218\uc801\uc778', BoundingBox(670, 0, 808, 31.7), 0.9887),
+        words[3],
+    ]
+    assert recognizer.sizes == [(138, 32), (276, 64)]
+
+
+@pytest.mark.parametrize(
+    'enhanced',
+    [
+        RecognizedText('\ubcf4\uc218\uc801\uc778', 0.9949),
+        RecognizedText('\ubcf4\uc218\uc778', 0.999),
+    ],
+)
+def test_relative_gap_three_plus_one_pair_requires_enhanced_confirmation(
+    enhanced: RecognizedText,
+) -> None:
+    words = _relative_gap_three_plus_one_words()
+    recognizer = RelativeGapThreePlusOneRecognizer(
+        (
+            RecognizedText('\ubcf4\uc218\uc801\uc778', 0.9887),
+            enhanced,
+        )
+    )
+
+    assert (
+        _recover_relative_gap_three_plus_one_pairs(
+            words,
+            Image.new('RGB', (1100, 32)),
+            BoundingBox(0, 0, 1100, 31.7),
+            recognizer,
+        )
+        == words
+    )
+
+
+def test_relative_gap_three_plus_one_pair_rejects_ordinary_gap() -> None:
+    words = _relative_gap_three_plus_one_words()
+    words[2] = ('\uc778', BoundingBox(782, 0, 809, 31.7), 0.999955)
+    recognizer = RelativeGapThreePlusOneRecognizer(())
+
+    assert (
+        _recover_relative_gap_three_plus_one_pairs(
+            words,
+            Image.new('RGB', (1100, 32)),
+            BoundingBox(0, 0, 1100, 31.7),
+            recognizer,
+        )
+        == words
+    )
+    assert recognizer.sizes == []
 
 
 class RelativeGapTwoPlusTwoRecognizer:

@@ -438,6 +438,61 @@ def _retry_confirmed_trimmed_two_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_large_first_hangul_word(
+    line_image: Image.Image,
+    left: int,
+    right: int,
+    following_left: int,
+    line_height: float,
+    recognized: RecognizedText,
+    weak_leading_noise: bool,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    width_ratio = (right - left) / line_height
+    leading_margin_ratio = left / line_height
+    following_gap_ratio = (following_left - right) / line_height
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not weak_leading_noise
+        or not 28.1 <= line_height <= 28.3
+        or len(text) != 3
+        or not all(is_hangul(character) for character in text)
+        or not 0.98 <= recognized.confidence <= 0.99
+        or not 3.0 <= width_ratio <= 3.05
+        or not 2.45 <= leading_margin_ratio <= 2.5
+        or not 0.52 <= following_gap_ratio <= 0.55
+        or right + 2 >= following_left
+    ):
+        return recognized
+    retries = tuple(
+        recognizer.recognize(
+            ImageOps.autocontrast(
+                line_image.crop((left, 0, right + right_delta, line_image.height))
+                .convert('L')
+            )
+            .resize(
+                ((right + right_delta - left) * 2, line_image.height * 2),
+                Image.Resampling.BICUBIC,
+            )
+            .convert('RGB')
+        )
+        for right_delta in (-2, -1, 0, 1, 2)
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.998
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _split_punctuation_wrapped_word(
     text: str,
     box: BoundingBox,
@@ -9176,6 +9231,84 @@ def _recover_relative_gap_two_plus_two_pairs(
     return recovered
 
 
+def _recover_relative_gap_three_plus_one_pairs(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 2 < len(words):
+            previous, first, last, following = words[index - 1 : index + 3]
+            gap = last[1].left - first[1].right
+            previous_gap = first[1].left - previous[1].right
+            following_gap = following[1].left - last[1].right
+            first_pitch = first[1].width / len(first[0])
+            last_pitch = last[1].width / len(last[0])
+            pitch_ratio = min(first_pitch, last_pitch) / max(
+                first_pitch,
+                last_pitch,
+            )
+            if (
+                31.6 <= line_box.height <= 31.8
+                and len(first[0]) == 3
+                and len(last[0]) == 1
+                and all(is_hangul(character) for character in first[0] + last[0])
+                and 0.997 <= first[2] <= 0.998
+                and last[2] >= 0.9999
+                and line_box.height * 0.345 <= gap <= line_box.height * 0.35
+                and previous_gap >= line_box.height * 0.53
+                and following_gap >= line_box.height * 0.63
+                and 0.8 <= pitch_ratio <= 0.82
+            ):
+                candidate_left = max(
+                    0,
+                    math.floor(first[1].left - line_box.left),
+                )
+                candidate_right = min(
+                    crop.width,
+                    math.ceil(last[1].right - line_box.left),
+                )
+                combined_crop = crop.crop(
+                    (candidate_left, 0, candidate_right, crop.height)
+                )
+                combined = recognizer.recognize(combined_crop)
+                enhanced = recognizer.recognize(
+                    ImageOps.autocontrast(combined_crop.convert('L'))
+                    .resize(
+                        (combined_crop.width * 2, combined_crop.height * 2),
+                        Image.Resampling.BICUBIC,
+                    )
+                    .convert('RGB')
+                )
+                expected = first[0] + last[0]
+                if (
+                    combined.text.replace(' ', '') == expected
+                    and combined.confidence >= 0.988
+                    and enhanced.text.replace(' ', '') == expected
+                    and enhanced.confidence >= 0.995
+                ):
+                    recovered.append(
+                        (
+                            expected,
+                            BoundingBox.union((first[1], last[1])),
+                            min(
+                                first[2],
+                                last[2],
+                                combined.confidence,
+                                enhanced.confidence,
+                            ),
+                        )
+                    )
+                    index += 2
+                    continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
 def _recover_word_boundaries(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -9323,6 +9456,12 @@ def _recover_word_boundaries(
         recognizer,
     )
     words = _recover_relative_gap_two_plus_two_pairs(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_relative_gap_three_plus_one_pairs(
         words,
         crop,
         line_box,
@@ -9839,6 +9978,24 @@ class PaddleOcrEngine(OcrEngine):
                 retry = self.recognizer.recognize(retry_image.convert("RGB"))
                 if retry.confidence > recognized.confidence:
                     recognized = retry
+            if index + 1 < len(segments):
+                weak_leading_noise = (
+                    index == 2
+                    and len(raw_candidate_words) == 2
+                    and len(raw_candidate_words[0][0]) == 1
+                    and raw_candidate_words[0][0].isdigit()
+                    and raw_candidate_words[0][2] <= 0.3
+                )
+                recognized = _retry_confirmed_large_first_hangul_word(
+                    crop,
+                    left,
+                    right,
+                    segments[index + 1][0],
+                    line_box.height,
+                    recognized,
+                    weak_leading_noise,
+                    self.recognizer,
+                )
             if index == 0 and len(segments) > 1:
                 recognized = _retry_confirmed_trimmed_two_hangul_word(
                     crop,

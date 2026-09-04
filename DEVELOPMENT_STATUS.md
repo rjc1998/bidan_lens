@@ -75,11 +75,11 @@ privacy-safe diagnostic SHA-256 is
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 
 The complete v4.16 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.64% whole-eojeol OCR, 99.90% target selection, 91.80%
-functional context, 73.45% exact sentence transcription, 93.75% component accuracy, 95.75% exact
-KRDict fidelity, 86.90% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 227.09 ms median /
-350.02 ms p95. Privacy-safe diagnostics contain 2 target, 162 context, and 98 analysis failures;
+cleanup. Its 2,000 main cases record 98.64% whole-eojeol OCR, 99.90% target selection, 91.90%
+functional context, 73.55% exact sentence transcription, 93.75% component accuracy, 95.75% exact
+KRDict fidelity, 87.00% fully correct first popups, and 97.00% alternative recovery. False
+promotions remain zero and the accepted follow-up is 248.77 ms median /
+378.93 ms p95. Privacy-safe diagnostics contain 2 target, 160 context, and 98 analysis failures;
 the analysis stages are 43 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -93,7 +93,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current privacy-safe diagnostic SHA-256 is
-`c3e4e166357d01849a82897dcb7dbd38ff08a797f1fb7259053ee727ef8a0bdc`.
+`d793095542d38bff078b6d606bb8bc7232cdc70791d652794eb2f25658021dd7`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -107,9 +107,9 @@ IDs, categorical decisions, and counts. Matching-only carry-forward copies revie
 without weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration
 retained all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified
 its two inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed v4.16
-audit now covers all 162 active cases with no missing decision. It preserves nine resolved IDs:
-`dev-plain-0001`, `dev-plain-0257`, `dev-plain-0482`, `dev-plain-0801`, `dev-plain-0994`, `dev-plain-1281`,
-`dev-plain-1601`, `dev-plain-1755`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target
+audit now covers all 160 active cases with no missing decision. It preserves eleven resolved IDs:
+`dev-plain-0001`, `dev-plain-0257`, `dev-plain-0482`, `dev-plain-0801`, `dev-plain-0994`,
+`dev-plain-1281`, `dev-plain-1601`, `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target
 transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence
 reconstructions. The decision report SHA-256 is
@@ -2021,14 +2021,34 @@ negative category are unchanged. The accepted aggregate and privacy-safe diagnos
 are `945b53e23858252cdfc1f03fb469d26660b83e6d65215bc07112646eeb61c262` and
 `c3e4e166357d01849a82897dcb7dbd38ff08a797f1fb7259053ee727ef8a0bdc`.
 
+The next 24 px review accepted two independent OCR profiles. A line-initial three-syllable Hangul
+substitution is retried only after two leading detector segments produce no Hangul and the retained
+noise is a weak single digit. The detector height, word width, leading margin, following gap, and
+98-99% original confidence are all bounded. Five adjacent right-edge crops must unanimously produce
+the same different three-syllable Hangul reading after autocontrast and 2x scaling, each at 99.8%
+confidence or better. The second profile joins a three-syllable and one-syllable Hangul pair only
+when its 34.5-35.0% line-height gap is substantially smaller than both neighboring gaps, the glyph
+pitches and segment confidences match the reviewed bounds, and raw plus enhanced combined crops
+both reproduce the exact concatenation at 98.8% and 99.5% confidence respectively.
+
+The exact full comparison removes only `dev-plain-1830|context|` and
+`dev-plain-1838|context|`, adds or changes no diagnostic, and reduces the count from 351 to 349.
+Aggregate functional context, exact sentence transcription, and first-popup correctness rise to
+91.90%, 73.55%, and 87.00%. The 24 px OCR/context/transcription/popup stratum rises from
+98.75% / 93.60% / 74.40% / 87.20% to 98.81% / 94.40% / 75.20% / 88.00%, clearing that size's
+exceptional popup floor. Comma-colon context/popup rises to 95.60% / 90.40%, and terminal
+context/popup rises to 92.00% / 84.80%. Quick diagnostics remain byte-identical; stress, held-out
+language, target, analysis, dictionary, promotion, and every negative category are unchanged. The
+accepted aggregate and privacy-safe diagnostic SHA-256 values are
+`d8027e09896c903006678dbb784d3023439d8c35b5080ae627bf0f22ce8a8fb5` and
+`d793095542d38bff078b6d606bb8bc7232cdc70791d652794eb2f25658021dd7`.
+
 The complete v4.16 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. Every active popup
 case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
 `dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
-context matching migration retained 170 prior active decisions and exposed one new boundary case;
-the recorded decision remains in the ledger, and the latest full audit retains it with seven
-additional resolved transcription decisions, leaving 162 active cases with complete review
-coverage. Two historical line/sentence
+context ledger retains all 171 categorical decisions. The latest full audit marks eleven resolved,
+leaving 160 active cases with complete review coverage. Two historical line/sentence
 reconstruction cases require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
 remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
 another safe general rule. The geometry-clustering, substitution, direct-retry, wrapper-fragment,
