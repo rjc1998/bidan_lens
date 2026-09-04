@@ -12,6 +12,7 @@ from bidan_lens.ocr.paddle import (
     _merge_line_group,
     _normalize,
     _recover_confirmed_central_paired_wrapped_two_split,
+    _recover_confirmed_corrected_overlapping_leading_syllable,
     _recover_confirmed_direct_retry_regression,
     _recover_confirmed_enhanced_two_substitution,
     _recover_confirmed_enhanced_wrapped_four_substitution,
@@ -79,6 +80,7 @@ from bidan_lens.ocr.paddle import (
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _retry_binarized_small_hangul_word,
+    _retry_confirmed_expanded_first_hangul_word,
     _retry_confirmed_large_first_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
     _split_cross_segment_quote_boundary,
@@ -556,6 +558,76 @@ def test_large_first_hangul_retry_requires_bounded_profile(
         weak_leading_noise,
         recognizer,
     ) == recognized
+    assert recognizer.sizes == []
+
+
+def test_expanded_first_hangul_retry_accepts_five_matching_variants() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        tuple(
+            RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', confidence)
+            for confidence in (0.9995, 0.9994, 0.9993, 0.9992, 0.9991)
+        )
+    )
+
+    result = _retry_confirmed_expanded_first_hangul_word(
+        Image.new('RGB', (200, 23)),
+        51,
+        139,
+        151,
+        21.13,
+        RecognizedText('\ub3d9\ub300\uc0c1\uc5d0', 0.9884),
+        True,
+        recognizer,
+    )
+
+    assert result == RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', 0.9991)
+    assert recognizer.sizes == [
+        (216, 46),
+        (212, 46),
+        (208, 46),
+        (204, 46),
+        (200, 46),
+    ]
+
+
+def test_expanded_first_hangul_retry_rejects_disagreement() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', 0.9995),
+            RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', 0.9994),
+            RecognizedText('\ub3d9\ub300\uc0c1\uc5d0', 0.9993),
+            RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', 0.9992),
+            RecognizedText('\ub178\ub3d9\ub300\uc0c1\uc5d0', 0.9991),
+        )
+    )
+    original = RecognizedText('\ub3d9\ub300\uc0c1\uc5d0', 0.9884)
+
+    assert _retry_confirmed_expanded_first_hangul_word(
+        Image.new('RGB', (200, 23)),
+        51,
+        139,
+        151,
+        21.13,
+        original,
+        True,
+        recognizer,
+    ) == original
+
+
+def test_expanded_first_hangul_retry_requires_latin_noise_profile() -> None:
+    original = RecognizedText('\ub3d9\ub300\uc0c1\uc5d0', 0.9884)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _retry_confirmed_expanded_first_hangul_word(
+        Image.new('RGB', (200, 23)),
+        51,
+        139,
+        151,
+        21.13,
+        original,
+        False,
+        recognizer,
+    ) == original
     assert recognizer.sizes == []
 
 
@@ -2602,6 +2674,96 @@ def test_terminal_digit_hangul_pair_rejects_strong_competitor() -> None:
         )
         == words
     )
+
+
+def _corrected_leading_overlap_words():
+    return [
+        (
+            '\uac00\ucc3d\ub825\uc73c\ub85c',
+            BoundingBox(257, 0, 351, 21.13),
+            0.9998,
+        ),
+        ('\ud750', BoundingBox(356, 0, 369, 21.13), 0.5002),
+        ('\ucc3d\uc2dc\uc808', BoundingBox(368, 0, 430, 21.13), 0.99945),
+        ('\ub54c\ubd80\ud130', BoundingBox(438, 0, 491, 21.13), 0.9992),
+    ]
+
+
+def test_corrected_overlapping_leading_syllable_accepts_consensus() -> None:
+    words = _corrected_leading_overlap_words()
+    recognizer = BinarizedRetryRecognizer(
+        tuple(
+            RecognizedText('\ud559\ucc3d\uc2dc\uc808', confidence)
+            for confidence in (
+                0.9965,
+                0.9970,
+                0.9964,
+                0.9971,
+                0.9963,
+                0.9972,
+                0.9962,
+                0.9973,
+                0.9961,
+                0.9974,
+            )
+        )
+    )
+
+    recovered = _recover_confirmed_corrected_overlapping_leading_syllable(
+        words,
+        Image.new('RGB', (736, 22)),
+        BoundingBox(0, 0, 736, 21.13),
+        recognizer,
+    )
+
+    assert recovered == [
+        words[0],
+        (
+            '\ud559\ucc3d\uc2dc\uc808',
+            BoundingBox(356, 0, 430, 21.13),
+            0.5002,
+        ),
+        words[3],
+    ]
+    assert recognizer.sizes == [
+        (72, 22),
+        (144, 44),
+        (73, 22),
+        (146, 44),
+        (74, 22),
+        (148, 44),
+        (75, 22),
+        (150, 44),
+        (76, 22),
+        (152, 44),
+    ]
+
+
+def test_corrected_overlapping_leading_syllable_rejects_disagreement() -> None:
+    words = _corrected_leading_overlap_words()
+    results = [RecognizedText('\ud559\ucc3d\uc2dc\uc808', 0.997) for _ in range(10)]
+    results[5] = RecognizedText('\ud750\ucc3d\uc2dc\uc808', 0.997)
+
+    assert _recover_confirmed_corrected_overlapping_leading_syllable(
+        words,
+        Image.new('RGB', (736, 22)),
+        BoundingBox(0, 0, 736, 21.13),
+        BinarizedRetryRecognizer(tuple(results)),
+    ) == words
+
+
+def test_corrected_overlapping_leading_syllable_requires_profile() -> None:
+    words = _corrected_leading_overlap_words()
+    words[1] = (words[1][0], words[1][1], 0.502)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _recover_confirmed_corrected_overlapping_leading_syllable(
+        words,
+        Image.new('RGB', (736, 22)),
+        BoundingBox(0, 0, 736, 21.13),
+        recognizer,
+    ) == words
+    assert recognizer.sizes == []
 
 
 class IsolatedOverlapRecognizer:
