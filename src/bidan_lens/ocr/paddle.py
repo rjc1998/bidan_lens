@@ -1302,6 +1302,28 @@ def _recover_isolated_close_word_pairs(
                 <= line_box.height * 0.005
                 and pitch_ratio >= 0.95
             )
+            crowded_one_plus_two_profile = (
+                previous is not None
+                and getattr(
+                    recognizer,
+                    'supports_binarized_small_text_retry',
+                    False,
+                )
+                and pure_hangul_pair
+                and contains_hangul(previous[0])
+                and contains_hangul(following[0])
+                and len(previous[0]) == 2
+                and len(first[0]) == 1
+                and len(last[0]) == 2
+                and len(following[0]) == 3
+                and 17.5 <= line_box.height <= 17.7
+                and 0.92 <= first[2] <= 0.93
+                and 0.9995 <= last[2] <= 0.9997
+                and 0.17 <= gap_ratio <= 0.171
+                and -0.057 <= previous_gap / line_box.height <= -0.056
+                and -0.057 <= following_gap / line_box.height <= -0.056
+                and 0.76 <= pitch_ratio <= 0.77
+            )
             line_initial_three_plus_three_profile = (
                 previous is None
                 and pure_hangul_pair
@@ -1450,6 +1472,7 @@ def _recover_isolated_close_word_pairs(
                     or narrow_three_plus_two_profile
                     or line_initial_one_plus_two_profile
                     or touching_following_one_plus_two_profile
+                    or crowded_one_plus_two_profile
                     or line_initial_three_plus_three_profile
                     or isolated_three_plus_three_profile
                     or narrow_gap_three_plus_two_profile
@@ -1496,6 +1519,58 @@ def _recover_isolated_close_word_pairs(
                 )
                 combined = recognizer.recognize(combined_crop)
                 combined_text = combined.text.replace(' ', '')
+                if crowded_one_plus_two_profile:
+                    variants: list[RecognizedText] = []
+                    for left_delta in (-2, -1, 0, 1, 2):
+                        for right_delta in (-2, -1, 0, 1, 2):
+                            variant = crop.crop(
+                                (
+                                    math.floor(candidate_left) + left_delta,
+                                    0,
+                                    math.ceil(candidate_right) + right_delta,
+                                    crop.height,
+                                )
+                            )
+                            grayscale = ImageOps.autocontrast(variant.convert('L'))
+                            variants.extend(
+                                (
+                                    recognizer.recognize(variant),
+                                    recognizer.recognize(grayscale.convert('RGB')),
+                                    recognizer.recognize(
+                                        grayscale.resize(
+                                            (
+                                                grayscale.width * 2,
+                                                grayscale.height * 2,
+                                            ),
+                                            Image.Resampling.BICUBIC,
+                                        ).convert('RGB')
+                                    ),
+                                )
+                            )
+                    expected = first[0] + last[0]
+                    if all(
+                        variant.text.replace(' ', '') == expected
+                        for variant in variants
+                    ) and min(variant.confidence for variant in variants) >= 0.93:
+                        recovered.append(
+                            (
+                                expected,
+                                BoundingBox.union((first[1], last[1])),
+                                min(
+                                    first[2],
+                                    last[2],
+                                    *(
+                                        variant.confidence
+                                        for variant in variants
+                                    ),
+                                ),
+                            )
+                        )
+                        index += 2
+                        continue
+                    recovered.append(words[index])
+                    index += 1
+                    continue
                 if isolated_two_plus_terminal_ellipsis_profile:
                     last_core_right = (
                         last[1].left

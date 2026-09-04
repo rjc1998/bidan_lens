@@ -9805,6 +9805,70 @@ def test_relative_wide_hangul_pair_accepts_explicit_boundary_competitor() -> Non
     ]
 
 
+def _crowded_one_plus_two_words():
+    return [
+        ('\ub9d0\uc740', BoundingBox(382.32, 0, 408.32, 17.61), 0.999904),
+        ('\uc2dc', BoundingBox(407.32, 0, 424.32, 17.61), 0.922978),
+        ('\uc6d0\uc740', BoundingBox(427.32, 0, 453.32, 17.61), 0.99964),
+        ('\ud558\uc9c0\ub9cc', BoundingBox(452.32, 0, 499.32, 17.61), 0.986596),
+    ]
+
+
+def test_crowded_one_plus_two_pair_merges_unanimous_variants() -> None:
+    words = _crowded_one_plus_two_words()
+    recognizer = BinarizedRetryRecognizer(
+        (RecognizedText('\uc2dc\uc6d0\uc740', 0.997795),)
+        + tuple(RecognizedText('\uc2dc\uc6d0\uc740', 0.94) for _ in range(75))
+    )
+
+    recovered = _recover_isolated_close_word_pairs(
+        words,
+        Image.new('RGB', (663, 18)),
+        BoundingBox(77.32, 0, 739.68, 17.61),
+        recognizer,
+    )
+
+    assert recovered == [
+        words[0],
+        ('\uc2dc\uc6d0\uc740', BoundingBox(407.32, 0, 453.32, 17.61), 0.922978),
+        words[3],
+    ]
+    assert len(recognizer.sizes) == 76
+
+
+def test_crowded_one_plus_two_pair_rejects_variant_disagreement() -> None:
+    words = _crowded_one_plus_two_words()
+    results = [RecognizedText('\uc2dc\uc6d0\uc740', 0.94) for _ in range(75)]
+    results[37] = RecognizedText('\uc2dc\uc6d0', 0.94)
+
+    assert _recover_isolated_close_word_pairs(
+        words,
+        Image.new('RGB', (663, 18)),
+        BoundingBox(77.32, 0, 739.68, 17.61),
+        BinarizedRetryRecognizer(
+            (RecognizedText('\uc2dc\uc6d0\uc740', 0.997795),) + tuple(results)
+        ),
+    ) == words
+
+
+def test_crowded_one_plus_two_pair_requires_overlapping_neighbors() -> None:
+    words = _crowded_one_plus_two_words()
+    words[0] = (
+        '\ub9d0\uc740',
+        BoundingBox(382.32, 0, 406.32, 17.61),
+        0.999904,
+    )
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _recover_isolated_close_word_pairs(
+        words,
+        Image.new('RGB', (663, 18)),
+        BoundingBox(77.32, 0, 739.68, 17.61),
+        recognizer,
+    ) == words
+    assert recognizer.sizes == []
+
+
 class ConfirmedWrappedFourSyllableTripletRecognizer:
     def __init__(
         self,

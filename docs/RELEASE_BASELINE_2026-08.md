@@ -62,12 +62,12 @@ The aggregate quick report and privacy-safe diagnostic SHA-256 values are
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.16 by numeric ID
 without a fresh review audit.
 
-The complete v4.16 development run against the current OCR and analyzer cleanup records 98.65%
-whole-eojeol OCR, 99.90% target selection, 92.10% functional context, 73.75% exact sentence
+The complete v4.16 development run against the current OCR and analyzer cleanup records 98.66%
+whole-eojeol OCR, 99.90% target selection, 92.15% functional context, 73.80% exact sentence
 transcription, 93.75% component accuracy, 95.75% exact KRDict fidelity, 87.20% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 244.10 ms median / 382.13 ms p95. The privacy-safe stage totals are two target,
-156 context, and 98 analysis failures. The analysis failures comprise 43 primary lemmas, 45
+accepted rerun is 260.83 ms median / 400.20 ms p95. The privacy-safe stage totals are two target,
+155 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`3e291b7589ee042fee98501b58d9a7882ee0fe33e18d157d5a89b124036639d4` and
-`0a706ad6cee70fb566beb1b491a45776041a4cd592d71ffad1fcb7fd767ff8f8`.
+`206069c57373393256b78d499b37b6a7da85273bf6c0dafeb718315655054aa3` and
+`1bad86056f02ed27cf3784cc83be1660f667d97e1cb2e29918d8a6ef5ffb3638`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -91,12 +91,12 @@ line/sentence reconstructions. Matching-only carry-forward copies reviewed curre
 weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration retained
 all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified its two
 inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed audit now covers
-all 156 active cases with no missing decision. It preserves fifteen resolved IDs:
+all 155 active cases with no missing decision. It preserves sixteen resolved IDs:
 `dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
 `dev-plain-0801`, `dev-plain-0994`, `dev-plain-1281`, `dev-plain-1387`, `dev-plain-1601`,
-`dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and `dev-plain-1889`.
-The retained 171 decisions comprise 90 non-target transcription errors, 68 punctuation or
-structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions.
+`dev-plain-1609`, `dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and
+`dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
+punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions.
 The decision report SHA-256 is
 `0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.
 The additional
@@ -126,11 +126,11 @@ The v4.13 history then has 112 active decisions and SHA-256
 `a6af7603ec91e6a69e080e05866eb1359bd06974e70d0b16edbd91da62a2fdbc`.
 The v4.15 history contains 127 decisions: 25 Kiwi-analysis errors, 45 annotation-convention
 differences, 38 equivalent learner interpretations, ten oracle defects, and nine genuinely
-ambiguous cases. The current v4.16 matching migration contains all 98 active decisions with no
-missing, resolved, or stale ID: two Kiwi-analysis errors, 42 annotation-convention differences,
-37 equivalent learner interpretations, eight oracle defects, and nine genuinely ambiguous cases.
+ambiguous cases. The current v4.16 ledger contains all 99 active decisions with no missing,
+resolved, or stale ID: two Kiwi-analysis errors, 43 annotation-convention differences, 37
+equivalent learner interpretations, eight oracle defects, and nine genuinely ambiguous cases.
 Its SHA-256 is
-`144f1390db59d0cdbe823698b96096d01d4258788940aca6aa38e2d2d25634f2`.
+`801a572bb6c3dbfb3e4cc0f70115300a185b54b1c1e3f2528a90827678b9022c`.
 The closing audit reclassifies eight provisional Kiwi errors: two truncated-context ambiguities,
 two source-tag convention differences, two learner-equivalent noun/proper-noun readings, and two
 oracle defects involving a wrapped standalone particle and contracted-copula fallback. The other
@@ -291,6 +291,24 @@ punctuation context/transcription/popup rises from 84.40% / 83.60% / 80.00% to
 target selection, analysis, dictionary fidelity, alternative recovery, promotions, and every
 negative category remain unchanged. The accepted aggregate and privacy-safe diagnostic SHA-256
 values are the current values above.
+
+The terminal-punctuation follow-up recovers a crowded one-plus-two-syllable Hangul split whose
+internal gap is 17% of line height while both neighboring detector boundaries overlap by about
+5.7%. The production recognizer is consulted only inside narrow line-height, component-confidence,
+gap, pitch, and neighboring-word-shape bands. All 75 raw, autocontrasted, and autocontrasted 2x
+readings across five left and five right edges must reproduce the exact concatenation, and the
+weakest must reach 93% confidence.
+
+The exact full comparison moves only `dev-plain-1609` from context to a primary-lemma failure;
+no unrelated diagnostic is added, removed, or changed, and the total remains 345. Aggregate
+OCR/context/transcription/popup is now 98.66% / 92.15% / 73.80% / 87.20%. The 12 px
+OCR/context/transcription stratum rises from 98.30% / 86.40% / 63.20% to
+98.34% / 86.80% / 63.60%, while terminal punctuation OCR/context/transcription rises from
+98.54% / 92.80% / 86.80% to 98.57% / 93.20% / 87.20%. Popup correctness is unchanged because
+the recovered context exposes a reviewed standard-versus-colloquial dependent-noun lemma
+convention. Quick diagnostics remain byte-identical; stress, held-out language, target selection,
+components, dictionary fidelity, alternative recovery, promotions, and every negative category
+remain unchanged. Both fail-closed review audits are complete.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
