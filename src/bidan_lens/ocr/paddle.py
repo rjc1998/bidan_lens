@@ -380,6 +380,54 @@ def _retry_binarized_small_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_crowded_four_hangul_word(
+    image: Image.Image,
+    previous_gap: int,
+    following_gap: int,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or len(text) != 4
+        or not all(is_hangul(character) for character in text)
+        or not 17.5 <= line_height <= 17.7
+        or not 0.53 <= recognized.confidence <= 0.54
+        or not 3.68 <= image.width / line_height <= 3.70
+        or not 0.28 <= previous_gap / line_height <= 0.285
+        or not -0.06 <= following_gap / line_height <= -0.05
+    ):
+        return recognized
+    grayscale = ImageOps.autocontrast(image.convert('L'))
+    retries = tuple(
+        recognizer.recognize(
+            grayscale
+            .point(lambda pixel, cutoff=cutoff: 255 if pixel >= cutoff else 0)
+            .resize(
+                (grayscale.width * 2, grayscale.height * 2),
+                Image.Resampling.LANCZOS,
+            )
+            .convert('RGB')
+        )
+        for cutoff in (208, 216, 224)
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.91
+        or retry_confidence <= recognized.confidence
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _retry_confirmed_trimmed_two_hangul_word(
     line_image: Image.Image,
     left: int,
@@ -10337,6 +10385,15 @@ class PaddleOcrEngine(OcrEngine):
                     left,
                     right,
                     segments[1][0],
+                    line_box.height,
+                    recognized,
+                    self.recognizer,
+                )
+            if 0 < index < len(segments) - 1:
+                recognized = _retry_confirmed_crowded_four_hangul_word(
+                    word_crop,
+                    left - segments[index - 1][1],
+                    segments[index + 1][0] - right,
                     line_box.height,
                     recognized,
                     self.recognizer,

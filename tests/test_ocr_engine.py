@@ -81,6 +81,7 @@ from bidan_lens.ocr.paddle import (
     _recover_word_boundaries,
     _remove_tiny_contained_fragments,
     _retry_binarized_small_hangul_word,
+    _retry_confirmed_crowded_four_hangul_word,
     _retry_confirmed_expanded_first_hangul_word,
     _retry_confirmed_large_first_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
@@ -332,6 +333,69 @@ def test_binarized_small_hangul_retry_requires_bounded_trigger(
             recognizer,
         )
         == recognized
+    )
+    assert recognizer.sizes == []
+
+
+def test_crowded_four_hangul_retry_accepts_three_threshold_consensus() -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9258),
+            RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9366),
+            RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9175),
+        )
+    )
+
+    result = _retry_confirmed_crowded_four_hangul_word(
+        Image.new('RGB', (65, 18)),
+        5,
+        -1,
+        17.608695652173907,
+        RecognizedText('\ub0a0\uc7a5\uc73c\ub85c', 0.531369),
+        recognizer,
+    )
+
+    assert result == RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9175)
+    assert recognizer.sizes == [(130, 36), (130, 36), (130, 36)]
+
+
+def test_crowded_four_hangul_retry_rejects_threshold_disagreement() -> None:
+    original = RecognizedText('\ub0a0\uc7a5\uc73c\ub85c', 0.531369)
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9258),
+            RecognizedText('\ub0a0\uc7a5\uc73c\ub85c', 0.9366),
+            RecognizedText('\ub0b1\uc7a5\uc73c\ub85c', 0.9175),
+        )
+    )
+
+    assert (
+        _retry_confirmed_crowded_four_hangul_word(
+            Image.new('RGB', (65, 18)),
+            5,
+            -1,
+            17.608695652173907,
+            original,
+            recognizer,
+        )
+        == original
+    )
+
+
+def test_crowded_four_hangul_retry_requires_reviewed_neighbor_geometry() -> None:
+    original = RecognizedText('\ub0a0\uc7a5\uc73c\ub85c', 0.531369)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert (
+        _retry_confirmed_crowded_four_hangul_word(
+            Image.new('RGB', (65, 18)),
+            4,
+            -1,
+            17.608695652173907,
+            original,
+            recognizer,
+        )
+        == original
     )
     assert recognizer.sizes == []
 

@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.16 quick tier records 99.37% whole-eojeol OCR, 100.00% target selection, 96.50%
 functional context, 76.50% exact sentence transcription, 95.00% component accuracy, 95.50%
 exact KRDict fidelity, 92.50% fully correct first popups, 97.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 216.73 ms median / 332.93 ms p95. There
+false promotions. The accepted current rerun is 211.21 ms median / 320.62 ms p95. There
 are eight analysis and seven context failures, with no target failure. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,17 +57,17 @@ gate pass.
 The v4.16 lock SHA-256 is
 `1c5661f511a49c4931214c614b812aedf298edb746e95c951113d9829158aa62`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`4a2b6bfff3913b76f73ba4c56e8fa82e08e8fe48e5f59168085824846e24fbe9` and
+`0df0645a99598b69b02d4529a2d8e10282e7b31a9bc719bddf234ae8a6f06a12` and
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.16 by numeric ID
 without a fresh review audit.
 
 The complete v4.16 development run against the current OCR and analyzer cleanup records 98.66%
-whole-eojeol OCR, 99.90% target selection, 92.15% functional context, 73.80% exact sentence
-transcription, 93.75% component accuracy, 95.75% exact KRDict fidelity, 87.20% fully correct first
+whole-eojeol OCR, 99.90% target selection, 92.20% functional context, 73.85% exact sentence
+transcription, 93.75% component accuracy, 95.75% exact KRDict fidelity, 87.25% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 260.83 ms median / 400.20 ms p95. The privacy-safe stage totals are two target,
-155 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
+accepted rerun is 214.93 ms median / 333.53 ms p95. The privacy-safe stage totals are two target,
+154 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`206069c57373393256b78d499b37b6a7da85273bf6c0dafeb718315655054aa3` and
-`1bad86056f02ed27cf3784cc83be1660f667d97e1cb2e29918d8a6ef5ffb3638`.
+`f87b27478223902ac058813ed264f43c66599527712e487217c09cae3fa82845` and
+`c1ee170ef401db39e07acb8d45d007e887a51e9455e7861df45eda55a1f63b64`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -91,9 +91,9 @@ line/sentence reconstructions. Matching-only carry-forward copies reviewed curre
 weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration retained
 all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified its two
 inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed audit now covers
-all 155 active cases with no missing decision. It preserves sixteen resolved IDs:
+all 154 active cases with no missing decision. It preserves seventeen resolved IDs:
 `dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
-`dev-plain-0801`, `dev-plain-0994`, `dev-plain-1281`, `dev-plain-1387`, `dev-plain-1601`,
+`dev-plain-0801`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1281`, `dev-plain-1387`, `dev-plain-1601`,
 `dev-plain-1609`, `dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and
 `dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions.
@@ -309,6 +309,22 @@ the recovered context exposes a reviewed standard-versus-colloquial dependent-no
 convention. Quick diagnostics remain byte-identical; stress, held-out language, target selection,
 components, dictionary fidelity, alternative recovery, promotions, and every negative category
 remain unchanged. Both fail-closed review audits are complete.
+
+A required-render follow-up recovers one crowded four-syllable Hangul substitution on a
+17.5-17.7 px detector line. The profile bounds the selected confidence, word width, preceding gap,
+and following overlap to the reviewed geometry. Autocontrasted crops thresholded independently at
+208, 216, and 224 are recognized after 2x Lanczos resampling; all three must agree on one different
+same-length pure-Hangul reading, and their weakest confidence must reach 91% and exceed the
+selected reading.
+
+The exact full comparison removes only `dev-plain-1154|context|`, adds or changes no diagnostic,
+and reduces the total from 345 to 344. Aggregate functional context, exact sentence transcription,
+and first-popup correctness rise to 92.20%, 73.85%, and 87.25%. The 14 px
+OCR/context/transcription/popup stratum rises to 97.18% / 85.60% / 58.80% / 81.20%, and terminal
+punctuation OCR/context/transcription/popup rises to 98.60% / 93.60% / 87.60% / 86.00%. Quick
+diagnostics remain byte-identical; stress, held-out language, target selection, analysis,
+dictionary fidelity, alternative recovery, promotions, and every negative category are unchanged.
+The accepted aggregate and privacy-safe diagnostic SHA-256 values are the current values above.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict

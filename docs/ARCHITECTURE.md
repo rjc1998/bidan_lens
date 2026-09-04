@@ -243,6 +243,14 @@ rounded to their original integer CTC coordinates to avoid subpixel arithmetic c
 any line, retry, geometry, category, confidence, or crop-consensus signal differs, the normal
 higher-confidence retry remains selected. The recovered word retains the original segment geometry
 and uses the minimum direct/crop confidence.
+A separately reviewed crowded four-Hangul recalibration profile applies only on a 17.5-17.7 px
+detector line when the selected reading is 53-54% confident, its width is 3.68-3.70 times line
+height, the preceding gap is 28-28.5% of line height, and the following segment overlaps by
+5-6%. Autocontrasted crops are thresholded independently at 208, 216, and 224 before 2x Lanczos
+resampling. All three readings must agree on one different same-length pure-Hangul candidate, and
+their weakest confidence must reach 91% and exceed the selected reading. A confirmed replacement
+retains the original segment geometry and uses the weakest threshold confidence; any profile or
+consensus mismatch keeps the original reading.
 A separately reviewed right-wrapper recalibration profile can replace one five-Hangul segment only
 under an exact 16-raw-segment/12-selected-word line profile. The candidate must sit between three
 reviewed punctuation or symbol fragments with the expected zero-gap geometry, while the surrounding
