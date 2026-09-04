@@ -84,6 +84,7 @@ from bidan_lens.ocr.paddle import (
     _retry_confirmed_crowded_four_hangul_word,
     _retry_confirmed_expanded_first_hangul_word,
     _retry_confirmed_large_first_hangul_word,
+    _retry_confirmed_rebalanced_terminal_hangul_word,
     _retry_confirmed_tall_two_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
     _split_cross_segment_quote_boundary,
@@ -462,6 +463,115 @@ def test_tall_two_hangul_retry_requires_reviewed_neighbor_geometry() -> None:
             4,
             4,
             19.36956521739134,
+            original,
+            recognizer,
+        )
+        == original
+    )
+    assert recognizer.sizes == []
+
+
+@pytest.mark.parametrize(
+    (
+        'line_size',
+        'bounds',
+        'line_height',
+        'fragment_confidence',
+        'original',
+        'replacement',
+        'retry_size',
+    ),
+    [
+        (
+            (408, 19),
+            (324, 356, 325, 359, 364),
+            17.608695652173907,
+            0.9159,
+            RecognizedText('\uc218\uae30', 0.867314),
+            '\uc218\uac00',
+            (68, 36),
+        ),
+        (
+            (1004, 16),
+            (333, 374, 326, 377, 382),
+            15.847826086956502,
+            0.8357,
+            RecognizedText('\uacbd\uc6b0\uae30', 0.924977),
+            '\uacbd\uc6b0\uac00',
+            (102, 32),
+        ),
+    ],
+)
+def test_rebalanced_terminal_hangul_retry_accepts_nine_reading_consensus(
+    line_size: tuple[int, int],
+    bounds: tuple[int, int, int, int, int],
+    line_height: float,
+    fragment_confidence: float,
+    original: RecognizedText,
+    replacement: str,
+    retry_size: tuple[int, int],
+) -> None:
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('|', fragment_confidence),
+            *(
+                RecognizedText(replacement, 0.9964 + index / 10000)
+                for index in range(9)
+            ),
+        )
+    )
+
+    result = _retry_confirmed_rebalanced_terminal_hangul_word(
+        Image.new('RGB', line_size),
+        *bounds,
+        line_height,
+        original,
+        recognizer,
+    )
+
+    assert result == RecognizedText(replacement, 0.9964)
+    assert recognizer.sizes == [(5, line_size[1]), *([retry_size] * 9)]
+
+
+def test_rebalanced_terminal_hangul_retry_rejects_reading_disagreement() -> None:
+    original = RecognizedText('\uc218\uae30', 0.867314)
+    recognizer = BinarizedRetryRecognizer(
+        (
+            RecognizedText('|', 0.9159),
+            *(RecognizedText('\uc218\uac00', 0.9964) for _ in range(8)),
+            RecognizedText('\uc218\uae30', 0.9964),
+        )
+    )
+
+    assert (
+        _retry_confirmed_rebalanced_terminal_hangul_word(
+            Image.new('RGB', (408, 19)),
+            324,
+            356,
+            325,
+            359,
+            364,
+            17.608695652173907,
+            original,
+            recognizer,
+        )
+        == original
+    )
+
+
+def test_rebalanced_terminal_hangul_retry_requires_reviewed_geometry() -> None:
+    original = RecognizedText('\uc218\uae30', 0.867314)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert (
+        _retry_confirmed_rebalanced_terminal_hangul_word(
+            Image.new('RGB', (408, 19)),
+            324,
+            356,
+            324,
+            359,
+            364,
+            17.608695652173907,
             original,
             recognizer,
         )

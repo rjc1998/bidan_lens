@@ -262,6 +262,19 @@ and Lanczos resampling. All six readings must agree on one different same-length
 candidate; their weakest confidence must reach 89% and exceed the selected reading. A confirmed
 replacement retains the original geometry and uses that weakest confidence. Any profile or
 consensus mismatch keeps the selected reading.
+A detached-terminal-fragment recovery applies only when a five-pixel CTC segment immediately after
+a pure-Hangul word is independently recognized as a vertical bar in a profile-specific confidence
+band. The two-syllable profile requires a 17.5-17.7 px line, 86-88% selected confidence, a word
+width of 1.81-1.83 line heights, 5-6% overlap with the preceding segment, and a fragment gap and
+width of 17-18% and 28-29% of line height. It trims six left pixels and one top pixel before
+unioning the fragment, then thresholds at 200, 208, and 216. The three-syllable profile requires a
+15.8-15.9 px line, 92-93% selected confidence, a word width of 2.58-2.59 line heights, a preceding
+gap of 44-45%, and a fragment gap and width of 18-20% and 31-32%. It expands two pixels left and
+thresholds at 144, 152, and 160. Each threshold is recognized after 2x bilinear, bicubic, and
+Lanczos resampling. All nine readings must agree on a different same-length pure-Hangul candidate,
+preserve every character except the last, and have a minimum confidence of 99% above the selected
+word. The replacement retains the original geometry; any profile, fragment, consensus, or
+confidence mismatch keeps the selected reading.
 A separately reviewed right-wrapper recalibration profile can replace one five-Hangul segment only
 under an exact 16-raw-segment/12-selected-word line profile. The candidate must sit between three
 reviewed punctuation or symbol fragments with the expected zero-gap geometry, while the surrounding

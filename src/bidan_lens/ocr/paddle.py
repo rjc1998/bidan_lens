@@ -480,6 +480,114 @@ def _retry_confirmed_tall_two_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_rebalanced_terminal_hangul_word(
+    line_image: Image.Image,
+    left: int,
+    right: int,
+    previous_right: int,
+    following_left: int,
+    following_right: int,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    previous_gap = left - previous_right
+    following_gap = following_left - right
+    following_width = following_right - following_left
+    width_ratio = (right - left) / line_height if line_height > 0 else 0.0
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not text
+        or not all(is_hangul(character) for character in text)
+    ):
+        return recognized
+    if (
+        len(text) == 2
+        and 17.5 <= line_height <= 17.7
+        and 0.86 <= recognized.confidence <= 0.88
+        and 1.81 <= width_ratio <= 1.83
+        and -0.06 <= previous_gap / line_height <= -0.05
+        and 0.17 <= following_gap / line_height <= 0.18
+        and 0.28 <= following_width / line_height <= 0.29
+    ):
+        left_adjustment, top_trim = 6, 1
+        thresholds = (200, 208, 216)
+        fragment_confidence_range = (0.91, 0.92)
+    elif (
+        len(text) == 3
+        and 15.8 <= line_height <= 15.9
+        and 0.92 <= recognized.confidence <= 0.93
+        and 2.58 <= width_ratio <= 2.59
+        and 0.44 <= previous_gap / line_height <= 0.45
+        and 0.18 <= following_gap / line_height <= 0.20
+        and 0.31 <= following_width / line_height <= 0.32
+    ):
+        left_adjustment, top_trim = -2, 0
+        thresholds = (144, 152, 160)
+        fragment_confidence_range = (0.83, 0.84)
+    else:
+        return recognized
+    retry_left = left + left_adjustment
+    retry_right = following_right
+    if (
+        retry_left < 0
+        or retry_right > line_image.width
+        or retry_left >= retry_right
+        or top_trim >= line_image.height
+    ):
+        return recognized
+    fragment = recognizer.recognize(
+        line_image.crop(
+            (following_left, 0, following_right, line_image.height)
+        )
+    )
+    if (
+        fragment.text.replace(' ', '') != '|'
+        or not fragment_confidence_range[0]
+        <= fragment.confidence
+        <= fragment_confidence_range[1]
+    ):
+        return recognized
+    retry_crop = ImageOps.autocontrast(
+        line_image.crop(
+            (retry_left, top_trim, retry_right, line_image.height)
+        ).convert('L')
+    )
+    retries = tuple(
+        recognizer.recognize(
+            retry_crop.point(
+                lambda pixel, cutoff=threshold: 255 if pixel >= cutoff else 0
+            )
+            .resize(
+                (retry_crop.width * 2, retry_crop.height * 2),
+                resampling,
+            )
+            .convert('RGB')
+        )
+        for threshold in thresholds
+        for resampling in (
+            Image.Resampling.BILINEAR,
+            Image.Resampling.BICUBIC,
+            Image.Resampling.LANCZOS,
+        )
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or candidate[:-1] != text[:-1]
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.99
+        or retry_confidence <= recognized.confidence
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _retry_confirmed_trimmed_two_hangul_word(
     line_image: Image.Image,
     left: int,
@@ -10454,6 +10562,17 @@ class PaddleOcrEngine(OcrEngine):
                     word_crop,
                     left - segments[index - 1][1],
                     segments[index + 1][0] - right,
+                    line_box.height,
+                    recognized,
+                    self.recognizer,
+                )
+                recognized = _retry_confirmed_rebalanced_terminal_hangul_word(
+                    crop,
+                    left,
+                    right,
+                    segments[index - 1][1],
+                    segments[index + 1][0],
+                    segments[index + 1][1],
                     line_box.height,
                     recognized,
                     self.recognizer,
