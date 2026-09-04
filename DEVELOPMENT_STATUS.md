@@ -75,11 +75,11 @@ privacy-safe diagnostic SHA-256 is
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 
 The complete v4.16 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.65% whole-eojeol OCR, 99.90% target selection, 92.00%
-functional context, 73.65% exact sentence transcription, 93.75% component accuracy, 95.75% exact
-KRDict fidelity, 87.10% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 235.72 ms median /
-360.96 ms p95. Privacy-safe diagnostics contain 2 target, 158 context, and 98 analysis failures;
+cleanup. Its 2,000 main cases record 98.65% whole-eojeol OCR, 99.90% target selection, 92.10%
+functional context, 73.75% exact sentence transcription, 93.75% component accuracy, 95.75% exact
+KRDict fidelity, 87.20% fully correct first popups, and 97.00% alternative recovery. False
+promotions remain zero and the accepted follow-up is 244.10 ms median /
+382.13 ms p95. Privacy-safe diagnostics contain 2 target, 156 context, and 98 analysis failures;
 the analysis stages are 43 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -93,8 +93,8 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current full aggregate and privacy-safe diagnostic SHA-256 values are
-`ce1736797a91b3f5061beb5d7c5b064d85f83ed47b21ef684440e2834cb67906` and
-`569a288a539118ac1ab680031294bef77f91f651a55b040a1b5347cd51b0761c`.
+`3e291b7589ee042fee98501b58d9a7882ee0fe33e18d157d5a89b124036639d4` and
+`0a706ad6cee70fb566beb1b491a45776041a4cd592d71ffad1fcb7fd767ff8f8`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -108,11 +108,11 @@ IDs, categorical decisions, and counts. Matching-only carry-forward copies revie
 without weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration
 retained all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified
 its two inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed v4.16
-audit now covers all 158 active cases with no missing decision. It preserves thirteen resolved IDs:
-`dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0801`,
-`dev-plain-0994`, `dev-plain-1281`, `dev-plain-1601`, `dev-plain-1659`, `dev-plain-1755`,
-`dev-plain-1830`, `dev-plain-1838`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target
-transcription errors, 68
+audit now covers all 156 active cases with no missing decision. It preserves fifteen resolved IDs:
+`dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
+`dev-plain-0801`, `dev-plain-0994`, `dev-plain-1281`, `dev-plain-1387`, `dev-plain-1601`,
+`dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and `dev-plain-1889`.
+The retained 171 decisions comprise 90 non-target transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence
 reconstructions. The decision report SHA-256 is
 `0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.
@@ -2067,12 +2067,30 @@ aggregate and privacy-safe diagnostic SHA-256 values are
 `ce1736797a91b3f5061beb5d7c5b064d85f83ed47b21ef684440e2834cb67906` and
 `569a288a539118ac1ab680031294bef77f91f651a55b040a1b5347cd51b0761c`.
 
+The next 16 px follow-up recovers a structured production/version token whose final digit was
+split into a one-pixel-overlapping detector fragment. The production recognizer is consulted only
+inside narrow line-height, fragment-confidence, overlap, neighboring-gap, and character-pitch
+bands, with Hangul context on both sides. Five adjacent right edges are each recognized in raw,
+autocontrasted, and autocontrasted 2x forms. All fifteen readings must reproduce the exact
+concatenation and the weakest must reach 89% confidence before the fragments are merged.
+
+The exact full comparison removes only `dev-plain-0747|context|` and
+`dev-plain-1387|context|`, adds or changes no diagnostic, and reduces the count from 347 to 345.
+Aggregate OCR/context/transcription/popup is now 98.65% / 92.10% / 73.75% / 87.20%. The 16 px
+stratum rises from 99.24% / 92.00% / 82.40% / 87.20% to
+99.24% / 92.80% / 83.20% / 88.00%, clearing that size's exceptional popup floor. Mixed
+punctuation context/transcription/popup rises from 84.40% / 83.60% / 80.00% to
+85.20% / 84.40% / 80.80%. Quick diagnostics remain byte-identical; stress, held-out language,
+target selection, analysis, dictionary fidelity, alternative recovery, promotions, and every
+negative category remain unchanged. The accepted aggregate and privacy-safe diagnostic SHA-256
+values are the current values above.
+
 The complete v4.16 development run now shows that aggregate functional context clears 88%, while
 main popup correctness and required render strata still block release evidence. Every active popup
 case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
 `dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
-context ledger retains all 171 categorical decisions. The latest full audit marks thirteen resolved,
-leaving 158 active cases with complete review coverage. Two historical line/sentence
+context ledger retains all 171 categorical decisions. The latest full audit marks fifteen resolved,
+leaving 156 active cases with complete review coverage. Two historical line/sentence
 reconstruction cases require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
 remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
 another safe general rule. The geometry-clustering, substitution, direct-retry, wrapper-fragment,

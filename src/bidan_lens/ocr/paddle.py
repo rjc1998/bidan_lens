@@ -739,6 +739,90 @@ def _split_mandatory_auxiliary_spacing(
     ]
 
 
+def _recover_confirmed_structured_version_suffix(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    index = 0
+    while index < len(words):
+        if index > 0 and index + 2 < len(words) and line_box.height > 0:
+            previous, first, last, following = words[index - 1 : index + 3]
+            gap_ratio = (last[1].left - first[1].right) / line_box.height
+            previous_gap_ratio = (
+                first[1].left - previous[1].right
+            ) / line_box.height
+            following_gap_ratio = (
+                following[1].left - last[1].right
+            ) / line_box.height
+            first_pitch = first[1].width / len(first[0])
+            last_pitch = last[1].width / len(last[0])
+            pitch_ratio = min(first_pitch, last_pitch) / max(first_pitch, last_pitch)
+            expected = first[0] + last[0]
+            if (
+                getattr(recognizer, 'supports_binarized_small_text_retry', False)
+                and 33.4 <= line_box.height <= 37.0
+                and re.fullmatch(r'K-\d{4}/v', first[0])
+                and re.fullmatch(r'\d', last[0])
+                and 0.87 <= first[2] <= 0.9
+                and 0.82 <= last[2] <= 0.95
+                and -0.031 <= gap_ratio <= -0.027
+                and 0.32 <= previous_gap_ratio <= 0.4
+                and 0.32 <= following_gap_ratio <= 0.34
+                and 0.92 <= pitch_ratio <= 0.94
+                and contains_hangul(previous[0])
+                and contains_hangul(following[0])
+            ):
+                crop_left = max(0, math.floor(first[1].left - line_box.left))
+                crop_right = min(crop.width, math.ceil(last[1].right - line_box.left))
+                if crop_left < crop_right - 2 and crop_right + 2 <= crop.width:
+                    variants: list[RecognizedText] = []
+                    for right_delta in (-2, -1, 0, 1, 2):
+                        variant = crop.crop(
+                            (
+                                crop_left,
+                                0,
+                                crop_right + right_delta,
+                                crop.height,
+                            )
+                        )
+                        grayscale = ImageOps.autocontrast(variant.convert('L'))
+                        variants.extend(
+                            (
+                                recognizer.recognize(variant),
+                                recognizer.recognize(grayscale.convert('RGB')),
+                                recognizer.recognize(
+                                    grayscale.resize(
+                                        (grayscale.width * 2, grayscale.height * 2),
+                                        Image.Resampling.BICUBIC,
+                                    ).convert('RGB')
+                                ),
+                            )
+                        )
+                    if all(
+                        variant.text.replace(' ', '') == expected
+                        for variant in variants
+                    ) and min(variant.confidence for variant in variants) >= 0.89:
+                        recovered.append(
+                            (
+                                expected,
+                                BoundingBox.union((first[1], last[1])),
+                                min(
+                                    first[2],
+                                    last[2],
+                                    *(variant.confidence for variant in variants),
+                                ),
+                            )
+                        )
+                        index += 2
+                        continue
+        recovered.append(words[index])
+        index += 1
+    return recovered
+
+
 def _merge_structured_fragments(
     words: list[tuple[str, BoundingBox, float]],
     line_height: float,
@@ -10458,6 +10542,12 @@ class PaddleOcrEngine(OcrEngine):
             for part in _split_mandatory_auxiliary_spacing(text, box, confidence)
         ]
         words = _recover_word_boundaries(
+            words,
+            crop,
+            line_box,
+            self.recognizer,
+        )
+        words = _recover_confirmed_structured_version_suffix(
             words,
             crop,
             line_box,

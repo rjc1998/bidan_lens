@@ -47,6 +47,7 @@ from bidan_lens.ocr.paddle import (
     _recover_confirmed_punctuation_trimmed_single,
     _recover_confirmed_right_wrapper_five_substitution,
     _recover_confirmed_seven_character_splits,
+    _recover_confirmed_structured_version_suffix,
     _recover_confirmed_substitution_readings,
     _recover_confirmed_terminal_dash_wrapped_two_plus_two_split,
     _recover_confirmed_terminal_paired_wrapped_single_split,
@@ -776,6 +777,98 @@ def test_engine_retains_structured_ascii_context_without_a_hover_target() -> Non
         "\uc624\ub298",
         "\ub9cc\ub098\uc694",
     ]
+
+
+def _structured_version_suffix_words():
+    return [
+        ('\uc5ec\uae30\uc11c', BoundingBox(42, 0, 129, 33.4565), 0.9999),
+        ('K-2026/v', BoundingBox(142, 0, 283, 33.4565), 0.8787),
+        ('1', BoundingBox(282, 0, 301, 33.4565), 0.9433),
+        ('\uc120\ud0dd\ub41c', BoundingBox(312, 0, 402, 33.4565), 0.9999),
+    ]
+
+
+def test_structured_version_suffix_merges_unanimous_union() -> None:
+    words = _structured_version_suffix_words()
+    recognizer = BinarizedRetryRecognizer(
+        tuple(
+            RecognizedText('K-2026/v1', confidence)
+            for confidence in (
+                0.90,
+                0.91,
+                0.92,
+                0.91,
+                0.92,
+                0.93,
+                0.92,
+                0.93,
+                0.94,
+                0.93,
+                0.94,
+                0.95,
+                0.94,
+                0.95,
+                0.96,
+            )
+        )
+    )
+
+    recovered = _recover_confirmed_structured_version_suffix(
+        words,
+        Image.new('RGB', (718, 35)),
+        BoundingBox(0, 0, 718, 33.4565),
+        recognizer,
+    )
+
+    assert recovered == [
+        words[0],
+        ('K-2026/v1', BoundingBox(142, 0, 301, 33.4565), 0.8787),
+        words[3],
+    ]
+    assert recognizer.sizes == [
+        (157, 35),
+        (157, 35),
+        (314, 70),
+        (158, 35),
+        (158, 35),
+        (316, 70),
+        (159, 35),
+        (159, 35),
+        (318, 70),
+        (160, 35),
+        (160, 35),
+        (320, 70),
+        (161, 35),
+        (161, 35),
+        (322, 70),
+    ]
+
+
+def test_structured_version_suffix_rejects_disagreement() -> None:
+    words = _structured_version_suffix_words()
+    results = [RecognizedText('K-2026/v1', 0.95) for _ in range(15)]
+    results[7] = RecognizedText('K-2026/vl', 0.95)
+
+    assert _recover_confirmed_structured_version_suffix(
+        words,
+        Image.new('RGB', (718, 35)),
+        BoundingBox(0, 0, 718, 33.4565),
+        BinarizedRetryRecognizer(tuple(results)),
+    ) == words
+
+
+def test_structured_version_suffix_requires_overlapping_segments() -> None:
+    words = _structured_version_suffix_words()
+    words[2] = ('1', BoundingBox(284, 0, 303, 33.4565), 0.9433)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert _recover_confirmed_structured_version_suffix(
+        words,
+        Image.new('RGB', (718, 35)),
+        BoundingBox(0, 0, 718, 33.4565),
+        recognizer,
+    ) == words
+    assert recognizer.sizes == []
 
 
 class SupplementalContextRecognizer:
