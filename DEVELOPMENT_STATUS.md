@@ -55,6 +55,9 @@
 The locked benchmark CLI supports `--expected-corpus-id` to reject a mismatched corpus before
 model initialization or diagnostic output. Use the intended baseline identity when comparing
 runs across preserved corpus versions; normal schema and hash validation still follows.
+Its optional `--output` writes aggregate reports as UTF-8 JSON by atomic replacement after a
+successful evaluation, preserving the previous report on failure. The runner rejects report
+paths inside corpus or asset directories and collisions with the diagnostics destination.
 
 The current development corpus is locked under
 `local-data\evaluations\bidan-lens-eval-ud218-v4.16\dev`; the untouched v4.2 release corpus

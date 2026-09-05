@@ -79,6 +79,88 @@ def test_cli_matching_identity_still_runs_normal_validation(
         locked_corpus.main()
 
 
+@pytest.mark.parametrize('profile', ['legacy', 'plain-v1'])
+@pytest.mark.parametrize('fails', [False, True])
+def test_cli_report_preserves_previous_result_until_evaluation_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+    profile: str, fails: bool,
+) -> None:
+    from benchmarks import locked_corpus, plain_evaluator
+
+    output = tmp_path / 'report.json'
+    output.write_bytes(b'previous report')
+    result = {'corpus_id': 'fixture', 'release_eligible': False}
+
+    def evaluate(*args, **kwargs):
+        assert output.read_bytes() == b'previous report'
+        if fails:
+            raise CorpusError('fixture evaluation failed')
+        return result
+
+    monkeypatch.setattr(locked_corpus, 'run', evaluate)
+    monkeypatch.setattr(plain_evaluator, 'run_plain', evaluate)
+    monkeypatch.setattr('sys.argv', [
+        'locked_corpus', str(tmp_path / 'assets'), str(tmp_path / 'corpus'),
+        '--profile', profile, '--output', str(output),
+    ])
+    if fails:
+        with pytest.raises(CorpusError, match='fixture evaluation failed'):
+            locked_corpus.main()
+        assert output.read_bytes() == b'previous report'
+    else:
+        locked_corpus.main()
+        expected = (json.dumps(result, ensure_ascii=True, indent=2) + '\n').encode('utf-8')
+        assert output.read_bytes() == expected
+    assert capsys.readouterr().out == ''
+    assert list(tmp_path.iterdir()) == [output]
+
+
+def test_report_replace_failure_preserves_previous_file_and_cleans_temporary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from benchmarks.locked_corpus import _write_report
+
+    output = tmp_path / 'report.json'
+    output.write_bytes(b'previous report')
+
+    def fail_replace(source: Path, target: Path):
+        assert source.parent == target.parent
+        assert source.read_bytes() == b'{}\n'
+        raise PermissionError('fixture replacement denied')
+
+    monkeypatch.setattr(Path, 'replace', fail_replace)
+    with pytest.raises(PermissionError, match='fixture replacement denied'):
+        _write_report(output, '{}')
+    assert output.read_bytes() == b'previous report'
+    assert list(tmp_path.iterdir()) == [output]
+
+
+@pytest.mark.parametrize('destination', ['corpus', 'assets', 'diagnostics'])
+def test_cli_rejects_report_destination_collision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, destination: str,
+) -> None:
+    from benchmarks import locked_corpus, plain_evaluator
+
+    output = tmp_path / destination / 'report.json'
+    output.parent.mkdir()
+    output.write_bytes(b'preserved')
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail('evaluation must not start for an output collision')
+
+    monkeypatch.setattr(plain_evaluator, 'run_plain', unexpected_run)
+    monkeypatch.setattr('sys.argv', [
+        'locked_corpus', str(tmp_path / 'assets'), str(tmp_path / 'corpus'),
+        '--profile', 'plain-v1', '--output', str(output),
+        '--diagnostics', str(tmp_path / 'diagnostics' / 'report.json'),
+    ])
+    with pytest.raises(SystemExit) as error:
+        locked_corpus.main()
+    assert error.value.code == 2
+    assert '--output' in capsys.readouterr().err
+    assert output.read_bytes() == b'preserved'
+
+
 def _source_manifest(tmp_path: Path, evidence: str = "LICENSE.txt") -> Path:
     path = tmp_path / "sources.json"
     path.write_text(

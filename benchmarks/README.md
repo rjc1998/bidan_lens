@@ -114,6 +114,15 @@ and exits on a mismatch. For example, a baseline with identity
 `bidan-plain-v4.16-dev-ud218` requires `--expected-corpus-id bidan-plain-v4.16-dev-ud218`.
 This optional guard applies to both profiles and does not replace normal hash validation.
 
+Use `--output` instead of shell redirection to save aggregate reports. The runner writes UTF-8
+JSON with LF newlines to a temporary sibling file, then atomically replaces the destination after
+evaluation succeeds. An evaluation or replacement failure preserves an existing report. The
+parent directory must already exist, and the report must be outside the corpus and asset
+directories and separate from `--diagnostics`. Without `--output`, JSON still goes to stdout.
+For example, append `--output $reports\dev-full.json` to the evaluation command. Keep this path
+under `local-data/evaluations/`. Diagnostics remain a separate output and are not committed
+atomically together with the aggregate report.
+
 Review development language disagreements locally with
 `python -m benchmarks.language_review ASSETS CORPUS DECISIONS`. The interactive command
 displays one locked public-corpus case at a time, but its JSON output persists only the corpus

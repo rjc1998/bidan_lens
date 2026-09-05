@@ -7,6 +7,7 @@ import hashlib
 import json
 import platform
 import statistics
+import tempfile
 import time
 from collections import Counter
 from dataclasses import dataclass
@@ -585,6 +586,21 @@ def run(assets: Path, corpus: Path, category: str, allow_incomplete: bool) -> di
     return results
 
 
+def _write_report(path: Path, report: str) -> None:
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode='w', encoding='utf-8', newline='\n',
+            dir=path.parent, prefix=f'.{path.name}.', suffix='.tmp', delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(report + '\n')
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate a private, licensed, hash-locked corpus")
     parser.add_argument("assets", type=Path)
@@ -606,7 +622,19 @@ def main() -> None:
         '--expected-corpus-id',
         help='abort before evaluation unless the corpus lock has this exact identity',
     )
+    parser.add_argument(
+        '--output', type=Path,
+        help='atomically write the completed aggregate report as UTF-8 JSON',
+    )
     arguments = parser.parse_args()
+    if arguments.output is not None:
+        output = arguments.output.resolve()
+        if any(output.is_relative_to(root.resolve()) for root in (
+            arguments.corpus, arguments.assets,
+        )):
+            parser.error('--output must be outside the corpus and asset directories')
+        if arguments.diagnostics is not None and output == arguments.diagnostics.resolve():
+            parser.error('--output and --diagnostics must be different files')
     if arguments.expected_corpus_id is not None:
         try:
             actual_id = _read_object(arguments.corpus / LOCK_NAME).get('corpus_id')
@@ -631,7 +659,11 @@ def main() -> None:
         results = run(
             arguments.assets, arguments.corpus, arguments.category, arguments.allow_incomplete
         )
-    print(json.dumps(results, ensure_ascii=True, indent=2))
+    report = json.dumps(results, ensure_ascii=True, indent=2)
+    if arguments.output is not None:
+        _write_report(arguments.output, report)
+    else:
+        print(report)
 
 
 if __name__ == "__main__":
