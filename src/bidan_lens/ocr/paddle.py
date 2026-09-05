@@ -428,6 +428,95 @@ def _retry_confirmed_crowded_four_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_confirmed_overlapping_internal_four_hangul_word(
+    line_image: Image.Image,
+    left: int,
+    right: int,
+    previous_right: int,
+    following_left: int,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    width_ratio = (right - left) / line_height if line_height > 0 else 0.0
+    previous_gap_ratio = (
+        (left - previous_right) / line_height if line_height > 0 else 0.0
+    )
+    following_gap_ratio = (
+        (following_left - right) / line_height if line_height > 0 else 0.0
+    )
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or len(text) != 4
+        or not all(is_hangul(character) for character in text)
+        or not 14.0 <= line_height <= 14.2
+        or not 0.77 <= recognized.confidence <= 0.78
+        or not 3.54 <= width_ratio <= 3.56
+        or not -0.08 <= previous_gap_ratio <= -0.07
+        or not 0.21 <= following_gap_ratio <= 0.22
+    ):
+        return recognized
+    crop_specs = (
+        (2, 2, 4),
+        (2, 3, 3),
+        (2, 4, 3),
+        (-1, 2, 4),
+        (-3, 2, 4),
+        (-3, 3, 4),
+    )
+    if any(
+        left + left_adjustment < 0
+        or right + right_adjustment > line_image.width
+        or left + left_adjustment >= right + right_adjustment
+        for left_adjustment, right_adjustment, _ in crop_specs
+    ):
+        return recognized
+    retries = tuple(
+        recognizer.recognize(
+            ImageEnhance.Contrast(
+                line_image.crop(
+                    (
+                        left + left_adjustment,
+                        0,
+                        right + right_adjustment,
+                        line_image.height,
+                    )
+                ).resize(
+                    (
+                        (right + right_adjustment - left - left_adjustment) * scale,
+                        line_image.height * scale,
+                    ),
+                    Image.Resampling.BICUBIC,
+                )
+            )
+            .enhance(1.5)
+            .convert('RGB')
+        )
+        for left_adjustment, right_adjustment, scale in crop_specs
+    )
+    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
+    candidate = retry_texts[0]
+    retry_confidence = min(retry.confidence for retry in retries)
+    if (
+        any(retry_text != candidate for retry_text in retry_texts[1:])
+        or candidate == text
+        or len(candidate) != len(text)
+        or candidate[:2] != text[:2]
+        or candidate[-1] != text[-1]
+        or sum(
+            left_character != right_character
+            for left_character, right_character in zip(candidate, text, strict=True)
+        )
+        != 1
+        or not all(is_hangul(character) for character in candidate)
+        or retry_confidence < 0.95
+        or retry_confidence <= recognized.confidence
+    ):
+        return recognized
+    return RecognizedText(candidate, retry_confidence)
+
+
 def _retry_confirmed_tall_two_hangul_word(
     image: Image.Image,
     previous_gap: int,
@@ -10476,6 +10565,8 @@ class PaddleOcrEngine(OcrEngine):
         for index, (left, right) in enumerate(segments):
             word_crop = crop.crop((left, 0, right, crop.height))
             recognized = self.recognizer.recognize(word_crop)
+            raw_recognized = recognized
+            confirmed_internal_four = raw_recognized
             raw_text = recognized.text.replace(" ", "")
             if raw_text:
                 raw_candidate_words.append(
@@ -10558,6 +10649,18 @@ class PaddleOcrEngine(OcrEngine):
                     recognized,
                     self.recognizer,
                 )
+                confirmed_internal_four = (
+                    _retry_confirmed_overlapping_internal_four_hangul_word(
+                        crop,
+                        left,
+                        right,
+                        segments[index - 1][1],
+                        segments[index + 1][0],
+                        line_box.height,
+                        raw_recognized,
+                        self.recognizer,
+                    )
+                )
                 recognized = _retry_confirmed_tall_two_hangul_word(
                     word_crop,
                     left - segments[index - 1][1],
@@ -10583,6 +10686,8 @@ class PaddleOcrEngine(OcrEngine):
                 recognized,
                 self.recognizer,
             )
+            if confirmed_internal_four != raw_recognized:
+                recognized = confirmed_internal_four
             text = recognized.text.replace(" ", "")
             if text and (
                 contains_hangul(text)

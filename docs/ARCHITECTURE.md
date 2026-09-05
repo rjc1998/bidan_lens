@@ -254,6 +254,16 @@ resampling. All three readings must agree on one different same-length pure-Hang
 their weakest confidence must reach 91% and exceed the selected reading. A confirmed replacement
 retains the original segment geometry and uses the weakest threshold confidence; any profile or
 consensus mismatch keeps the original reading.
+A separately reviewed overlapping internal four-Hangul recalibration profile applies only on a
+14.0-14.2 px detector line when the raw reading is 77-78% confident, its width is 3.54-3.56 times
+line height, the preceding segment overlaps by 7-8% of line height, and the following gap is
+21-22%. Six crops use independently shifted left and right edges before 3x or 4x bicubic resizing
+and 1.5x contrast. All six readings must agree on one different same-length pure-Hangul candidate,
+preserve the first two and final characters, differ at exactly one internal character, and reach
+95% minimum confidence above the raw reading. This confirmed result is applied after the generic
+small-text retry so weaker three-resampling evidence cannot replace it. The replacement retains
+the original segment geometry and uses the weakest consensus confidence; any profile, crop,
+character-position, confidence, or consensus mismatch keeps the normally selected reading.
 A separately reviewed tall-line two-Hangul recalibration profile applies only on a 19.3-19.4 px
 detector line when the selected reading is 84-85% confident, its width is 1.39-1.40 times line
 height, and the preceding and following gaps are respectively 25-26% and 20-21% of line height.

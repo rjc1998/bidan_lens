@@ -84,6 +84,7 @@ from bidan_lens.ocr.paddle import (
     _retry_confirmed_crowded_four_hangul_word,
     _retry_confirmed_expanded_first_hangul_word,
     _retry_confirmed_large_first_hangul_word,
+    _retry_confirmed_overlapping_internal_four_hangul_word,
     _retry_confirmed_rebalanced_terminal_hangul_word,
     _retry_confirmed_tall_two_hangul_word,
     _retry_confirmed_trimmed_two_hangul_word,
@@ -394,6 +395,81 @@ def test_crowded_four_hangul_retry_requires_reviewed_neighbor_geometry() -> None
             4,
             -1,
             17.608695652173907,
+            original,
+            recognizer,
+        )
+        == original
+    )
+    assert recognizer.sizes == []
+
+
+def test_overlapping_internal_four_hangul_retry_accepts_six_crop_consensus() -> None:
+    replacement = '\ubc00\uc758\ub450\uac00'
+    recognizer = BinarizedRetryRecognizer(
+        tuple(
+            RecognizedText(replacement, confidence)
+            for confidence in (0.9701, 0.9685, 0.9602, 0.9603, 0.9588, 0.9564)
+        )
+    )
+
+    result = _retry_confirmed_overlapping_internal_four_hangul_word(
+        Image.new('RGB', (405, 15)),
+        108,
+        158,
+        109,
+        161,
+        14.086956521739125,
+        RecognizedText('\ubc00\uc758\ub204\uac00', 0.771719),
+        recognizer,
+    )
+
+    assert result == RecognizedText(replacement, 0.9564)
+    assert recognizer.sizes == [
+        (200, 60),
+        (153, 45),
+        (156, 45),
+        (212, 60),
+        (220, 60),
+        (224, 60),
+    ]
+
+
+def test_overlapping_internal_four_hangul_retry_rejects_disagreement() -> None:
+    original = RecognizedText('\ubc00\uc758\ub204\uac00', 0.771719)
+    recognizer = BinarizedRetryRecognizer(
+        (
+            *(RecognizedText('\ubc00\uc758\ub450\uac00', 0.96) for _ in range(5)),
+            RecognizedText('\ubc00\uc758\ub204\uac00', 0.96),
+        )
+    )
+
+    assert (
+        _retry_confirmed_overlapping_internal_four_hangul_word(
+            Image.new('RGB', (405, 15)),
+            108,
+            158,
+            109,
+            161,
+            14.086956521739125,
+            original,
+            recognizer,
+        )
+        == original
+    )
+
+
+def test_overlapping_internal_four_hangul_retry_requires_reviewed_geometry() -> None:
+    original = RecognizedText('\ubc00\uc758\ub204\uac00', 0.771719)
+    recognizer = BinarizedRetryRecognizer(())
+
+    assert (
+        _retry_confirmed_overlapping_internal_four_hangul_word(
+            Image.new('RGB', (405, 15)),
+            108,
+            158,
+            108,
+            161,
+            14.086956521739125,
             original,
             recognizer,
         )

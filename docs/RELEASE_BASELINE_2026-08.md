@@ -62,12 +62,12 @@ The aggregate quick report and privacy-safe diagnostic SHA-256 values are
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.16 by numeric ID
 without a fresh review audit.
 
-The complete v4.16 development run against the current OCR and analyzer cleanup records 98.67%
-whole-eojeol OCR, 99.90% target selection, 92.35% functional context, 74.00% exact sentence
-transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.40% fully correct first
+The complete v4.16 development run against the current OCR and analyzer cleanup records 98.68%
+whole-eojeol OCR, 99.90% target selection, 92.40% functional context, 74.05% exact sentence
+transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.45% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 218.87 ms median / 344.21 ms p95. The privacy-safe stage totals are two target,
-151 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
+accepted rerun is 249.22 ms median / 383.43 ms p95. The privacy-safe stage totals are two target,
+150 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`c0d9bba1643c2f917f2f760fe6a7fbb829f71476ac0676fcbcf96e609c42ff4e` and
-`53107f5129f5fb88e96a9ff4a1c048adf3eb3699167ce3a259be32825db9b5d6`.
+`2ad213a2d1291ab80ba0a7fc61a2bf90954289f78c592deb6c3c6056c8baa5ec` and
+`8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every
@@ -91,10 +91,10 @@ line/sentence reconstructions. Matching-only carry-forward copies reviewed curre
 weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration retained
 all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified its two
 inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed audit now covers
-all 151 active cases with no missing decision. It preserves twenty resolved IDs:
+all 150 active cases with no missing decision. It preserves 21 resolved IDs:
 `dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
 `dev-plain-0801`, `dev-plain-0937`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1281`, `dev-plain-1324`,
-`dev-plain-1387`, `dev-plain-1601`, `dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`,
+`dev-plain-1387`, `dev-plain-1569`, `dev-plain-1601`, `dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`,
 `dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and
 `dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions.
@@ -368,6 +368,22 @@ rises to 98.35% / 88.40% / 75.60% / 84.00%. Quick diagnostics remain byte-identi
 selection, stress, held-out language, analysis, dictionary fidelity, alternative recovery,
 promotions, and every negative category are unchanged. The accepted aggregate and privacy-safe
 diagnostic SHA-256 values are the current values above.
+
+A required-render 12 px follow-up recovers one internal four-syllable Hangul substitution on a
+14.0-14.2 px detector line. The raw candidate must be 77-78% confident and 3.54-3.56 line heights
+wide, overlap its preceding segment by 7-8% of line height, and leave a 21-22% following gap.
+Six independently shifted crops are recognized after 3x or 4x bicubic resizing and 1.5x contrast.
+All readings must agree on one same-length pure-Hangul candidate, preserve the first two and final
+characters, differ at exactly one internal character, exceed the raw confidence, and have a
+weakest confidence of at least 95%. The reviewed case reaches 95.64% weakest confidence.
+
+The exact full v4.16 comparison removes only `dev-plain-1569|context|`, adds or changes no
+diagnostic, and reduces the total from 341 to 340. Aggregate OCR/context/transcription/popup rises
+to 98.68% / 92.40% / 74.05% / 87.45%. The 12 px OCR/context/transcription/popup stratum rises
+from 98.37% / 87.20% / 64.00% / 83.60% to 98.40% / 87.60% / 64.40% / 84.00%.
+Quick diagnostics remain byte-identical; target selection, stress, held-out language, analysis,
+dictionary fidelity, alternative recovery, promotions, and every negative category are unchanged.
+The accepted aggregate and privacy-safe diagnostic SHA-256 values are the current values above.
 
 The second full-tier batch supports one bounded morphology correction. When Kiwi emits
 `noun + 화/XSN + 하/되/XSV`, the analyzer now forms a single action-verb component only if KRDict
