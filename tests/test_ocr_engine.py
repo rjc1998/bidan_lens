@@ -478,6 +478,83 @@ def test_overlapping_internal_four_hangul_retry_requires_reviewed_geometry() -> 
     assert recognizer.sizes == []
 
 
+@pytest.mark.parametrize(
+    'replacement,confidence',
+    [
+        ('', 0.99),
+        ('\uac00\ub098\ub2e4', 0.99),
+        ('\ubc00\uc758\ub450\uac00', 0.9499),
+        ('\ubc00\uc758\ub204\uac00', 0.99),
+        ('\ubc00\uc758A\uac00', 0.99),
+        ('\ubc00\uc758\ub204\ub098', 0.99),
+        ('\uac00\uc758\ub450\uac00', 0.99),
+    ],
+)
+def test_internal_four_retry_rejects_unsupported_consensus(
+    replacement: str, confidence: float,
+) -> None:
+    original = RecognizedText('\ubc00\uc758\ub204\uac00', 0.771719)
+    recognizer = BinarizedRetryRecognizer(
+        (RecognizedText(replacement, confidence),) * 6
+    )
+
+    result = _retry_confirmed_overlapping_internal_four_hangul_word(
+        Image.new('RGB', (405, 15)),
+        108, 158, 109, 161, 14.086956521739125, original, recognizer,
+    )
+
+    assert result == original
+
+
+@pytest.mark.parametrize('consensus_agrees', [True, False])
+def test_engine_internal_four_consensus_controls_generic_retry(
+    monkeypatch: pytest.MonkeyPatch, consensus_agrees: bool,
+) -> None:
+    from bidan_lens.ocr import paddle
+
+    original = RecognizedText('\ubc00\uc758\ub204\uac00', 0.771719)
+    confirmed = RecognizedText('\ubc00\uc758\ub450\uac00', 0.9564)
+    generic = RecognizedText('\ubc00\uc758\ub204\uac00', 0.9837)
+    generic_inputs: list[RecognizedText] = []
+
+    class Recognizer:
+        supports_binarized_small_text_retry = True
+
+        def word_boxes(self, image, space_threshold=0.07):
+            return ((79, 109), (108, 158), (161, 191)) if image.size == (405, 15) else ()
+
+        def recognize(self, image):
+            if image.size == (50, 15):
+                return original
+            if image.size in {(200, 60), (153, 45), (156, 45), (212, 60), (220, 60)}:
+                return confirmed
+            if image.size == (224, 60):
+                return confirmed if consensus_agrees else original
+            if image.size == (30, 15):
+                return RecognizedText('\uac00\ub098', 0.9999)
+            return RecognizedText('', 0.0)
+
+    def generic_retry(image, line_height, recognized, recognizer):
+        if image.size == (50, 15):
+            generic_inputs.append(recognized)
+            return generic
+        return recognized
+
+    monkeypatch.setattr(paddle, '_retry_binarized_small_hangul_word', generic_retry)
+    engine = PaddleOcrEngine(Detector(), Recognizer())
+    line = engine._segmented_line(
+        Image.new('RGB', (405, 15)), BoundingBox(0, 0, 405, 14.086956521739125)
+    )
+
+    assert line is not None
+    assert len(line.eojeols) == 3
+    expected = confirmed if consensus_agrees else generic
+    assert line.eojeols[1].text == expected.text
+    assert line.eojeols[1].confidence == expected.confidence
+    assert line.eojeols[1].box == BoundingBox(108, 0, 158, 14.086956521739125)
+    assert generic_inputs == [original]
+
+
 def test_tall_two_hangul_retry_accepts_six_threshold_consensus() -> None:
     recognizer = BinarizedRetryRecognizer(
         (
