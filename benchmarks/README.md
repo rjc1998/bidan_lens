@@ -108,6 +108,12 @@ python -m benchmarks.locked_corpus assets\runtime\installed\2026.08.1 `
 Diagnostics include stable sample IDs, failed stages, and render strata only. They never
 include recognized text, expected text, definitions, or pixels.
 
+For a run tied to a previous baseline, pass `--expected-corpus-id` with that baseline's
+`corpus_id`. The runner checks the lock identity before loading models or writing diagnostics
+and exits on a mismatch. For example, a baseline with identity
+`bidan-plain-v4.16-dev-ud218` requires `--expected-corpus-id bidan-plain-v4.16-dev-ud218`.
+This optional guard applies to both profiles and does not replace normal hash validation.
+
 Review development language disagreements locally with
 `python -m benchmarks.language_review ASSETS CORPUS DECISIONS`. The interactive command
 displays one locked public-corpus case at a time, but its JSON output persists only the corpus

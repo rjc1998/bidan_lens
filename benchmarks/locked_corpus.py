@@ -602,7 +602,18 @@ def main() -> None:
         type=Path,
         help="write local failure sample ids and stages without text or pixels",
     )
+    parser.add_argument(
+        '--expected-corpus-id',
+        help='abort before evaluation unless the corpus lock has this exact identity',
+    )
     arguments = parser.parse_args()
+    if arguments.expected_corpus_id is not None:
+        try:
+            actual_id = _read_object(arguments.corpus / LOCK_NAME).get('corpus_id')
+        except CorpusError as error:
+            parser.error(str(error))
+        if actual_id != arguments.expected_corpus_id:
+            parser.error('corpus identity does not match --expected-corpus-id')
     if arguments.profile == "plain-v1":
         from benchmarks.plain_evaluator import run_plain
 

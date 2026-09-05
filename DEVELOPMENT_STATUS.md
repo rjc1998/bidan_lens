@@ -52,6 +52,10 @@
 
 ## Local plain-v1 development evidence
 
+The locked benchmark CLI supports `--expected-corpus-id` to reject a mismatched corpus before
+model initialization or diagnostic output. Use the intended baseline identity when comparing
+runs across preserved corpus versions; normal schema and hash validation still follows.
+
 The current development corpus is locked under
 `local-data\evaluations\bidan-lens-eval-ud218-v4.16\dev`; the untouched v4.2 release corpus
 remains under `local-data\evaluations\bidan-lens-eval-ud218-v4.2\release` and has not been

@@ -33,6 +33,52 @@ def _hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+@pytest.mark.parametrize('profile', ['legacy', 'plain-v1'])
+@pytest.mark.parametrize('actual_id', ['older-dev', 'release', None])
+def test_cli_rejects_wrong_corpus_before_evaluation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys, profile: str, actual_id,
+) -> None:
+    from benchmarks import locked_corpus, plain_evaluator
+
+    (tmp_path / 'corpus.lock.json').write_text(
+        json.dumps({'corpus_id': actual_id}), encoding='utf-8'
+    )
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail('evaluation must not start for a mismatched corpus')
+
+    monkeypatch.setattr(locked_corpus, 'run', unexpected_run)
+    monkeypatch.setattr(plain_evaluator, 'run_plain', unexpected_run)
+    monkeypatch.setattr('sys.argv', [
+        'locked_corpus', 'missing-assets', str(tmp_path), '--profile', profile,
+        '--expected-corpus-id', 'intended-dev',
+    ])
+
+    with pytest.raises(SystemExit) as error:
+        locked_corpus.main()
+
+    assert error.value.code == 2
+    assert 'corpus identity does not match' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('profile', ['legacy', 'plain-v1'])
+def test_cli_matching_identity_still_runs_normal_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str,
+) -> None:
+    from benchmarks import locked_corpus
+
+    (tmp_path / 'corpus.lock.json').write_text(
+        json.dumps({'corpus_id': 'intended-dev'}), encoding='utf-8'
+    )
+    monkeypatch.setattr('sys.argv', [
+        'locked_corpus', 'missing-assets', str(tmp_path), '--profile', profile,
+        '--expected-corpus-id', 'intended-dev',
+    ])
+
+    with pytest.raises(CorpusError, match='corpus lock'):
+        locked_corpus.main()
+
+
 def _source_manifest(tmp_path: Path, evidence: str = "LICENSE.txt") -> Path:
     path = tmp_path / "sources.json"
     path.write_text(
