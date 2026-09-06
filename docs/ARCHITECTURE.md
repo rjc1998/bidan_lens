@@ -257,6 +257,14 @@ inverts the autocontrasted grayscale crop before thresholding and 2x resampling.
 bicubic, and Lanczos readings must all agree on a different two-syllable Hangul result at 97%
 confidence or higher. It stops immediately on incompatible or weak evidence, retains the weakest
 accepted confidence, and preserves the original segment geometry.
+A dark-background boundary fallback follows the existing three-plus-five-syllable split rule.
+It requires a high-confidence eight-syllable reading on a detector line no taller than 20 px,
+a dark border with strong contrast, and two complete crops at the normal segmentation threshold.
+The gap must be 30-40% of line height and character pitches must agree within 5%. Direct and
+inverted part readings must preserve every syllable at 99.7% and 99.8% confidence respectively.
+Both normal and inverted autocontrasted 2x whole-crop readings must explicitly confirm the same
+space at 85% confidence or higher. Any failed confirmation keeps the original word; acceptance
+restores separate word boxes and sentence spans while excluding the gap from hover targets.
 A separately reviewed crowded four-Hangul recalibration profile applies only on a 17.5-17.7 px
 detector line when the selected reading is 53-54% confident, its width is 3.68-3.70 times line
 height, the preceding gap is 28-28.5% of line height, and the following segment overlaps by

@@ -73,8 +73,8 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.16 200-case quick tier records 99.37% whole-eojeol OCR, 100.00% target
 selection, 96.50% functional context, 76.50% exact sentence transcription, 95.00% component
-accuracy, 95.50% exact KRDict fidelity, and 92.50% fully correct first popups, with 269.71 ms
-median / 398.12 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
+accuracy, 95.50% exact KRDict fidelity, and 92.50% fully correct first popups, with 229.46 ms
+median / 352.92 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles) and seven context cases; no target failures remain. Aggregate and per-category
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
@@ -102,17 +102,28 @@ are under `context-retry-2026-09-06/` in the v4.16 evaluation root. These runs o
 other local verification and do not establish a latency improvement or foreground performance.
 See `docs/RELEASE_BASELINE_2026-08.md` for the complete comparison.
 
+The following boundary-recovery pass now resolves the remaining context failure in
+`dev-plain-1250` through corroborating normal and inverted crop readings. The exact full
+comparison removes only that failure, with no added or changed diagnostic. Whole-eojeol OCR,
+functional context, exact transcription, and first-popup correctness rise to
+98.69% / 92.45% / 74.10% / 87.50%; 14 px popup correctness rises to 81.60%. Quick results and
+diagnostics, stress, held-out language, analysis, dictionary fidelity, promotions, and negative
+activation remain unchanged. Reports and the complete review-coverage comparison are under
+`boundary-context-2026-09-06/` in the v4.16 evaluation root. A separate four-case mixed-punctuation
+review identifies structured-token omissions as the next OCR investigation; its persisted
+findings contain only stable IDs and categorical descriptions.
+
 The aggregate report SHA-256 is
-`6b800ef1a82a1b0bc2d72d93c5f37a8cd5881f4a0cc663540f852d21d6f54700`; the
+`58b833c6788865ab94ef7b0bb159cf1526c3e3e0390c3d2ba96937c841e97944`; the
 privacy-safe diagnostic SHA-256 is
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 
 The complete v4.16 development evaluation has now run against the current OCR and analyzer
-cleanup. Its 2,000 main cases record 98.68% whole-eojeol OCR, 99.90% target selection, 92.40%
-functional context, 74.05% exact sentence transcription, 93.80% component accuracy, 95.80% exact
-KRDict fidelity, 87.45% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 233.77 ms median /
-366.80 ms p95. Privacy-safe diagnostics contain 2 target, 150 context, and 99 analysis failures;
+cleanup. Its 2,000 main cases record 98.69% whole-eojeol OCR, 99.90% target selection, 92.45%
+functional context, 74.10% exact sentence transcription, 93.80% component accuracy, 95.80% exact
+KRDict fidelity, 87.50% fully correct first popups, and 97.00% alternative recovery. False
+promotions remain zero and the accepted follow-up is 235.60 ms median /
+363.48 ms p95. Privacy-safe diagnostics contain 2 target, 149 context, and 99 analysis failures;
 the analysis stages are 44 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -126,8 +137,8 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current full aggregate and privacy-safe diagnostic SHA-256 values are
-`34229185884932f6d7e19502d5f81a25d3a9e0bc239ecf4f553bbc16036bd3fa` and
-`8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
+`5756f56840fc09745ccb342890d0009b9f3f4347a03f2d9442300fa8d0486107` and
+`2ad42e77885bd26e7bab3f02d33a4b7493779dd0b76b710c947401986a38dd59`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
 reports cannot be mixed. Full cases can be inspected in a selected batch with one OCR model
@@ -141,12 +152,12 @@ IDs, categorical decisions, and counts. Matching-only carry-forward copies revie
 without weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration
 retained all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified
 its two inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed v4.16
-audit now covers all 150 active cases with no missing decision. It preserves 21 resolved IDs:
+audit now covers all 149 active cases with no missing decision. It preserves 22 resolved IDs:
 `dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
-`dev-plain-0801`, `dev-plain-0937`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1281`, `dev-plain-1324`,
-`dev-plain-1387`, `dev-plain-1569`, `dev-plain-1601`, `dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`,
-`dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and
-`dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
+`dev-plain-0801`, `dev-plain-0937`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1250`,
+`dev-plain-1281`, `dev-plain-1324`, `dev-plain-1387`, `dev-plain-1569`, `dev-plain-1601`,
+`dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`,
+`dev-plain-1838`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence
 reconstructions. The decision report SHA-256 is
 `0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.
@@ -2215,8 +2226,8 @@ The complete v4.16 development run now shows that aggregate functional context c
 main popup correctness and required render strata still block release evidence. Every active popup
 case is classified. The only confirmed Kiwi-analysis errors are `dev-plain-0068` and
 `dev-plain-0990`; neither has a safe complete candidate or bounded general promotion. The strict
-context ledger retains all 171 categorical decisions. The latest full comparison marks 21 resolved,
-leaving 150 active cases with complete review coverage. Two historical line/sentence
+context ledger retains all 171 categorical decisions. The latest full comparison marks 22 resolved,
+leaving 149 active cases with complete review coverage. Two historical line/sentence
 reconstruction cases require punctuation or English text that cannot be inferred from reliable runtime evidence, and the
 remaining reviewed boundary cases are too weak, punctuation-dependent, ambiguous, or complex for
 another safe general rule. The geometry-clustering, substitution, direct-retry, wrapper-fragment,

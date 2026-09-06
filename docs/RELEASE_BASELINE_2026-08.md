@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.16 quick tier records 99.37% whole-eojeol OCR, 100.00% target selection, 96.50%
 functional context, 76.50% exact sentence transcription, 95.00% component accuracy, 95.50%
 exact KRDict fidelity, 92.50% fully correct first popups, 97.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 269.71 ms median / 398.12 ms p95. There
+false promotions. The accepted current rerun is 229.46 ms median / 352.92 ms p95. There
 are eight analysis and seven context failures, with no target failure. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,17 +57,17 @@ gate pass.
 The v4.16 lock SHA-256 is
 `1c5661f511a49c4931214c614b812aedf298edb746e95c951113d9829158aa62`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`6b800ef1a82a1b0bc2d72d93c5f37a8cd5881f4a0cc663540f852d21d6f54700` and
+`58b833c6788865ab94ef7b0bb159cf1526c3e3e0390c3d2ba96937c841e97944` and
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.16 by numeric ID
 without a fresh review audit.
 
-The complete v4.16 development run against the current OCR and analyzer cleanup records 98.68%
-whole-eojeol OCR, 99.90% target selection, 92.40% functional context, 74.05% exact sentence
-transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.45% fully correct first
+The complete v4.16 development run against the current OCR and analyzer cleanup records 98.69%
+whole-eojeol OCR, 99.90% target selection, 92.45% functional context, 74.10% exact sentence
+transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.50% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 233.77 ms median / 366.80 ms p95. The privacy-safe stage totals are two target,
-150 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
+accepted rerun is 235.60 ms median / 363.48 ms p95. The privacy-safe stage totals are two target,
+149 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
 
@@ -80,8 +80,8 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`34229185884932f6d7e19502d5f81a25d3a9e0bc239ecf4f553bbc16036bd3fa` and
-`8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
+`5756f56840fc09745ccb342890d0009b9f3f4347a03f2d9442300fa8d0486107` and
+`2ad42e77885bd26e7bab3f02d33a4b7493779dd0b76b710c947401986a38dd59`.
 
 The September 6 full follow-up evaluates commit `8aa8ab2`, including the small-text retry
 early exit, against the same locked development corpus and installed production assets. All
@@ -112,27 +112,52 @@ crop evidence, and exact comparisons are preserved under the ignored v4.16 root 
 `context-retry-2026-09-06/`. The automated runs overlapped with other local verification and
 do not establish a latency improvement or foreground release performance.
 
+The next boundary pass resolves the remaining missing space in `dev-plain-1250`. A cropped
+eight-syllable word has a stable three-plus-five split at the normal segmentation threshold, but
+misses the earlier rule's gap, pitch, and part-confidence bounds. The new dark-background fallback
+requires strong direct and inverted part readings that preserve every character, plus normal
+and inverted autocontrasted 2x whole-crop readings that explicitly confirm the same space.
+The recovered boxes exclude the gap and reconstruct the exact sentence span.
+
+The exact full comparison removes only `dev-plain-1250|context|`, adding or changing no other
+diagnostic. Aggregate OCR/context/transcription/popup accuracy rises to
+98.69% / 92.45% / 74.10% / 87.50%. The 14 px OCR/context/transcription/popup stratum rises to
+97.28% / 86.00% / 59.20% / 81.60%, while ellipsis rises to 98.90% / 94.00% / 55.60% / 88.80%.
+The fallback makes four segmentation calls and six word-recognition calls across 2,000 main
+cases; the stress tier adds three segmentation calls and no recognition calls. It accepts only
+the reviewed main split. Quick makes no additional model calls, preserves every non-latency
+metric, and retains byte-identical diagnostics. Stress, held-out language, analysis, dictionary
+fidelity, promotions, and negative activation are unchanged, and active review coverage remains
+complete. Reports and exact comparisons are preserved in `boundary-context-2026-09-06/` under
+the ignored v4.16 evaluation root. Automated timings are not a controlled speed comparison or
+foreground release evidence.
+
+A selected mixed-punctuation review covers `dev-plain-0157`, `dev-plain-0292`,
+`dev-plain-0377`, and `dev-plain-0427`. All four lose structured-token characters; three also
+have split suffixes, word-boundary errors, or numeric omissions. These remain separate OCR
+investigations. The local follow-up report stores only stable IDs and categorical findings.
+
 All required size and punctuation groups clear the 97% OCR target. Six groups still miss the
 88% exceptional first-popup floor, with 250 samples per group:
 
 | Required render group | Correct first popup | Net additional correct popups to 88% |
 | --- | ---: | ---: |
 | 12 px | 84.00% | 10 |
-| 14 px | 81.20% | 17 |
+| 14 px | 81.60% | 16 |
 | 18 px | 86.40% | 4 |
 | mixed | 80.80% | 18 |
 | natural | 84.00% | 10 |
 | terminal | 86.00% | 5 |
 
 These are overlapping size and punctuation groups; their deficits must not be added together.
-At aggregate level, 1,749 of 2,000 first popups are correct: reaching 92% requires 91 net
-recoveries, while reaching 88% requires 11. Meeting the aggregate floor alone would leave
+At aggregate level, 1,750 of 2,000 first popups are correct: reaching 92% requires 90 net
+recoveries, while reaching 88% requires 10. Meeting the aggregate floor alone would leave
 required render floors unresolved and would not authorize an exceptional release.
 
 The next OCR review should prioritize 14 px non-target transcription and mixed-punctuation
-context. Of the 35 context failures at 14 px, 25 are reviewed non-target transcription errors;
+context. Of the 34 context failures at 14 px, 24 are reviewed non-target transcription errors;
 of the 37 mixed-punctuation context failures, 32 are reviewed punctuation or structured-ASCII
-handling cases. The failing size/punctuation groups together contain 125 distinct context
+handling cases. The failing size/punctuation groups together contain 124 distinct context
 failures. Correcting context may expose a downstream analysis failure, so these counts describe
 review opportunities rather than guaranteed popup recoveries.
 
@@ -144,12 +169,12 @@ line/sentence reconstructions. Matching-only carry-forward copies reviewed curre
 weakening the strict mode and leaves every new ID explicitly missing. The v4.16 migration retained
 all 170 active prior decisions and exposed only `dev-plain-1755`. Local review classified its two
 inserted non-target spaces as a missed or merged OCR word boundary. The fail-closed audit now covers
-all 150 active cases with no missing decision. It preserves 21 resolved IDs:
+all 149 active cases with no missing decision. It preserves 22 resolved IDs:
 `dev-plain-0001`, `dev-plain-0257`, `dev-plain-0315`, `dev-plain-0482`, `dev-plain-0747`,
-`dev-plain-0801`, `dev-plain-0937`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1281`, `dev-plain-1324`,
-`dev-plain-1387`, `dev-plain-1569`, `dev-plain-1601`, `dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`,
-`dev-plain-1755`, `dev-plain-1830`, `dev-plain-1838`, and
-`dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
+`dev-plain-0801`, `dev-plain-0937`, `dev-plain-0994`, `dev-plain-1154`, `dev-plain-1250`,
+`dev-plain-1281`, `dev-plain-1324`, `dev-plain-1387`, `dev-plain-1569`, `dev-plain-1601`,
+`dev-plain-1609`, `dev-plain-1644`, `dev-plain-1659`, `dev-plain-1755`, `dev-plain-1830`,
+`dev-plain-1838`, and `dev-plain-1889`. The retained 171 decisions comprise 90 non-target transcription errors, 68
 punctuation or structured-text cases, 11 word-boundary cases, and two line/sentence reconstructions.
 The decision report SHA-256 is
 `0505d9d0cc5f6d0a4ef79e85c92c6f86084f355e43eb940c9fb1a070868148c7`.

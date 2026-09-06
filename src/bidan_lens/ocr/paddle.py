@@ -9617,6 +9617,102 @@ def _recover_confirmed_three_plus_five_splits(
     return recovered
 
 
+def _recover_confirmed_dark_three_plus_five_split(
+    words: list[tuple[str, BoundingBox, float]],
+    crop: Image.Image,
+    line_box: BoundingBox,
+    recognizer: Any,
+) -> list[tuple[str, BoundingBox, float]]:
+    segmenter = getattr(recognizer, 'word_boxes', None)
+    if (
+        not callable(segmenter)
+        or not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not 0 < line_box.height <= 20
+    ):
+        return words
+    recovered: list[tuple[str, BoundingBox, float]] = []
+    for text, box, confidence in words:
+        if (
+            len(text) != 8
+            or not all(is_hangul(character) for character in text)
+            or confidence < 0.996
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        crop_left = max(0, math.floor(box.left - line_box.left))
+        crop_right = min(crop.width, math.ceil(box.right - line_box.left))
+        word_crop = crop.crop((crop_left, 0, crop_right, crop.height))
+        grayscale = word_crop.convert('L')
+        pixels = np.asarray(grayscale)
+        border = np.concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
+        if np.median(border) > 64 or int(pixels.max()) - int(pixels.min()) < 128:
+            recovered.append((text, box, confidence))
+            continue
+        segments = segmenter(word_crop)
+        if len(segments) != 2:
+            recovered.append((text, box, confidence))
+            continue
+        first, last = segments
+        pitches = ((first[1] - first[0]) / 3, (last[1] - last[0]) / 5)
+        if (
+            first[0] > 1
+            or last[1] < word_crop.width - 1
+            or not 0.3 <= (last[0] - first[1]) / line_box.height <= 0.4
+            or min(pitches) <= 0
+            or min(pitches) / max(pitches) < 0.95
+        ):
+            recovered.append((text, box, confidence))
+            continue
+        expected_parts = (text[:3], text[3:])
+        enhanced = ImageOps.autocontrast(grayscale)
+        inverted = ImageOps.invert(enhanced)
+        part_confidences = [confidence, confidence]
+        confirmed = True
+        for variant, floor in ((word_crop, 0.997), (inverted, 0.998)):
+            for index, ((left, right), expected) in enumerate(
+                zip(segments, expected_parts, strict=True)
+            ):
+                reading = recognizer.recognize(
+                    variant.crop((left, 0, right, variant.height)).convert('RGB')
+                )
+                if reading.text.replace(' ', '') != expected or reading.confidence < floor:
+                    confirmed = False
+                    break
+                part_confidences[index] = min(part_confidences[index], reading.confidence)
+            if not confirmed:
+                break
+        if confirmed:
+            expected_spaced = ' '.join(expected_parts)
+            for variant in (enhanced, inverted):
+                reading = recognizer.recognize(
+                    variant.resize(
+                        (variant.width * 2, variant.height * 2), Image.Resampling.BICUBIC
+                    ).convert('RGB')
+                )
+                if reading.text.strip() != expected_spaced or reading.confidence < 0.85:
+                    confirmed = False
+                    break
+        if not confirmed:
+            recovered.append((text, box, confidence))
+            continue
+        recovered.extend(
+            (
+                part,
+                BoundingBox(
+                    line_box.left + crop_left + left,
+                    box.top,
+                    line_box.left + crop_left + right,
+                    box.bottom,
+                ),
+                part_confidence,
+            )
+            for part, (left, right), part_confidence in zip(
+                expected_parts, segments, part_confidences, strict=True
+            )
+        )
+    return recovered
+
+
 def _recover_confirmed_seven_character_splits(
     words: list[tuple[str, BoundingBox, float]],
     crop: Image.Image,
@@ -10055,6 +10151,12 @@ def _recover_word_boundaries(
         recognizer,
     )
     words = _recover_confirmed_three_plus_five_splits(
+        words,
+        crop,
+        line_box,
+        recognizer,
+    )
+    words = _recover_confirmed_dark_three_plus_five_split(
         words,
         crop,
         line_box,
