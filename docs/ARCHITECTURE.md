@@ -251,6 +251,12 @@ in order and stops as soon as a reading rules out acceptance. Unchanged text, in
 non-Hangul output, insufficient confidence, or disagreement with an earlier reading preserves the
 original result immediately. An accepted correction still requires all three readings to agree,
 meet the existing confidence floor, and improve on the original; it retains their minimum confidence.
+A following dark-background retry covers low-confidence two-syllable Hangul crops on detector
+lines no taller than 20 px. It requires a dark median border and strong pixel contrast, then
+inverts the autocontrasted grayscale crop before thresholding and 2x resampling. Bilinear,
+bicubic, and Lanczos readings must all agree on a different two-syllable Hangul result at 97%
+confidence or higher. It stops immediately on incompatible or weak evidence, retains the weakest
+accepted confidence, and preserves the original segment geometry.
 A separately reviewed crowded four-Hangul recalibration profile applies only on a 17.5-17.7 px
 detector line when the selected reading is 53-54% confident, its width is 3.68-3.70 times line
 height, the preceding gap is 28-28.5% of line height, and the following segment overlaps by

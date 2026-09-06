@@ -73,8 +73,8 @@ but rejected because it changed more already-visible geometry than the viewport 
 
 The accepted v4.16 200-case quick tier records 99.37% whole-eojeol OCR, 100.00% target
 selection, 96.50% functional context, 76.50% exact sentence transcription, 95.00% component
-accuracy, 95.50% exact KRDict fidelity, and 92.50% fully correct first popups, with 211.21 ms
-median / 320.62 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
+accuracy, 95.50% exact KRDict fidelity, and 92.50% fully correct first popups, with 269.71 ms
+median / 398.12 ms p95 automated latency. Alternative-candidate recovery is 97.50% and false
 promotions remain zero. Its remaining failures are eight analysis cases (four primary lemmas and
 four component roles) and seven context cases; no target failures remain. Aggregate and per-category
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
@@ -92,8 +92,18 @@ popup decisions still match their reviewed categories and stages. Its aggregate 
 render-gap summary are under `retry-short-circuit-full-2026-09-06/` in the same evaluation root.
 The release split, foreground benchmark, and clean packaged-system checks remain outstanding.
 
+A subsequent dark-background retry corrects one OCR word in `dev-plain-1250`. The full
+production-asset run raises 14 px OCR from 97.18% to 97.21%, while the case retains another
+context error and first-popup correctness remains 87.45%. Every changed non-latency value is
+an improved OCR percentage or confidence-interval bound; all other accuracy and safety results,
+review coverage, and quick/full diagnostic bytes are unchanged. The retry adds 34 main and seven
+stress recognizer calls, accepting one main replacement. Reports and categorical crop evidence
+are under `context-retry-2026-09-06/` in the v4.16 evaluation root. These runs overlapped with
+other local verification and do not establish a latency improvement or foreground performance.
+See `docs/RELEASE_BASELINE_2026-08.md` for the complete comparison.
+
 The aggregate report SHA-256 is
-`0df0645a99598b69b02d4529a2d8e10282e7b31a9bc719bddf234ae8a6f06a12`; the
+`6b800ef1a82a1b0bc2d72d93c5f37a8cd5881f4a0cc663540f852d21d6f54700`; the
 privacy-safe diagnostic SHA-256 is
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 
@@ -101,8 +111,8 @@ The complete v4.16 development evaluation has now run against the current OCR an
 cleanup. Its 2,000 main cases record 98.68% whole-eojeol OCR, 99.90% target selection, 92.40%
 functional context, 74.05% exact sentence transcription, 93.80% component accuracy, 95.80% exact
 KRDict fidelity, 87.45% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 245.90 ms median /
-380.36 ms p95. Privacy-safe diagnostics contain 2 target, 150 context, and 99 analysis failures;
+promotions remain zero and the accepted follow-up is 233.77 ms median /
+366.80 ms p95. Privacy-safe diagnostics contain 2 target, 150 context, and 99 analysis failures;
 the analysis stages are 44 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -116,7 +126,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current full aggregate and privacy-safe diagnostic SHA-256 values are
-`3d59a5f9dfdd7df3e14c38189081bc79ac5acf484afb23fddda5a79ad76a8166` and
+`34229185884932f6d7e19502d5f81a25d3a9e0bc239ecf4f553bbc16036bd3fa` and
 `8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision

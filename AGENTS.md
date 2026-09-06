@@ -33,7 +33,7 @@ them inaccurate.
 - Resolve the evaluation home from the current repository root in every session; do not
   create or use drive-root folders such as `F:\bidan-lens-eval-*`.
 - The current development corpus is
-  `local-data/evaluations/bidan-lens-eval-ud218-v4.15/dev`. Preserved historical and release
+  `local-data/evaluations/bidan-lens-eval-ud218-v4.16/dev`. Preserved historical and release
   corpora sit beside that versioned directory under the same evaluation home.
 - Create every future versioned evaluation root as a new child of
   `local-data/evaluations/`, and keep development and release splits separate as required by

@@ -381,6 +381,57 @@ def _retry_binarized_small_hangul_word(
     return RecognizedText(candidate, retry_confidence)
 
 
+def _retry_dark_background_hangul_pair(
+    image: Image.Image,
+    line_height: float,
+    recognized: RecognizedText,
+    recognizer: Any,
+) -> RecognizedText:
+    text = recognized.text.replace(' ', '')
+    if (
+        not getattr(recognizer, 'supports_binarized_small_text_retry', False)
+        or not 0 < line_height <= 20
+        or len(text) != 2
+        or not all(is_hangul(character) for character in text)
+        or recognized.confidence >= 0.97
+    ):
+        return recognized
+    grayscale = image.convert('L')
+    pixels = np.asarray(grayscale)
+    border = np.concatenate((pixels[0], pixels[-1], pixels[:, 0], pixels[:, -1]))
+    if np.median(border) > 64 or int(pixels.max()) - int(pixels.min()) < 128:
+        return recognized
+    prepared = ImageOps.invert(ImageOps.autocontrast(grayscale)).point(
+        lambda pixel: 255 if pixel >= 216 else 0
+    )
+    candidate: str | None = None
+    confidence = float('inf')
+    for resampling in (
+        Image.Resampling.BILINEAR,
+        Image.Resampling.BICUBIC,
+        Image.Resampling.LANCZOS,
+    ):
+        retry = recognizer.recognize(
+            prepared.resize(
+                (prepared.width * 2, prepared.height * 2), resampling
+            ).convert('RGB')
+        )
+        retry_text = retry.text.replace(' ', '')
+        if (
+            retry_text == text
+            or len(retry_text) != len(text)
+            or not all(is_hangul(character) for character in retry_text)
+            or retry.confidence < 0.97
+            or retry.confidence <= recognized.confidence
+            or (candidate is not None and retry_text != candidate)
+        ):
+            return recognized
+        candidate = retry_text
+        confidence = min(confidence, retry.confidence)
+    assert candidate is not None
+    return RecognizedText(candidate, confidence)
+
+
 def _retry_confirmed_crowded_four_hangul_word(
     image: Image.Image,
     previous_gap: int,
@@ -10682,6 +10733,12 @@ class PaddleOcrEngine(OcrEngine):
                     self.recognizer,
                 )
             recognized = _retry_binarized_small_hangul_word(
+                word_crop,
+                line_box.height,
+                recognized,
+                self.recognizer,
+            )
+            recognized = _retry_dark_background_hangul_pair(
                 word_crop,
                 line_box.height,
                 recognized,

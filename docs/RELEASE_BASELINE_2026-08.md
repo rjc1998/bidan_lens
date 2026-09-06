@@ -49,7 +49,7 @@ preserved as rejected evidence because its correction was broader than the viewp
 The v4.16 quick tier records 99.37% whole-eojeol OCR, 100.00% target selection, 96.50%
 functional context, 76.50% exact sentence transcription, 95.00% component accuracy, 95.50%
 exact KRDict fidelity, 92.50% fully correct first popups, 97.50% alternative recovery, and zero
-false promotions. The accepted current rerun is 211.21 ms median / 320.62 ms p95. There
+false promotions. The accepted current rerun is 269.71 ms median / 398.12 ms p95. There
 are eight analysis and seven context failures, with no target failure. Aggregate and every negative category are
 0.00%, including all 200 near-miss probes, so the quick popup floor and strict negative-activation
 gate pass.
@@ -57,7 +57,7 @@ gate pass.
 The v4.16 lock SHA-256 is
 `1c5661f511a49c4931214c614b812aedf298edb746e95c951113d9829158aa62`.
 The aggregate quick report and privacy-safe diagnostic SHA-256 values are
-`0df0645a99598b69b02d4529a2d8e10282e7b31a9bc719bddf234ae8a6f06a12` and
+`6b800ef1a82a1b0bc2d72d93c5f37a8cd5881f4a0cc663540f852d21d6f54700` and
 `f6dbca9d8b291ff7190402d8c8808d19acfb50a05bb50c9cf0183423706549a6`.
 Accumulated candidate-builder changes mean v4.9 decisions cannot be mapped to v4.16 by numeric ID
 without a fresh review audit.
@@ -66,7 +66,7 @@ The complete v4.16 development run against the current OCR and analyzer cleanup 
 whole-eojeol OCR, 99.90% target selection, 92.40% functional context, 74.05% exact sentence
 transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.45% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 245.90 ms median / 380.36 ms p95. The privacy-safe stage totals are two target,
+accepted rerun is 233.77 ms median / 366.80 ms p95. The privacy-safe stage totals are two target,
 150 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
@@ -80,7 +80,7 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`3d59a5f9dfdd7df3e14c38189081bc79ac5acf484afb23fddda5a79ad76a8166` and
+`34229185884932f6d7e19502d5f81a25d3a9e0bc239ecf4f553bbc16036bd3fa` and
 `8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
 
 The September 6 full follow-up evaluates commit `8aa8ab2`, including the small-text retry
@@ -89,8 +89,28 @@ non-latency values across the main, stress, language, and render-stratum reports
 accepted pre-optimization baseline. Diagnostics are byte-identical, and all 150 active context
 and 99 popup-analysis decisions retain coverage and matching failure stages. The reports and
 aggregate comparison are preserved under the ignored v4.16 evaluation root in
-`retry-short-circuit-full-2026-09-06/`. Automated timings above describe this run; a controlled
-latency speedup and foreground release performance have not been established.
+`retry-short-circuit-full-2026-09-06/`. That earlier run measured 245.90 ms median / 380.36 ms
+p95; a controlled latency speedup and foreground release performance have not been established.
+
+A dark-background OCR follow-up reviews 25 remaining 14 px non-target transcription cases.
+Ordinary threshold variants do not provide a sufficiently strong correction; inverted,
+autocontrasted crops yield one three-resampling consensus above 97% confidence. The accepted
+retry is limited to two-syllable Hangul below 97% confidence on detector lines no taller than
+20 px, with a dark median border and strong contrast. It retains the crop geometry and stops
+at the first weak or conflicting reading.
+
+The full production-asset comparison corrects one word in `dev-plain-1250`, increasing 14 px
+whole-eojeol OCR from 97.18% to 97.21% and ellipsis OCR from 98.80% to 98.83%. The same case
+retains a context failure, so aggregate functional context and first-popup correctness remain
+92.40% and 87.45%. The rounded aggregate OCR remains 98.68%. Every changed non-latency
+report value is an improved OCR percentage or confidence-interval bound; main failure stages,
+stress, held-out language, corrections, negative activation, and review coverage are unchanged.
+Quick and full diagnostics are byte-identical to their accepted baselines. The new retry makes
+34 recognizer calls across 2,000 main cases and seven across 250 stress cases, accepting only
+the reviewed main replacement; quick adds three calls and accepts none. Reports, categorical
+crop evidence, and exact comparisons are preserved under the ignored v4.16 root in
+`context-retry-2026-09-06/`. The automated runs overlapped with other local verification and
+do not establish a latency improvement or foreground release performance.
 
 All required size and punctuation groups clear the 97% OCR target. Six groups still miss the
 88% exceptional first-popup floor, with 250 samples per group:
