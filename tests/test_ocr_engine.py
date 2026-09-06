@@ -770,6 +770,62 @@ def test_binarized_small_hangul_retry_rejects_weak_or_ambiguous_evidence(
     )
 
 
+@pytest.mark.parametrize('failure_index', [0, 1, 2])
+@pytest.mark.parametrize(
+    'failed_reading',
+    [
+        RecognizedText('\uae38\uc815', 0.99),
+        RecognizedText('\uacb0', 0.99),
+        RecognizedText('\uacb0A', 0.99),
+        RecognizedText('', 0.99),
+        RecognizedText('\uacb0\uc815', 0.939),
+        RecognizedText('\uacb0\uc815', 0.95),
+    ],
+)
+def test_binarized_small_hangul_retry_stops_at_first_failed_reading(
+    failure_index: int, failed_reading: RecognizedText,
+) -> None:
+    original = RecognizedText('\uae38\uc815', 0.95)
+    recognizer = BinarizedRetryRecognizer(
+        (RecognizedText('\uacb0\uc815', 0.99),) * failure_index + (failed_reading,)
+    )
+
+    result = _retry_binarized_small_hangul_word(
+        Image.new('RGB', (20, 12)), 14.1, original, recognizer,
+    )
+
+    assert result is original
+    assert len(recognizer.sizes) == failure_index + 1
+
+
+def test_binarized_small_hangul_retry_stops_at_disagreement() -> None:
+    original = RecognizedText('\uae38\uc815', 0.95)
+    recognizer = BinarizedRetryRecognizer((
+        RecognizedText('\uacb0\uc815', 0.99),
+        RecognizedText('\uac00\uc815', 0.99),
+    ))
+
+    assert _retry_binarized_small_hangul_word(
+        Image.new('RGB', (20, 12)), 14.1, original, recognizer,
+    ) is original
+    assert len(recognizer.sizes) == 2
+
+
+def test_binarized_small_hangul_retry_normalizes_all_readings_and_keeps_minimum() -> None:
+    recognizer = BinarizedRetryRecognizer((
+        RecognizedText('\uacb0 \uc815', 0.94),
+        RecognizedText('\uacb0\uc815', 0.99),
+        RecognizedText(' \uacb0\uc815 ', 0.98),
+    ))
+
+    result = _retry_binarized_small_hangul_word(
+        Image.new('RGB', (20, 12)), 14.1, RecognizedText('\uae38\uc815', 0.8), recognizer,
+    )
+
+    assert result == RecognizedText('\uacb0\uc815', 0.94)
+    assert len(recognizer.sizes) == 3
+
+
 def test_binarized_small_hangul_retry_requires_strong_consensus() -> None:
     original = RecognizedText('\uae38\uc815', 0.8)
     recognizer = BinarizedRetryRecognizer(

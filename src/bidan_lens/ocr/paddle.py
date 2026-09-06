@@ -350,8 +350,14 @@ def _retry_binarized_small_hangul_word(
     ):
         return recognized
     grayscale = ImageOps.autocontrast(image.convert('L'))
-    retries = tuple(
-        recognizer.recognize(
+    candidate: str | None = None
+    retry_confidence = float('inf')
+    for resampling in (
+        Image.Resampling.BILINEAR,
+        Image.Resampling.BICUBIC,
+        Image.Resampling.LANCZOS,
+    ):
+        retry = recognizer.recognize(
             grayscale.resize(
                 (grayscale.width * 3, grayscale.height * 3),
                 resampling,
@@ -359,24 +365,19 @@ def _retry_binarized_small_hangul_word(
             .point(lambda pixel: 255 if pixel >= 216 else 0)
             .convert('RGB')
         )
-        for resampling in (
-            Image.Resampling.BILINEAR,
-            Image.Resampling.BICUBIC,
-            Image.Resampling.LANCZOS,
-        )
-    )
-    retry_texts = tuple(retry.text.replace(' ', '') for retry in retries)
-    candidate = retry_texts[0]
-    retry_confidence = min(retry.confidence for retry in retries)
-    if (
-        any(retry_text != candidate for retry_text in retry_texts[1:])
-        or candidate == text
-        or len(candidate) != len(text)
-        or not all(is_hangul(character) for character in candidate)
-        or retry_confidence < 0.94
-        or retry_confidence <= recognized.confidence
-    ):
-        return recognized
+        retry_text = retry.text.replace(' ', '')
+        if (
+            (candidate is not None and retry_text != candidate)
+            or retry_text == text
+            or len(retry_text) != len(text)
+            or not all(is_hangul(character) for character in retry_text)
+            or retry.confidence < 0.94
+            or retry.confidence <= recognized.confidence
+        ):
+            return recognized
+        candidate = retry_text
+        retry_confidence = min(retry_confidence, retry.confidence)
+    assert candidate is not None
     return RecognizedText(candidate, retry_confidence)
 
 

@@ -246,6 +246,11 @@ rounded to their original integer CTC coordinates to avoid subpixel arithmetic c
 any line, retry, geometry, category, confidence, or crop-consensus signal differs, the normal
 higher-confidence retry remains selected. The recovered word retains the original segment geometry
 and uses the minimum direct/crop confidence.
+The general small-Hangul binarized retry checks its bilinear, bicubic, and Lanczos readings
+in order and stops as soon as a reading rules out acceptance. Unchanged text, incompatible length,
+non-Hangul output, insufficient confidence, or disagreement with an earlier reading preserves the
+original result immediately. An accepted correction still requires all three readings to agree,
+meet the existing confidence floor, and improve on the original; it retains their minimum confidence.
 A separately reviewed crowded four-Hangul recalibration profile applies only on a 17.5-17.7 px
 detector line when the selected reading is 53-54% confident, its width is 3.68-3.70 times line
 height, the preceding gap is 28-28.5% of line height, and the following segment overlaps by

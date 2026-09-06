@@ -79,6 +79,15 @@ promotions remain zero. Its remaining failures are eight analysis cases (four pr
 four component roles) and seven context cases; no target failures remain. Aggregate and per-category
 activation are 0.00%, so the quick popup floor and strict negative gate pass.
 
+A small-text OCR performance follow-up now stops the general binarized retry when a reading
+makes unanimous acceptance impossible. A paired 200-case v4.16 quick run with the installed
+production assets reduces recognizer calls in this retry path from 54 to 20 (62.96%), preserving
+the one accepted replacement, every non-latency report value, and byte-identical diagnostics.
+This is a reduction in retry work, not a measured increase in accuracy or a release-latency claim.
+The comparison reports are under the ignored v4.16 evaluation root in
+`retry-short-circuit-2026-09-06/`. The full corpus, release split, and foreground benchmark were
+not rerun for this evaluation-order change; the recorded full development results below predate it.
+
 The aggregate report SHA-256 is
 `0df0645a99598b69b02d4529a2d8e10282e7b31a9bc719bddf234ae8a6f06a12`; the
 privacy-safe diagnostic SHA-256 is
