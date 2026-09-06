@@ -66,7 +66,7 @@ The complete v4.16 development run against the current OCR and analyzer cleanup 
 whole-eojeol OCR, 99.90% target selection, 92.40% functional context, 74.05% exact sentence
 transcription, 93.80% component accuracy, 95.80% exact KRDict fidelity, 87.45% fully correct first
 popups, 97.00% alternative recovery, and zero false promotions across 2,000 main cases. The
-accepted rerun is 249.22 ms median / 383.43 ms p95. The privacy-safe stage totals are two target,
+accepted rerun is 245.90 ms median / 380.36 ms p95. The privacy-safe stage totals are two target,
 150 context, and 99 analysis failures. The analysis failures comprise 44 primary lemmas, 45
 component roles, four component counts, and six grammar roles; no component-surface failures
 remain.
@@ -80,8 +80,41 @@ dictionary-conformance, latency, and strict
 aggregate/per-category negative gates pass; the primary and exceptional floors do not.
 
 The full aggregate report and privacy-safe diagnostic SHA-256 values are
-`2ad213a2d1291ab80ba0a7fc61a2bf90954289f78c592deb6c3c6056c8baa5ec` and
+`3d59a5f9dfdd7df3e14c38189081bc79ac5acf484afb23fddda5a79ad76a8166` and
 `8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
+
+The September 6 full follow-up evaluates commit `8aa8ab2`, including the small-text retry
+early exit, against the same locked development corpus and installed production assets. All
+non-latency values across the main, stress, language, and render-stratum reports match the
+accepted pre-optimization baseline. Diagnostics are byte-identical, and all 150 active context
+and 99 popup-analysis decisions retain coverage and matching failure stages. The reports and
+aggregate comparison are preserved under the ignored v4.16 evaluation root in
+`retry-short-circuit-full-2026-09-06/`. Automated timings above describe this run; a controlled
+latency speedup and foreground release performance have not been established.
+
+All required size and punctuation groups clear the 97% OCR target. Six groups still miss the
+88% exceptional first-popup floor, with 250 samples per group:
+
+| Required render group | Correct first popup | Net additional correct popups to 88% |
+| --- | ---: | ---: |
+| 12 px | 84.00% | 10 |
+| 14 px | 81.20% | 17 |
+| 18 px | 86.40% | 4 |
+| mixed | 80.80% | 18 |
+| natural | 84.00% | 10 |
+| terminal | 86.00% | 5 |
+
+These are overlapping size and punctuation groups; their deficits must not be added together.
+At aggregate level, 1,749 of 2,000 first popups are correct: reaching 92% requires 91 net
+recoveries, while reaching 88% requires 11. Meeting the aggregate floor alone would leave
+required render floors unresolved and would not authorize an exceptional release.
+
+The next OCR review should prioritize 14 px non-target transcription and mixed-punctuation
+context. Of the 35 context failures at 14 px, 25 are reviewed non-target transcription errors;
+of the 37 mixed-punctuation context failures, 32 are reviewed punctuation or structured-ASCII
+handling cases. The failing size/punctuation groups together contain 125 distinct context
+failures. Correcting context may expose a downstream analysis failure, so these counts describe
+review opportunities rather than guaranteed popup recoveries.
 
 The context reviewer now assigns full-tier reports the distinct `functional_context_full` kind and
 supports repeated-ID batch inspection and single-ID categorical recording without scanning every

@@ -85,8 +85,12 @@ production assets reduces recognizer calls in this retry path from 54 to 20 (62.
 the one accepted replacement, every non-latency report value, and byte-identical diagnostics.
 This is a reduction in retry work, not a measured increase in accuracy or a release-latency claim.
 The comparison reports are under the ignored v4.16 evaluation root in
-`retry-short-circuit-2026-09-06/`. The full corpus, release split, and foreground benchmark were
-not rerun for this evaluation-order change; the recorded full development results below predate it.
+`retry-short-circuit-2026-09-06/`. A full follow-up on commit `8aa8ab2` now covers all 2,000 main,
+250 stress, and 400 held-out language cases. Every non-latency metric matches the accepted
+pre-optimization baseline, diagnostics remain byte-identical, and all active main context and
+popup decisions still match their reviewed categories and stages. Its aggregate reports and
+render-gap summary are under `retry-short-circuit-full-2026-09-06/` in the same evaluation root.
+The release split, foreground benchmark, and clean packaged-system checks remain outstanding.
 
 The aggregate report SHA-256 is
 `0df0645a99598b69b02d4529a2d8e10282e7b31a9bc719bddf234ae8a6f06a12`; the
@@ -97,8 +101,8 @@ The complete v4.16 development evaluation has now run against the current OCR an
 cleanup. Its 2,000 main cases record 98.68% whole-eojeol OCR, 99.90% target selection, 92.40%
 functional context, 74.05% exact sentence transcription, 93.80% component accuracy, 95.80% exact
 KRDict fidelity, 87.45% fully correct first popups, and 97.00% alternative recovery. False
-promotions remain zero and the accepted follow-up is 249.22 ms median /
-383.43 ms p95. Privacy-safe diagnostics contain 2 target, 150 context, and 99 analysis failures;
+promotions remain zero and the accepted follow-up is 245.90 ms median /
+380.36 ms p95. Privacy-safe diagnostics contain 2 target, 150 context, and 99 analysis failures;
 the analysis stages are 44 primary lemmas, 45 component roles, four component counts, and six
 grammar roles. No component-surface failures remain, and no stable ID has a negative
 activation.
@@ -112,7 +116,7 @@ latency, and aggregate/per-category negative-activation gates pass, but the prim
 exceptional floors fail.
 
 The current full aggregate and privacy-safe diagnostic SHA-256 values are
-`2ad213a2d1291ab80ba0a7fc61a2bf90954289f78c592deb6c3c6056c8baa5ec` and
+`3d59a5f9dfdd7df3e14c38189081bc79ac5acf484afb23fddda5a79ad76a8166` and
 `8e0df70dbb151a533170ddb2cd57c1dc1244996143b777cbf9c000bd9e9bb2b2`.
 
 The context reviewer now has a separately scoped full-tier mode so quick and 2,000-case decision
