@@ -58,6 +58,9 @@ runs across preserved corpus versions; normal schema and hash validation still f
 Its optional `--output` writes aggregate reports as UTF-8 JSON by atomic replacement after a
 successful evaluation, preserving the previous report on failure. The runner rejects report
 paths inside corpus or asset directories and collisions with the diagnostics destination.
+Diagnostics now receive the same corpus/asset path protection before evaluation, including direct
+`run_plain` calls, and use atomic UTF-8 replacement so a failed write preserves the prior file.
+The aggregate and diagnostic files remain separate replacements, not a paired transaction.
 
 The current development corpus is locked under
 `local-data\evaluations\bidan-lens-eval-ud218-v4.16\dev`; the untouched v4.2 release corpus

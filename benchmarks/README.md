@@ -120,8 +120,11 @@ evaluation succeeds. An evaluation or replacement failure preserves an existing 
 parent directory must already exist, and the report must be outside the corpus and asset
 directories and separate from `--diagnostics`. Without `--output`, JSON still goes to stdout.
 For example, append `--output $reports\dev-full.json` to the evaluation command. Keep this path
-under `local-data/evaluations/`. Diagnostics remain a separate output and are not committed
-atomically together with the aggregate report.
+under `local-data/evaluations/`. The diagnostics destination is also checked before evaluation
+and must be outside the corpus and asset directories, including when calling `run_plain` directly.
+Diagnostics use the same atomic UTF-8 replacement and preserve an existing file if replacement
+fails; missing diagnostic parent directories are created automatically. Diagnostics remain a
+separate output and are not committed atomically together with the aggregate report.
 
 Review development language disagreements locally with
 `python -m benchmarks.language_review ASSETS CORPUS DECISIONS`. The interactive command

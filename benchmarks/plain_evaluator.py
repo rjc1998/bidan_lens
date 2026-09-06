@@ -32,7 +32,9 @@ from benchmarks.locked_corpus import (
     _provenance,
     _read_object,
     _sha256,
+    _validate_report_destination,
     _wilson_interval,
+    _write_report,
     load_sources,
 )
 from benchmarks.plain_corpus import (
@@ -1154,10 +1156,8 @@ def _write_diagnostics(path: Path, outcomes: tuple[SampleOutcome, ...]) -> None:
         if item.failed_stage is not None or item.negative_activations
     ]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps({"schema_version": 1, "failures": failures}, indent=2) + "\n",
-        encoding="utf-8",
-        newline="\n",
+    _write_report(
+        path, json.dumps({"schema_version": 1, "failures": failures}, indent=2),
     )
 
 
@@ -1436,6 +1436,8 @@ def run_plain(
     analyzer: AnalyzerLike | None = None,
     dictionary: DictionaryStore | None = None,
 ) -> dict[str, object]:
+    if diagnostics is not None:
+        _validate_report_destination(diagnostics, assets, corpus, option='--diagnostics')
     validation = validate_plain_corpus(corpus, allow_incomplete=quick)
     corpus_id, locked = _lock_files(corpus)
     sources = load_sources(corpus, locked)

@@ -498,6 +498,67 @@ def test_plain_diagnostics_include_only_negative_activation_categories(
     assert "sentence" not in failure
 
 
+@pytest.mark.parametrize('protected_root', ['corpus', 'assets'])
+@pytest.mark.parametrize('normalized_path', [False, True])
+def test_plain_run_protects_inputs_before_validation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    protected_root: str, normalized_path: bool,
+) -> None:
+    from benchmarks import plain_evaluator
+
+    destination = tmp_path / protected_root / 'preserved.json'
+    destination.parent.mkdir()
+    destination.write_bytes(b'locked input')
+    requested = destination
+    if normalized_path:
+        nested = destination.parent / 'nested'
+        nested.mkdir()
+        requested = nested / '..' / destination.name
+
+    def unexpected_validation(*args, **kwargs):
+        pytest.fail('destination validation must precede corpus and model loading')
+
+    monkeypatch.setattr(plain_evaluator, 'validate_plain_corpus', unexpected_validation)
+    with pytest.raises(CorpusError, match='--diagnostics must be outside'):
+        run_plain(tmp_path / 'assets', tmp_path / 'corpus', diagnostics=requested)
+    assert destination.read_bytes() == b'locked input'
+
+
+@pytest.mark.parametrize('replacement_fails', [False, True])
+def test_plain_diagnostics_replace_atomically(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement_fails: bool,
+) -> None:
+    destination = tmp_path / 'diagnostics.json'
+    destination.write_bytes(b'previous diagnostics')
+    expected = (json.dumps({'schema_version': 1, 'failures': []}, indent=2) + '\n').encode()
+    original_replace = Path.replace
+
+    def checked_replace(source: Path, target: Path):
+        assert source.parent == destination.parent
+        assert source.read_bytes() == expected
+        assert destination.read_bytes() == b'previous diagnostics'
+        if replacement_fails:
+            raise PermissionError('fixture replacement denied')
+        return original_replace(source, target)
+
+    monkeypatch.setattr(Path, 'replace', checked_replace)
+    if replacement_fails:
+        with pytest.raises(PermissionError, match='fixture replacement denied'):
+            _write_diagnostics(destination, ())
+        assert destination.read_bytes() == b'previous diagnostics'
+    else:
+        _write_diagnostics(destination, ())
+        assert destination.read_bytes() == expected
+    assert list(tmp_path.iterdir()) == [destination]
+
+
+def test_plain_diagnostics_create_missing_report_directory(tmp_path: Path) -> None:
+    destination = tmp_path / 'reports' / 'nested' / 'diagnostics.json'
+    _write_diagnostics(destination, ())
+    assert json.loads(destination.read_bytes()) == {'schema_version': 1, 'failures': []}
+    assert list(destination.parent.iterdir()) == [destination]
+
+
 def test_plain_lock_detects_tampering_and_cross_category_duplicates(tmp_path: Path) -> None:
     root = _corpus(tmp_path)
     lock_plain_corpus(root, "plain-test", allow_incomplete=True)

@@ -161,6 +161,39 @@ def test_cli_rejects_report_destination_collision(
     assert output.read_bytes() == b'preserved'
 
 
+@pytest.mark.parametrize('protected_root', ['corpus', 'assets'])
+@pytest.mark.parametrize('with_output', [False, True])
+def test_cli_rejects_diagnostics_inside_inputs_before_evaluation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+    protected_root: str, with_output: bool,
+) -> None:
+    from benchmarks import locked_corpus, plain_evaluator
+
+    destination = tmp_path / protected_root / 'preserved.json'
+    destination.parent.mkdir()
+    destination.write_bytes(b'locked input')
+
+    def unexpected_run(*args, **kwargs):
+        pytest.fail('evaluation must not start for a diagnostics collision')
+
+    monkeypatch.setattr(plain_evaluator, 'run_plain', unexpected_run)
+    arguments = [
+        'locked_corpus', str(tmp_path / 'assets'), str(tmp_path / 'corpus'),
+        '--profile', 'plain-v1', '--diagnostics', str(destination),
+    ]
+    if with_output:
+        arguments.extend(['--output', str(tmp_path / 'report.json')])
+    monkeypatch.setattr('sys.argv', arguments)
+
+    with pytest.raises(SystemExit) as error:
+        locked_corpus.main()
+
+    assert error.value.code == 2
+    assert '--diagnostics must be outside' in capsys.readouterr().err
+    assert destination.read_bytes() == b'locked input'
+    assert not (tmp_path / 'report.json').exists()
+
+
 def _source_manifest(tmp_path: Path, evidence: str = "LICENSE.txt") -> Path:
     path = tmp_path / "sources.json"
     path.write_text(

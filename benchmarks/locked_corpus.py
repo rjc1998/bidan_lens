@@ -586,6 +586,13 @@ def run(assets: Path, corpus: Path, category: str, allow_incomplete: bool) -> di
     return results
 
 
+def _validate_report_destination(
+    path: Path, assets: Path, corpus: Path, *, option: str,
+) -> None:
+    if any(path.resolve().is_relative_to(root.resolve()) for root in (corpus, assets)):
+        raise CorpusError(f'{option} must be outside the corpus and asset directories')
+
+
 def _write_report(path: Path, report: str) -> None:
     temporary: Path | None = None
     try:
@@ -627,12 +634,18 @@ def main() -> None:
         help='atomically write the completed aggregate report as UTF-8 JSON',
     )
     arguments = parser.parse_args()
+    for option, destination in (
+        ('--output', arguments.output), ('--diagnostics', arguments.diagnostics),
+    ):
+        if destination is not None:
+            try:
+                _validate_report_destination(
+                    destination, arguments.assets, arguments.corpus, option=option,
+                )
+            except CorpusError as error:
+                parser.error(str(error))
     if arguments.output is not None:
         output = arguments.output.resolve()
-        if any(output.is_relative_to(root.resolve()) for root in (
-            arguments.corpus, arguments.assets,
-        )):
-            parser.error('--output must be outside the corpus and asset directories')
         if arguments.diagnostics is not None and output == arguments.diagnostics.resolve():
             parser.error('--output and --diagnostics must be different files')
     if arguments.expected_corpus_id is not None:
